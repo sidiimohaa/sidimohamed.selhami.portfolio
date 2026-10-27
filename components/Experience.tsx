@@ -5,60 +5,19 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ArrowUpRight,
   ArrowRight,
-  ArrowLeft,
   Volume2,
   VolumeX,
-  Plus,
   X,
   ChevronRight,
   RotateCcw,
-  MoveUp,
-  MoveDown,
-  MoveLeft,
-  MoveRight,
   Navigation,
-  Check,
+  CircleHelp,
+  Map,
 } from "lucide-react";
 import Preloader from "./Preloader";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
-const destinations = [
-  {
-    name: "Tatooine",
-    category: "Les projets",
-    tag: "CRÉATION & EXPLORATION",
-    number: "01",
-    color: "#bb9573",
-    className: "sand",
-    description:
-      "Des idées qui prennent forme. Des expériences qui ouvrent de nouveaux horizons.",
-    coordinates: "23.42 / 06.18",
-    distance: "12 400",
-  },
-  {
-    name: "Endor",
-    category: "Les passions",
-    tag: "CURIOSITÉ & INSPIRATION",
-    number: "02",
-    color: "#96aa8c",
-    className: "forest",
-    description:
-      "Ce qui m’anime, m’inspire et nourrit chaque nouvelle aventure.",
-    coordinates: "08.71 / 42.06",
-    distance: "8 200",
-  },
-  {
-    name: "Coruscant",
-    category: "Le contact",
-    tag: "RENCONTRES & CONNEXIONS",
-    number: "03",
-    color: "#aaaebd",
-    className: "city",
-    description:
-      "Toutes les grandes aventures commencent par une première connexion.",
-    coordinates: "00.00 / 00.00",
-    distance: "21 700",
-  },
-];
+import { destinations } from "./universe";
+
 function OrbitalLogo() {
   return (
     <svg viewBox="0 0 46 46" fill="none" aria-hidden="true">
@@ -81,17 +40,15 @@ export default function Experience() {
     [ready, setReady] = useState(false),
     [progress, setProgress] = useState(0),
     [loading, setLoading] = useState(true),
-    [flying, setFlying] = useState(false),
     [boost, setBoost] = useState(false),
     [destination, setDestination] = useState(0),
     [mapOpen, setMapOpen] = useState(false),
-    [aboutOpen, setAboutOpen] = useState(false),
+    [helpOpen, setHelpOpen] = useState(false),
     [sound, setSound] = useState(false),
     [travel, setTravel] = useState(false),
     [arrived, setArrived] = useState(false),
     [unsupported, setUnsupported] = useState(false),
-    [distance, setDistance] = useState(12400),
-    [copied, setCopied] = useState(false);
+    [resetKey, setResetKey] = useState(0);
   const audio = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null),
     timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const current = destinations[destination];
@@ -122,22 +79,12 @@ export default function Experience() {
     },
     [],
   );
-  useEffect(() => {
-    if (!flying) return;
-    const id = setInterval(
-      () => setDistance((d) => Math.max(320, d - (boost ? 34 : 3))),
-      150,
-    );
-    return () => clearInterval(id);
-  }, [flying, boost]);
   const launch = useCallback(
     (index: number) => {
       timers.current.forEach(clearTimeout);
       setDestination(index);
-      setDistance(Number(destinations[index].distance.replace(/ /g, "")));
       setMapOpen(false);
       setArrived(false);
-      setFlying(true);
       setTravel(true);
       timers.current.push(
         setTimeout(
@@ -156,16 +103,16 @@ export default function Experience() {
       if (e.key === "Escape") {
         timers.current.forEach(clearTimeout);
         setMapOpen(false);
-        setAboutOpen(false);
+        setHelpOpen(false);
         setArrived(false);
         setTravel(false);
       }
       if (
         e.key.toLowerCase() === "e" &&
-        flying &&
+        !loading &&
         !travel &&
         !mapOpen &&
-        !aboutOpen &&
+        !helpOpen &&
         !arrived
       )
         launch(destination);
@@ -183,9 +130,9 @@ export default function Experience() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [flying, destination, travel, mapOpen, aboutOpen, arrived, launch]);
+  }, [loading, destination, travel, mapOpen, helpOpen, arrived, launch]);
   useEffect(() => {
-    if (!mapOpen && !aboutOpen && !arrived) return;
+    if (!mapOpen && !helpOpen && !arrived) return;
     const old = document.activeElement as HTMLElement;
     const modal = document.querySelector<HTMLElement>('[role="dialog"]');
     modal?.querySelector<HTMLElement>("button")?.focus();
@@ -209,7 +156,7 @@ export default function Experience() {
       window.removeEventListener("keydown", trap);
       old?.focus();
     };
-  }, [mapOpen, aboutOpen, arrived]);
+  }, [mapOpen, helpOpen, arrived]);
   const toggleSound = () => {
     if (!audio.current) {
       const ctx = new AudioContext(),
@@ -239,37 +186,36 @@ export default function Experience() {
     setArrived(false);
     setMapOpen(true);
   };
-  const changeDestination = (dir: number) => {
-    setDestination((d) => {
-      const next = (d + dir + 3) % 3;
-      setDistance(Number(destinations[next].distance.replace(/ /g, "")));
-      return next;
-    });
-  };
   const reset = () => {
     timers.current.forEach(clearTimeout);
-    setFlying(false);
     setTravel(false);
     setArrived(false);
+    setMapOpen(false);
+    setHelpOpen(false);
     setBoost(false);
     setDestination(0);
-    setDistance(12400);
+    setResetKey((key) => key + 1);
   };
-  const mobileDirection = (key: string, pressed: boolean) => {
-    window.dispatchEvent(
-      new KeyboardEvent(pressed ? "keydown" : "keyup", { key, bubbles: true }),
-    );
-  };
+  const paused = loading || mapOpen || helpOpen || arrived;
   return (
     <main
       aria-busy={loading}
-      className={`experience ${flying ? "is-flying" : ""} ${travel ? "is-travelling" : ""}`}
+      className={`experience open-space ${travel ? "is-travelling" : ""}`}
     >
       <div className="space-haze" />
       <div className="star-backup" />
       {unsupported && <div className="fallback-planet" />}
       <SpaceScene
-        state={{ flying, boost, destination, travel, reduced }}
+        state={{
+          flying: !loading,
+          boost,
+          destination,
+          travel,
+          reduced,
+          paused,
+          resetKey,
+        }}
+        onSelect={launch}
         onReady={onReady}
         onUnsupported={onUnsupported}
       />
@@ -278,6 +224,9 @@ export default function Experience() {
       <AnimatePresence>
         {loading && <Preloader progress={progress} reduced={reduced} />}
       </AnimatePresence>
+      <h1 className="sr-only">
+        ORBITAL — Explorez mon univers en vaisseau spatial
+      </h1>
       <header className="header">
         <button
           className="brand"
@@ -287,30 +236,24 @@ export default function Experience() {
           <OrbitalLogo />
           <span>
             ORBITAL<sup>®</sup>
-            <small>UN PORTFOLIO À EXPLORER</small>
           </span>
         </button>
-        <nav aria-label="Navigation principale">
+        <nav aria-label="Navigation principale" className="minimal-nav">
           <button
-            className={!mapOpen ? "nav-link active" : "nav-link"}
-            onClick={() => {
-              setMapOpen(false);
-              reset();
-            }}
-          >
-            L’EXPÉRIENCE<span>01</span>
-          </button>
-          <button
-            className={mapOpen ? "nav-link active" : "nav-link"}
+            className="map-trigger"
             onClick={openMap}
+            aria-label="Ouvrir la carte stellaire"
           >
-            CARTE STELLAIRE<span>02</span>
+            <Map size={15} />
+            <span>CARTE STELLAIRE</span>
           </button>
-        </nav>
-        <div className="header-right">
-          <span className="system-status">
-            <i /> SYSTÈMES EN LIGNE
-          </span>
+          <button
+            className="sound-button"
+            onClick={reset}
+            aria-label="Revenir au point de départ"
+          >
+            <RotateCcw size={15} />
+          </button>
           <button
             className={`sound-button ${sound ? "on" : ""}`}
             aria-label={
@@ -319,248 +262,17 @@ export default function Experience() {
             aria-pressed={sound}
             onClick={toggleSound}
           >
-            {sound ? <Volume2 size={17} /> : <VolumeX size={17} />}
+            {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
-        </div>
+          <button
+            className="sound-button"
+            aria-label="Afficher les commandes"
+            onClick={() => setHelpOpen(true)}
+          >
+            <CircleHelp size={16} />
+          </button>
+        </nav>
       </header>
-      <div className="edge-label mono">SECTEUR 07 — BORDURE EXTÉRIEURE</div>
-      <AnimatePresence mode="wait">
-        {!flying ? (
-          <motion.section
-            className="hero"
-            key="intro"
-            initial={{ opacity: 0, y: 25 }}
-            animate={{ opacity: loading ? 0 : 1, y: loading ? 25 : 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.8 }}
-          >
-            <p className="eyebrow">
-              <span className="little-star">✳</span> L’AVENTURE COMMENCE ICI
-            </p>
-            <h1>
-              CHAQUE IDÉE
-              <br />
-              EST UN NOUVEL
-              <br />
-              <span>UNIVERS.</span>
-              <span className="heading-star">✳</span>
-            </h1>
-            <p className="hero-description">
-              Création, exploration et un peu de poussière d’étoiles.
-              <br />
-              Bienvenue dans mon univers. À vous de le découvrir.
-            </p>
-            <button className="primary-cta" onClick={() => setFlying(true)}>
-              <span>PRENDRE LES COMMANDES</span>
-              <ArrowUpRight size={20} />
-            </button>
-            <p className="cta-note mono">
-              <i /> AUCUN PERMIS INTERGALACTIQUE REQUIS
-            </p>
-          </motion.section>
-        ) : (
-          <motion.section
-            key="flight"
-            className="flight-heading"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-          >
-            <p className="eyebrow">
-              <i className="live-dot" /> MODE EXPLORATION
-            </p>
-            <h1>
-              À VOUS
-              <br />
-              L’UNIVERS.
-            </h1>
-            <p>
-              Choisissez votre planète.
-              <br />
-              Laissez la curiosité vous guider.
-            </p>
-            <button className="text-button" onClick={reset}>
-              <RotateCcw size={13} /> REVENIR AU POINT DE DÉPART
-            </button>
-          </motion.section>
-        )}
-      </AnimatePresence>
-      <div className="planet-tag planet-tag-main">
-        <span className="tag-node" />
-        <div>
-          <span className="mono">01 / TERRITOIRE CRÉATIF</span>
-          <button onClick={() => launch(0)}>
-            TATOOINE <ArrowUpRight size={12} />
-          </button>
-        </div>
-      </div>
-      <button
-        className="planet-tag planet-tag-secondary"
-        onClick={() => launch(1)}
-      >
-        <span className="tag-node" />
-        <span>
-          <span className="mono">02 / LES PASSIONS</span>
-          <strong>
-            ENDOR <ArrowUpRight size={11} />
-          </strong>
-        </span>
-      </button>
-      <div className="reticle" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-        <i />
-        <span>+</span>
-      </div>
-      <div className="coordinates mono">
-        <Plus size={10} />
-        <span>
-          X {flying ? (23.42 - distance / 10000).toFixed(2) : "23.42"}
-          <br />Y 06.18
-          <br />Z 91.07
-        </span>
-      </div>
-      <div className="ship-label mono">
-        <span className="label-line" />
-        <span>
-          VOTRE VAISSEAU
-          <br />
-          <b>EXPLORER — X.01</b>
-        </span>
-      </div>
-      <div className="sector-scale" aria-hidden="true">
-        <span>+ 90</span>
-        <i />
-        <i />
-        <i />
-        <i />
-        <i />
-        <i />
-        <span>− 90</span>
-      </div>
-      <div className="bottom-dashboard">
-        <div className="flight-controls">
-          <span className="mini-label mono">
-            {flying ? "PILOTAGE MANUEL" : "PRÊT POUR LE DÉCOLLAGE"}
-          </span>
-          <div className="control-row">
-            <div className="key-cluster" aria-hidden="true">
-              <kbd>↑</kbd>
-              <div>
-                <kbd>←</kbd>
-                <kbd>↓</kbd>
-                <kbd>→</kbd>
-              </div>
-            </div>
-            <p>
-              {flying
-                ? "Flèches ou ZQSD pour piloter"
-                : "Un vaisseau. Mille possibilités."}
-              <span>
-                {flying
-                  ? "Glissez pour diriger · Maj pour accélérer"
-                  : "Prenez les commandes pour explorer."}
-              </span>
-            </p>
-          </div>
-        </div>
-        <div className="dashboard-middle">
-          <span className="mini-label mono">
-            {flying ? "VITESSE DE CROISIÈRE" : "AU-DELÀ DES PIXELS"}
-          </span>
-          <span className="explore-word">
-            {flying ? (
-              <>
-                <b>{boost ? "1 280" : "240"}</b> <small>KM / S</small>
-              </>
-            ) : (
-              <>
-                L’imagination pour seule limite.
-                <span className="small-orbit">✳</span>
-              </>
-            )}
-          </span>
-          <div className="speed-bars" aria-hidden="true">
-            {Array.from({ length: 32 }, (_, i) => (
-              <i
-                key={i}
-                className={i < (flying ? (boost ? 32 : 17) : 6) ? "lit" : ""}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="destination-card">
-          <div className="destination-heading mono">
-            <span>PROCHAINE DESTINATION</span>
-            <span>{current.number} / 03</span>
-          </div>
-          <div className="destination-row">
-            <button
-              className="destination-name"
-              onClick={() => launch(destination)}
-            >
-              <span>{current.name.toUpperCase()}</span>
-              <small>
-                {current.category} <ArrowUpRight size={12} />
-              </small>
-            </button>
-            <div className={`mini-planet ${current.className}`} />
-            <div className="destination-arrows">
-              <button
-                onClick={() => changeDestination(-1)}
-                aria-label="Destination précédente"
-              >
-                <ArrowLeft size={15} />
-              </button>
-              <button
-                onClick={() => changeDestination(1)}
-                aria-label="Destination suivante"
-              >
-                <ArrowRight size={15} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <footer className="footer mono">
-        <span>
-          © {new Date().getFullYear()} ORBITAL
-          <span className="footer-separator">/</span> PORTFOLIO INTERACTIF
-        </span>
-        <button onClick={() => setAboutOpen(true)}>
-          À PROPOS DE CET UNIVERS <Plus size={12} />
-        </button>
-        <span className="footer-end">
-          CONÇU SUR TERRE <span className="little-star">✳</span>
-        </span>
-      </footer>
-      {flying && !travel && (
-        <div className="mobile-steering" aria-label="Commandes tactiles">
-          {[
-            ["ArrowLeft", MoveLeft],
-            ["ArrowUp", MoveUp],
-            ["ArrowDown", MoveDown],
-            ["ArrowRight", MoveRight],
-          ].map(([key, Icon]) => {
-            const I = Icon as typeof MoveLeft;
-            return (
-              <button
-                key={key as string}
-                aria-label={`Piloter ${key}`}
-                onPointerDown={(e) => {
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  mobileDirection(key as string, true);
-                }}
-                onPointerUp={() => mobileDirection(key as string, false)}
-                onPointerCancel={() => mobileDirection(key as string, false)}
-              >
-                <I size={18} />
-              </button>
-            );
-          })}
-        </div>
-      )}
       <AnimatePresence>
         {travel && (
           <motion.div
@@ -608,7 +320,7 @@ export default function Experience() {
                   <X size={20} />
                 </button>
               </div>
-              <p className="eyebrow">TROIS MONDES. UN MÊME UNIVERS.</p>
+              <p className="eyebrow">L’ESPACE EST À VOUS.</p>
               <h2 id="map-title">OÙ ALLONS-NOUS ?</h2>
               <p className="modal-intro">
                 Choisissez un signal. Je vous emmène en orbite.
@@ -683,9 +395,19 @@ export default function Experience() {
                   TRANSMISSION REÇUE / {current.number}
                 </span>
                 <p>
-                  Ce monde est encore en formation.
-                  <br />
-                  Son histoire s’écrira bientôt.
+                  {destination === 3 ? (
+                    <>
+                      La station reste silencieuse.
+                      <br />
+                      Poursuivez votre exploration en orbite.
+                    </>
+                  ) : (
+                    <>
+                      Ce monde est encore en formation.
+                      <br />
+                      Son histoire s’écrira bientôt.
+                    </>
+                  )}
                 </p>
               </div>
               <button className="primary-cta" onClick={openMap}>
@@ -700,73 +422,62 @@ export default function Experience() {
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {aboutOpen && (
+        {helpOpen && (
           <motion.div
             className="modal-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setAboutOpen(false)}
+            onClick={() => setHelpOpen(false)}
           >
             <motion.section
-              className="about modal"
+              className="help modal"
               role="dialog"
               aria-modal="true"
-              aria-labelledby="about-title"
-              initial={{ y: 20 }}
-              animate={{ y: 0 }}
+              aria-labelledby="help-title"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="modal-top mono">
-                <span>TRANSMISSION / ORIGINE TERRE</span>
+                <span>VOL LIBRE</span>
                 <button
                   className="close-button"
-                  aria-label="Fermer à propos"
-                  onClick={() => setAboutOpen(false)}
+                  aria-label="Fermer les commandes"
+                  onClick={() => setHelpOpen(false)}
                 >
                   <X size={20} />
                 </button>
               </div>
-              <OrbitalLogo />
-              <p className="eyebrow">LE PORTFOLIO DEVIENT UN VOYAGE</p>
-              <h2 id="about-title">
-                LA CURIOSITÉ
-                <br />
-                COMME BOUSSOLE.
-              </h2>
+              <h2 id="help-title">À votre rythme.</h2>
               <p>
-                ORBITAL est un terrain d’exploration personnel, inspiré des
-                galaxies de Star Wars. Chaque planète accueillera une facette de
-                mon univers : mes projets, mes passions, et les rencontres à
-                venir.
+                Un espace ouvert, quatre destinations. Prenez le temps de
+                voyager.
               </p>
-              <p>
-                Pour l’instant, place au voyage. Prenez les commandes, suivez
-                les signaux et profitez de la vue.
-              </p>
-              <div className="about-tech mono">
-                NEXT.JS · REACT · THREE.JS · MOTION
-                <br />
-                TAILWIND CSS · LOTTIE · LUCIDE
-              </div>
-              <button
-                className="text-button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(window.location.href);
-                    setCopied(true);
-                    timers.current.push(
-                      setTimeout(() => setCopied(false), 2000),
-                    );
-                  } catch {
-                    setCopied(false);
-                  }
-                }}
-              >
-                {copied ? <Check size={14} /> : <Plus size={14} />}{" "}
-                {copied
-                  ? "COORDONNÉES COPIÉES"
-                  : "COPIER LES COORDONNÉES DE CET UNIVERS"}
+              <dl className="help-controls">
+                <div>
+                  <dt>Diriger</dt>
+                  <dd>Glissez à la souris ou au doigt</dd>
+                </div>
+                <div>
+                  <dt>Voyager</dt>
+                  <dd>Flèches · ZQSD · WASD</dd>
+                </div>
+                <div>
+                  <dt>Accélérer</dt>
+                  <dd>Maintenez Maj ou deux doigts</dd>
+                </div>
+                <div>
+                  <dt>Approcher</dt>
+                  <dd>Cliquez sur une planète ou ouvrez la carte</dd>
+                </div>
+                <div>
+                  <dt>Fermer</dt>
+                  <dd>Échap</dd>
+                </div>
+              </dl>
+              <button className="text-button" onClick={reset}>
+                <RotateCcw size={13} /> REVENIR AU POINT DE DÉPART
               </button>
             </motion.section>
           </motion.div>

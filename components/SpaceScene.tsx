@@ -1,15 +1,19 @@
 "use client";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { destinations } from "./universe";
 export type FlightState = {
   flying: boolean;
   boost: boolean;
   destination: number;
   travel: boolean;
   reduced: boolean;
+  paused: boolean;
+  resetKey: number;
 };
 type Props = {
   state: FlightState;
+  onSelect: (index: number) => void;
   onReady: () => void;
   onUnsupported: () => void;
 };
@@ -242,10 +246,156 @@ function shipModel() {
   box(0.26, 0.24, 0.16, 0, -0.66, 0.3, trim);
   return group;
 }
-export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
+function deathStarModel(radius: number) {
+  const group = new THREE.Group();
+  const canvas = document.createElement("canvas");
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const ctx = canvas.getContext("2d")!;
+  const rand = random(1138);
+  ctx.fillStyle = "#7a817e";
+  ctx.fillRect(0, 0, 2048, 1024);
+  // Rectangular armor plates and narrow service corridors follow the latitude grid.
+  for (let row = 0; row < 64; row++) {
+    let x = -rand() * 48;
+    while (x < 2048) {
+      const width = 12 + Math.floor(rand() * 66);
+      const tone = 96 + Math.floor(rand() * 48);
+      ctx.fillStyle = `rgb(${tone},${tone + 5},${tone + 3})`;
+      ctx.fillRect(x + 1, row * 16 + 1, width - 2, 14);
+      if (rand() > 0.58) {
+        ctx.fillStyle = "#434b49";
+        ctx.fillRect(x + 3, row * 16 + 3, width * 0.65, 2);
+      }
+      if (rand() > 0.83) {
+        ctx.fillStyle = "#b6bba9";
+        ctx.fillRect(x + 4, row * 16 + 8, 2, 1);
+      }
+      x += width;
+    }
+  }
+  ctx.fillStyle = "#202826";
+  ctx.fillRect(0, 506, 2048, 12);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const dishDirection = new THREE.Vector3(-0.32, 0.42, 0.85).normalize();
+  const armor = new THREE.MeshStandardMaterial({
+    map: texture,
+    bumpMap: texture,
+    bumpScale: 0.035,
+    roughness: 0.84,
+    metalness: 0.32,
+  });
+  armor.onBeforeCompile = (shader) => {
+    shader.uniforms.dishDirection = { value: dishDirection };
+    shader.vertexShader =
+      "varying vec3 stationPosition;\n" +
+      shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nstationPosition = position;",
+      );
+    shader.fragmentShader =
+      "varying vec3 stationPosition; uniform vec3 dishDirection;\n" +
+      shader.fragmentShader.replace(
+        "#include <clipping_planes_fragment>",
+        "#include <clipping_planes_fragment>\nif(dot(normalize(stationPosition),dishDirection) > 0.925) discard;",
+      );
+  };
+  const shell = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 128, 96),
+    armor,
+  );
+  group.add(shell);
+  const trench = new THREE.Mesh(
+    new THREE.TorusGeometry(radius * 0.999, 0.028, 8, 192),
+    new THREE.MeshStandardMaterial({ color: 0x171f1d, roughness: 1 }),
+  );
+  trench.rotation.x = Math.PI / 2;
+  group.add(trench);
+  const metal = new THREE.MeshStandardMaterial({
+    color: 0x717c77,
+    roughness: 0.72,
+    metalness: 0.4,
+    side: THREE.DoubleSide,
+  });
+  const darkMetal = new THREE.MeshStandardMaterial({
+    color: 0x414c47,
+    roughness: 0.88,
+    metalness: 0.3,
+    side: THREE.DoubleSide,
+  });
+  const dish = new THREE.Group();
+  dish.position.copy(dishDirection).multiplyScalar(radius * 0.925);
+  dish.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dishDirection);
+  const dishRadius = radius * 0.381;
+  const depth = radius * 0.14;
+  const profile = Array.from({ length: 25 }, (_, i) => {
+    const r = i / 24;
+    return new THREE.Vector2(
+      Math.max(0.001, r * dishRadius),
+      -depth * (1 - r * r),
+    );
+  });
+  const bowl = new THREE.Mesh(new THREE.LatheGeometry(profile, 96), darkMetal);
+  bowl.rotation.x = Math.PI / 2;
+  dish.add(bowl);
+  for (const fraction of [0.29, 0.57, 0.81, 1]) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(
+        dishRadius * fraction,
+        fraction === 1 ? 0.035 : 0.012,
+        6,
+        96,
+      ),
+      metal,
+    );
+    ring.position.z = -depth * (1 - fraction * fraction) + 0.01;
+    dish.add(ring);
+  }
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const points = profile.map(
+      (p) =>
+        new THREE.Vector3(
+          p.x * Math.cos(angle),
+          p.x * Math.sin(angle),
+          p.y + 0.015,
+        ),
+    );
+    dish.add(
+      new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(points),
+        new THREE.LineBasicMaterial({ color: 0x7b8680 }),
+      ),
+    );
+  }
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 0.032, 12, 8),
+    new THREE.MeshStandardMaterial({
+      color: 0x819780,
+      emissive: 0x374c35,
+      emissiveIntensity: 0.4,
+      metalness: 0.5,
+      roughness: 0.5,
+    }),
+  );
+  core.position.z = -depth + 0.035;
+  dish.add(core);
+  group.add(dish);
+  return group;
+}
+
+export default function SpaceScene({
+  state,
+  onSelect,
+  onReady,
+  onUnsupported,
+}: Props) {
   const mount = useRef<HTMLDivElement>(null),
     live = useRef(state);
   live.current = state;
+  const markers = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => {
     const el = mount.current;
     if (!el) return;
@@ -268,12 +418,12 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
     renderer.toneMappingExposure = 1.25;
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x080d0d, 0.008);
-    const camera = new THREE.PerspectiveCamera(43, 1, 0.1, 180);
-    camera.position.set(0, 0, 19);
+    scene.fog = new THREE.FogExp2(0x080d0d, 0.0025);
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 650);
+    camera.position.set(0, 0, 32);
     scene.add(new THREE.AmbientLight(0x9bafa8, 0.19));
     const sun = new THREE.DirectionalLight(0xffe2bf, 2.8);
-    sun.position.set(-12, 11, 5);
+    sun.position.set(-24, 24, 30);
     scene.add(sun);
     const rim = new THREE.DirectionalLight(0x7b9da6, 0.3);
     rim.position.set(6, -5, 8);
@@ -282,11 +432,11 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
       starsGeo = new THREE.BufferGeometry(),
       coords = [],
       colors = [];
-    for (let i = 0; i < 2100; i++) {
+    for (let i = 0; i < 4200; i++) {
       coords.push(
-        (rand() - 0.5) * 155,
-        (rand() - 0.5) * 100,
-        -15 - rand() * 85,
+        (rand() - 0.5) * 460,
+        (rand() - 0.5) * 320,
+        (rand() - 0.5) * 500,
       );
       const t = 0.35 + rand() * 0.65;
       colors.push(t, t * 0.97, t * 0.85);
@@ -299,7 +449,7 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
     const stars = new THREE.Points(
       starsGeo,
       new THREE.PointsMaterial({
-        size: 0.035,
+        size: 0.06,
         sizeAttenuation: true,
         vertexColors: true,
         transparent: true,
@@ -347,18 +497,23 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
       planets.push(g);
       return g;
     };
-    addPlanet("sand", 3.85, [6.4, 2.15, -3], 0xd9b78a);
-    addPlanet("green", 1.34, [0.8, -0.65, -5], 0x8abdb1);
-    addPlanet("moon", 0.42, [-6.8, 3, -8], 0xa4b2b4);
+    addPlanet("sand", 3.85, [11, 2, -8], 0xd9b78a);
+    addPlanet("green", 2.1, [-11, -3.5, -16], 0x8abdb1);
+    addPlanet("moon", 1.6, [17, -5, -27], 0xa4b2b4);
+    const deathStar = deathStarModel(3.3);
+    deathStar.position.set(-9, 5, 1);
+    scene.add(deathStar);
+    planets.push(deathStar);
+    const radii = [3.85, 2.1, 1.6, 3.3];
     const orbitGeo = new THREE.BufferGeometry();
     const orbitPoints = [];
     for (let i = 0; i <= 256; i++) {
       const a = (i / 256) * Math.PI * 2;
       orbitPoints.push(
         new THREE.Vector3(
-          6.4 + Math.cos(a) * 5.8,
-          1.3 + Math.sin(a) * 1.5,
-          -2 + Math.sin(a) * 2.8,
+          11 + Math.cos(a) * 6.4,
+          1.5 + Math.sin(a) * 1.5,
+          -7 + Math.sin(a) * 3.5,
         ),
       );
     }
@@ -381,11 +536,11 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
     const dummy = new THREE.Object3D();
     for (let i = 0; i < 75; i++) {
       const angle = rand() * Math.PI * 2,
-        r = 5.8 + (rand() - 0.5) * 1.2;
+        r = 6.4 + (rand() - 0.5) * 1.2;
       dummy.position.set(
-        6.4 + Math.cos(angle) * r,
-        1.3 + Math.sin(angle) * 1.5 + (rand() - 0.5) * 0.3,
-        -2 + Math.sin(angle) * 2.8,
+        11 + Math.cos(angle) * r,
+        1.5 + Math.sin(angle) * 1.5 + (rand() - 0.5) * 0.3,
+        -7 + Math.sin(angle) * 3.5,
       );
       dummy.rotation.set(rand() * 5, rand() * 5, rand() * 5);
       dummy.scale.setScalar(0.15 + rand() * 0.7);
@@ -402,41 +557,66 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
     light.position.set(0.5, -3.7, 6);
     scene.add(light);
     const pointer = { x: 0, y: 0 },
-      input = { x: 0, y: 0 },
-      keys = new Set<string>();
-    let dragging = false;
+      steer = { x: 0, y: 0 },
+      anchor = { x: 0, y: 0 };
+    const keys = new Set<string>();
+    const touches = new Set<number>();
+    const velocity = new THREE.Vector3();
+    let dragging = false,
+      baseZ = 32,
+      lastReset = state.resetKey;
     const keydown = (e: KeyboardEvent) => {
+      if (live.current.paused || live.current.travel) return;
       if (
-        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(
-          e.key,
-        ) &&
-        live.current.flying
+        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)
       )
         e.preventDefault();
       keys.add(e.key.toLowerCase());
     };
     const keyup = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
-    const reset = () => {
+    const release = (e?: PointerEvent) => {
+      if (e) touches.delete(e.pointerId);
+      else touches.clear();
+      if (!e || touches.size === 0) {
+        dragging = false;
+        steer.x = 0;
+        steer.y = 0;
+      }
+    };
+    const blur = () => {
       keys.clear();
-      dragging = false;
+      release();
     };
     const pointerMove = (e: PointerEvent) => {
       pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
       pointer.y = -((e.clientY / window.innerHeight) * 2 - 1);
-      if (dragging && live.current.flying) {
-        input.x = pointer.x * 3;
-        input.y = pointer.y * 2.2;
+      if (dragging) {
+        const reach = Math.min(el.clientWidth, el.clientHeight) * 0.21;
+        steer.x = THREE.MathUtils.clamp((e.clientX - anchor.x) / reach, -1, 1);
+        steer.y = THREE.MathUtils.clamp((anchor.y - e.clientY) / reach, -1, 1);
       }
     };
     const pointerDown = (e: PointerEvent) => {
-      if ((e.target as HTMLElement).closest('button,a,input,[role="dialog"]'))
+      if (
+        live.current.paused ||
+        live.current.travel ||
+        (e.target as HTMLElement).closest('button,a,input,[role="dialog"]')
+      )
         return;
+      if (!dragging) {
+        anchor.x = e.clientX;
+        anchor.y = e.clientY;
+      }
+      touches.add(e.pointerId);
       dragging = true;
+      el.setPointerCapture(e.pointerId);
     };
+    const cancelLostPointer = (e: PointerEvent) => release(e);
     window.addEventListener("pointermove", pointerMove);
     window.addEventListener("pointerdown", pointerDown);
-    window.addEventListener("pointerup", reset);
-    window.addEventListener("blur", reset);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", cancelLostPointer);
+    window.addEventListener("blur", blur);
     window.addEventListener("keydown", keydown);
     window.addEventListener("keyup", keyup);
     const resize = () => {
@@ -444,16 +624,11 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
         h = el.clientHeight;
       renderer.setSize(w, h);
       camera.aspect = w / h;
+      camera.fov = w / h < 0.8 ? 52 : 50;
+      const nextZ = w / h < 0.8 ? 66 : 32;
+      camera.position.z += nextZ - baseZ;
+      baseZ = nextZ;
       camera.updateProjectionMatrix();
-      if (w / h < 0.8) {
-        planets[0].position.set(4.1, 3.1, -5);
-        planets[0].scale.setScalar(0.82);
-        ship.scale.setScalar(0.62);
-      } else {
-        planets[0].position.set(6.4, 2.15, -3);
-        planets[0].scale.setScalar(1);
-        ship.scale.setScalar(0.8);
-      }
     };
     const observer = new ResizeObserver(resize);
     observer.observe(el);
@@ -461,84 +636,157 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
     onReady();
     let frame = 0,
       last = performance.now(),
-      elapsed = 0,
-      orbitDestination = -1;
+      elapsed = 0;
+    const projected = new THREE.Vector3();
+    const safePosition = new THREE.Vector3();
+    const collisionNormal = new THREE.Vector3();
+    const targetVelocity = new THREE.Vector3();
+    const flightTarget = new THREE.Vector3();
+    const shipOffset = new THREE.Vector3(0, -4.3, -18);
+    const engineOffset = new THREE.Vector3(0, -1, 1);
     const animate = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       elapsed += dt;
       const s = live.current;
-      const moving = s.flying;
-      const fast = s.boost || keys.has("shift");
-      if (s.travel) orbitDestination = s.destination;
-      if (!moving) {
-        orbitDestination = -1;
-        input.x = 0;
-        input.y = 0;
+      const lerp = 1 - Math.exp(-dt * 4);
+      if (s.resetKey !== lastReset) {
+        camera.position.set(0, 0, baseZ);
+        ship.position.set(0, -4.3, baseZ - 18);
+        ship.rotation.set(0.64, 0.22, -0.34);
+        velocity.set(0, 0, 0);
+        keys.clear();
+        release();
+        lastReset = s.resetKey;
       }
-      if (moving) {
-        const dx =
-          (keys.has("arrowright") || keys.has("d") ? 1 : 0) -
-          (keys.has("arrowleft") || keys.has("a") || keys.has("q") ? 1 : 0);
-        const dy =
-          (keys.has("arrowup") || keys.has("w") || keys.has("z") ? 1 : 0) -
-          (keys.has("arrowdown") || keys.has("s") ? 1 : 0);
-        input.x = THREE.MathUtils.clamp(
-          input.x + dx * dt * 2.5,
-          -(camera.aspect < 0.8 ? 1.6 : 3.4),
-          camera.aspect < 0.8 ? 1.6 : 3.4,
+      const fast = s.boost || keys.has("shift") || touches.size > 1;
+      let dx = 0,
+        dy = 0;
+      if (s.paused) {
+        keys.clear();
+        release();
+        velocity.set(0, 0, 0);
+      }
+      if (s.travel) {
+        const target = planets[s.destination];
+        const k = s.reduced ? 1 : 1 - Math.exp(-dt * 1.2);
+        camera.position.lerp(
+          flightTarget.set(
+            target.position.x,
+            target.position.y + 2,
+            target.position.z + radii[s.destination] + 25,
+          ),
+          k,
         );
-        input.y = THREE.MathUtils.clamp(input.y + dy * dt * 2, -1, 2);
-        if (!s.reduced) stars.position.z += dt * (fast ? 12 : 2.2);
-        if (stars.position.z > 22) stars.position.z = 0;
+        velocity.set(0, 0, 0);
+      } else if (s.flying && !s.paused) {
+        dx = THREE.MathUtils.clamp(
+          steer.x +
+            (keys.has("arrowright") || keys.has("d") ? 1 : 0) -
+            (keys.has("arrowleft") || keys.has("a") || keys.has("q") ? 1 : 0),
+          -1,
+          1,
+        );
+        dy = THREE.MathUtils.clamp(
+          steer.y +
+            (keys.has("arrowup") || keys.has("w") || keys.has("z") ? 1 : 0) -
+            (keys.has("arrowdown") || keys.has("s") ? 1 : 0),
+          -1,
+          1,
+        );
+        const active = Math.abs(dx) + Math.abs(dy) > 0.05 || fast;
+        const rate = fast ? 13 : 5.4;
+        targetVelocity.set(
+          dx * rate,
+          dy * rate,
+          active ? -(fast ? 9 : 2.5) : s.reduced ? 0 : -0.12,
+        );
+        velocity.lerp(targetVelocity, 1 - Math.exp(-dt * 2.4));
+        camera.position.addScaledVector(velocity, dt);
+        // Keep the ship outside each surface; planet interiors are intentionally absent.
+        safePosition.copy(camera.position).add(shipOffset);
+        planets.forEach((planet, i) => {
+          collisionNormal.copy(safePosition).sub(planet.position);
+          const distance = collisionNormal.length(),
+            minimum = radii[i] + 1.6;
+          if (distance < minimum) {
+            collisionNormal.normalize();
+            camera.position.addScaledVector(
+              collisionNormal,
+              minimum - distance,
+            );
+            velocity.addScaledVector(
+              collisionNormal,
+              Math.max(0, -velocity.dot(collisionNormal)),
+            );
+          }
+        });
       }
-      const lerp = 1 - Math.exp(-dt * 3);
       ship.position.x = THREE.MathUtils.lerp(
         ship.position.x,
-        camera.position.x + (moving ? input.x : 0.65) + pointer.x * 0.09,
+        camera.position.x + dx * 0.9,
         lerp,
       );
       ship.position.y = THREE.MathUtils.lerp(
         ship.position.y,
-        camera.position.y - 2.65 +
-          (moving ? input.y : s.reduced ? 0 : Math.sin(elapsed * 0.7) * 0.06),
+        camera.position.y -
+          4.3 +
+          dy * 0.5 +
+          (s.reduced ? 0 : Math.sin(elapsed * 0.7) * 0.035),
         lerp,
       );
-      ship.position.z = camera.position.z - 14;
+      ship.position.z = camera.position.z - 18;
       ship.rotation.z = THREE.MathUtils.lerp(
         ship.rotation.z,
-        -0.34 - (moving ? input.x * 0.12 : 0) + pointer.x * 0.045,
+        -0.34 - dx * 0.32,
         lerp,
       );
-      ship.rotation.x = 0.64 + pointer.y * 0.045;
+      ship.rotation.x = THREE.MathUtils.lerp(
+        ship.rotation.x,
+        0.64 + dy * 0.12,
+        lerp,
+      );
+      light.position.copy(ship.position).add(engineOffset);
       ship.children
         .filter((c) => c.name === "engine")
-        .forEach((c, i) => {
+        .forEach((engine, i) => {
           const pulse = s.reduced ? 1 : 1 + Math.sin(elapsed * 16 + i) * 0.09;
-          c.scale.set(0.65 * pulse, (fast && moving ? 1.5 : 0.8) * pulse, 0.65);
+          engine.scale.set(
+            0.65 * pulse,
+            (fast && !s.paused ? 1.5 : 0.8) * pulse,
+            0.65,
+          );
         });
-      if (!s.reduced) {
+      if (!s.reduced && !s.paused) {
         planets[0].children[0].rotation.y += dt * 0.014;
         planets[1].children[0].rotation.y += dt * 0.025;
       }
-      const orbitalTarget = orbitDestination < 0 ? null : planets[orbitDestination];
-      const orbitalDepth = [16, 12, 11][orbitDestination] ?? 19;
-      const cameraLerp = s.reduced ? 1 : 1 - Math.exp(-dt * 0.9);
-      camera.position.z = THREE.MathUtils.lerp(
-        camera.position.z,
-        orbitalTarget ? orbitalDepth : 19,
-        cameraLerp,
-      );
-      camera.position.x = THREE.MathUtils.lerp(
-        camera.position.x,
-        (orbitalTarget ? orbitalTarget.position.x * 0.7 : 0) + pointer.x * 0.12,
-        cameraLerp,
-      );
-      camera.position.y = THREE.MathUtils.lerp(
-        camera.position.y,
-        (orbitalTarget ? orbitalTarget.position.y * 0.35 : 0) + pointer.y * 0.09,
-        cameraLerp,
-      );
+      // A camera-centered star volume makes long free-flight trips continuous.
+      stars.position.copy(camera.position);
+      planets.forEach((planet, i) => {
+        const marker = markers.current[i];
+        if (!marker) return;
+        projected.copy(planet.position).project(camera);
+        const distance = camera.position.distanceTo(planet.position);
+        const visible =
+          projected.z < 1 &&
+          projected.z > -1 &&
+          Math.abs(projected.x) < 1.2 &&
+          Math.abs(projected.y) < 1.2 &&
+          !s.paused &&
+          !s.travel;
+        marker.style.visibility = visible ? "visible" : "hidden";
+        marker.disabled = !visible;
+        const size = THREE.MathUtils.clamp(
+          (radii[i] * el.clientHeight) /
+            (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance),
+          36,
+          260,
+        );
+        marker.style.width = `${size}px`;
+        marker.style.height = `${size}px`;
+        marker.style.transform = `translate(${(projected.x * 0.5 + 0.5) * el.clientWidth - size / 2}px,${(-projected.y * 0.5 + 0.5) * el.clientHeight - size / 2}px)`;
+      });
       renderer.render(scene, camera);
       frame = requestAnimationFrame(animate);
     };
@@ -548,8 +796,9 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
       observer.disconnect();
       window.removeEventListener("pointermove", pointerMove);
       window.removeEventListener("pointerdown", pointerDown);
-      window.removeEventListener("pointerup", reset);
-      window.removeEventListener("blur", reset);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", cancelLostPointer);
+      window.removeEventListener("blur", blur);
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("keyup", keyup);
       scene.traverse((o) => {
@@ -572,5 +821,29 @@ export default function SpaceScene({ state, onReady, onUnsupported }: Props) {
       renderer.domElement.remove();
     };
   }, [onReady, onUnsupported]);
-  return <div ref={mount} className="space-canvas" aria-hidden="true" />;
+  return (
+    <div
+      ref={mount}
+      className="space-canvas"
+      role="group"
+      aria-label="Espace en trois dimensions, glissez ou utilisez les flèches pour voyager"
+    >
+      {destinations.map((destination, index) => (
+        <button
+          key={destination.name}
+          ref={(element) => {
+            markers.current[index] = element;
+          }}
+          className="planet-hit"
+          aria-label={`Approcher ${destination.name}`}
+          onClick={() => onSelect(index)}
+        >
+          <span>
+            {destination.name}
+            <small>{destination.category}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
 }
