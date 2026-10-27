@@ -183,6 +183,42 @@ function shipModel() {
   box(0.3, 0.05, 0.03, 0, 0.1, 0.39);
   box(0.05, 0.8, 0.01, -0.1, 1, 0.29, red);
   box(0.05, 0.8, 0.01, 0.1, 1, 0.29, red);
+  const droidWhite = new THREE.MeshStandardMaterial({
+    color: 0xcbd1c7,
+    metalness: 0.45,
+    roughness: 0.55,
+  });
+  const droidBlue = new THREE.MeshStandardMaterial({
+    color: 0x31566f,
+    metalness: 0.5,
+    roughness: 0.45,
+  });
+  const droidBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.07, 0.12, 12),
+    droidWhite,
+  );
+  droidBody.rotation.x = Math.PI / 2;
+  droidBody.position.set(0, -0.32, 0.35);
+  group.add(droidBody);
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.085, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    droidWhite,
+  );
+  dome.rotation.x = Math.PI / 2;
+  dome.position.set(0, -0.32, 0.41);
+  group.add(dome);
+  const blueBand = new THREE.Mesh(
+    new THREE.TorusGeometry(0.081, 0.012, 6, 24),
+    droidBlue,
+  );
+  blueBand.position.set(0, -0.32, 0.415);
+  group.add(blueBand);
+  const droidEye = new THREE.Mesh(
+    new THREE.SphereGeometry(0.017, 8, 6),
+    droidBlue,
+  );
+  droidEye.position.set(0, -0.39, 0.445);
+  group.add(droidEye);
   const glow = glowTexture();
   for (const side of [-1, 1])
     for (const top of [-1, 1]) {
@@ -497,23 +533,43 @@ export default function SpaceScene({
       planets.push(g);
       return g;
     };
-    addPlanet("sand", 3.85, [11, 2, -8], 0xd9b78a);
-    addPlanet("green", 2.1, [-11, -3.5, -16], 0x8abdb1);
-    addPlanet("moon", 1.6, [17, -5, -27], 0xa4b2b4);
+    addPlanet("sand", 3.85, [15, 4, -18], 0xd9b78a);
+    addPlanet("green", 2.1, [-18, -4, -26], 0x8abdb1);
+    addPlanet("moon", 1.6, [22, -8, -40], 0xa4b2b4);
     const deathStar = deathStarModel(3.3);
-    deathStar.position.set(-9, 5, -12);
+    deathStar.position.set(-12, 10, -22);
     scene.add(deathStar);
     planets.push(deathStar);
     const radii = [3.85, 2.1, 1.6, 3.3];
+    // Two distant suns: a quiet nod to Tatooine's binary sunset.
+    const sunGlow = glowTexture();
+    [
+      [20, 10, -36],
+      [21.1, 10.35, -37],
+    ].forEach((position, index) => {
+      const twinSun = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: sunGlow,
+          color: index ? 0xffb999 : 0xffd4a3,
+          transparent: true,
+          opacity: 0.6,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      twinSun.position.set(position[0], position[1], position[2]);
+      twinSun.scale.setScalar(index ? 0.5 : 0.65);
+      scene.add(twinSun);
+    });
     const orbitGeo = new THREE.BufferGeometry();
     const orbitPoints = [];
     for (let i = 0; i <= 256; i++) {
       const a = (i / 256) * Math.PI * 2;
       orbitPoints.push(
         new THREE.Vector3(
-          11 + Math.cos(a) * 6.4,
-          1.5 + Math.sin(a) * 1.5,
-          -7 + Math.sin(a) * 3.5,
+          15 + Math.cos(a) * 6.4,
+          3.5 + Math.sin(a) * 1.5,
+          -17 + Math.sin(a) * 3.5,
         ),
       );
     }
@@ -538,9 +594,9 @@ export default function SpaceScene({
       const angle = rand() * Math.PI * 2,
         r = 6.4 + (rand() - 0.5) * 1.2;
       dummy.position.set(
-        11 + Math.cos(angle) * r,
-        1.5 + Math.sin(angle) * 1.5 + (rand() - 0.5) * 0.3,
-        -7 + Math.sin(angle) * 3.5,
+        15 + Math.cos(angle) * r,
+        3.5 + Math.sin(angle) * 1.5 + (rand() - 0.5) * 0.3,
+        -17 + Math.sin(angle) * 3.5,
       );
       dummy.rotation.set(rand() * 5, rand() * 5, rand() * 5);
       dummy.scale.setScalar(0.15 + rand() * 0.7);
@@ -551,7 +607,7 @@ export default function SpaceScene({
     const ship = shipModel();
     ship.position.set(0, -1.55, 25);
     ship.rotation.set(-1.04, 0, 0);
-    ship.scale.setScalar(0.8);
+    ship.scale.setScalar(0.65);
     scene.add(ship);
     const light = new THREE.PointLight(0xff9f50, 2, 4);
     light.position.set(0.5, -3.7, 6);
@@ -672,7 +728,8 @@ export default function SpaceScene({
       }
       const fast = s.boost || keys.has("shift") || touches.size > 1;
       let dx = 0,
-        dy = 0;
+        dy = 0,
+        thrusting = false;
       if (s.paused) {
         keys.clear();
         release();
@@ -720,9 +777,12 @@ export default function SpaceScene({
         viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
         camera.quaternion.setFromEuler(viewRotation);
         forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
-        const speed = fast ? 16 : active ? 5.5 : s.reduced ? 0 : 1.2;
+        const speed = active ? (fast ? 16 : 5.5) : 0;
+        thrusting = active;
         targetVelocity.copy(forward).multiplyScalar(speed);
-        velocity.lerp(targetVelocity, 1 - Math.exp(-dt * 2.4));
+        // Releasing the controls stops immediately: no automatic cruise or coasting.
+        if (active) velocity.lerp(targetVelocity, 1 - Math.exp(-dt * 2.4));
+        else velocity.set(0, 0, 0);
         camera.position.addScaledVector(velocity, dt);
         // Test the ship's actual forward position, rather than the camera behind it.
         shipOffset
@@ -760,10 +820,16 @@ export default function SpaceScene({
       ship.children
         .filter((c) => c.name === "engine")
         .forEach((engine, i) => {
-          const pulse = s.reduced ? 1 : 1 + Math.sin(elapsed * 16 + i) * 0.09;
+          const engineActive = !s.paused && (thrusting || s.travel);
+          const pulse =
+            s.reduced || !engineActive
+              ? 1
+              : 1 + Math.sin(elapsed * 16 + i) * 0.09;
+          if (engine instanceof THREE.Sprite)
+            engine.material.opacity = engineActive ? 1 : 0.35;
           engine.scale.set(
             0.65 * pulse,
-            (fast && !s.paused ? 1.5 : 0.8) * pulse,
+            (engineActive ? (fast ? 1.5 : 0.8) : 0.5) * pulse,
             0.65,
           );
         });

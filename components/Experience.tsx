@@ -451,17 +451,17 @@ export default function Experience() {
               </div>
               <h2 id="help-title">À votre rythme.</h2>
               <p>
-                Un espace ouvert, quatre destinations. Prenez le temps de
-                voyager.
+                Le vaisseau reste immobile au repos. Maintenez une commande pour
+                voyager ; relâchez pour vous arrêter.
               </p>
               <dl className="help-controls">
                 <div>
                   <dt>Diriger</dt>
-                  <dd>Glissez à la souris ou au doigt</dd>
+                  <dd>Maintenez et glissez à la souris ou au doigt</dd>
                 </div>
                 <div>
                   <dt>Voyager</dt>
-                  <dd>Flèches · ZQSD · WASD</dd>
+                  <dd>Maintenez les flèches, ZQSD ou WASD</dd>
                 </div>
                 <div>
                   <dt>Accélérer</dt>
