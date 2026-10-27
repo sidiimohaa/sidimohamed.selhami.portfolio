@@ -38,7 +38,6 @@ function OrbitalLogo() {
 export default function Experience() {
   const reduced = !!useReducedMotion(),
     [ready, setReady] = useState(false),
-    [progress, setProgress] = useState(0),
     [loading, setLoading] = useState(true),
     [boost, setBoost] = useState(false),
     [destination, setDestination] = useState(0),
@@ -54,24 +53,7 @@ export default function Experience() {
   const current = destinations[destination];
   const onReady = useCallback(() => setReady(true), []),
     onUnsupported = useCallback(() => setUnsupported(true), []);
-  useEffect(() => {
-    const start = performance.now();
-    const id = setInterval(
-      () =>
-        setProgress((p) => {
-          const t = (performance.now() - start) / 26;
-          return Math.min(ready ? 100 : 92, Math.max(p, Math.floor(t)));
-        }),
-      40,
-    );
-    return () => clearInterval(id);
-  }, [ready]);
-  useEffect(() => {
-    if (progress === 100) {
-      const id = setTimeout(() => setLoading(false), 400);
-      return () => clearTimeout(id);
-    }
-  }, [progress]);
+  const completeArrival = useCallback(() => setLoading(false), []);
   useEffect(
     () => () => {
       timers.current.forEach(clearTimeout);
@@ -222,7 +204,13 @@ export default function Experience() {
       <div className="vignette" />
       <div className="grain" />
       <AnimatePresence>
-        {loading && <Preloader progress={progress} reduced={reduced} />}
+        {loading && (
+          <Preloader
+            ready={ready}
+            reduced={reduced}
+            onComplete={completeArrival}
+          />
+        )}
       </AnimatePresence>
       <h1 className="sr-only">
         ORBITAL — Explorez mon univers en vaisseau spatial

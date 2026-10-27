@@ -668,106 +668,46 @@ button svg {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: #0c100c;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 38px 45px;
+  background: #050a10;
+  overflow: hidden;
+  pointer-events: auto;
 }
-.preloader-top {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: #aab69b;
-}
-.preloader-top > span:first-child {
-  font-family: Arial, sans-serif;
-  font-weight: 600;
-  font-size: 17px;
-  letter-spacing: -0.5px;
-  color: var(--cream);
-}
-.loader-core {
-  text-align: center;
-}
-.loader-orbits {
-  width: 175px;
-  height: 175px;
-  margin: 0 auto 30px;
-  position: relative;
-  border: 1px solid #b6bfaa15;
-  border-radius: 50%;
-}
-.loader-orbits:before,
-.loader-orbits:after {
-  content: "";
-  position: absolute;
-  border: 1px solid #b6bfaa22;
-  border-radius: 50%;
-  inset: 25px;
-}
-.loader-orbits:after {
-  inset: 50px;
-}
-.loader-cross {
+.hyperspace-canvas {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 28px;
-  font-weight: 300;
-  color: var(--orange);
-}
-.loader-core > p {
-  font-size: 37px;
-  line-height: 1.12;
-  letter-spacing: -1.5px;
-  font-weight: 400;
-  margin: 0 0 30px;
-}
-.loading-label {
-  font-size: 6px;
-  color: #8a997c;
-  letter-spacing: 1.4px;
-}
-.loader-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
-  position: relative;
-  padding-bottom: 18px;
-}
-.loader-bottom > .mono {
-  font-size: 6px;
-  color: #8a997c;
-  padding-bottom: 4px;
-}
-.loader-percent {
-  font-size: 37px;
-  font-weight: 400;
-  letter-spacing: -1.5px;
-}
-.loader-percent small {
-  font-size: 12px;
-  margin-left: 4px;
-  color: var(--orange);
-}
-.loader-line {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #b6bfaa22;
-}
-.loader-line i {
+  width: 100%;
+  height: 100%;
   display: block;
-  height: 1px;
-  background: var(--orange);
-  transition: width 0.1s;
+}
+.hyperspace-bloom {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  top: 8%;
+  bottom: 15%;
+  filter: blur(55px);
+  pointer-events: none;
+}
+.hyperspace-caption {
+  position: absolute;
+  bottom: 43px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 7px;
+  letter-spacing: 2px;
+  color: #9baec0;
+}
+.hyperspace-caption i {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #a3c5e5;
+  box-shadow: 0 0 8px #a3c5e533;
 }
 .webgl-note {
   position: absolute;
@@ -998,30 +938,17 @@ button svg {
   .help .text-button {
     font-size: 6px;
   }
-  .preloader {
-    padding: 28px 24px;
-  }
-  .preloader-top {
+  .hyperspace-caption {
+    bottom: 30px;
     font-size: 5px;
-    gap: 15px;
+    letter-spacing: 1.4px;
   }
-  .loader-core > p {
-    font-size: 30px;
-  }
-  .loader-orbits {
-    width: 150px;
-    height: 150px;
-  }
-  .loading-label {
-    font-size: 5px;
-  }
-  .loader-bottom > .mono {
-    font-size: 4px;
-    line-height: 1.8;
-    max-width: 150px;
-  }
-  .loader-percent {
-    font-size: 32px;
+  .hyperspace-bloom {
+    left: 0;
+    right: 0;
+    top: 15%;
+    bottom: 25%;
+    filter: blur(40px);
   }
   .webgl-note {
     left: 22px;
