@@ -32,3 +32,5 @@ Les noms de planètes sont des références à Star Wars ; il s’agit d’un po
 Deux clins d’œil discrets : un astromécano miniature derrière le cockpit et deux soleils lointains près de Tatooine.
 
 Le préloader simule une sortie d’hyperespace : traînées radiales qui décélèrent en étoiles fixes, puis révélation progressive de la scène. Il attend le chargement de la 3D et propose un fondu statique lorsque le mouvement réduit est activé.
+
+Le modèle 3D du vaisseau suit la référence conservée dans references/x-wing.png : quatre ailes ouvertes, quatre moteurs à échappement rose, fuselage à sections octogonales, verrière encadrée, astromécano et panneaux patinés. Les détails statiques sont regroupés par matériau pour limiter les appels de rendu. Son envergure et son échelle dans la scène sont conservées.

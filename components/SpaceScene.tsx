@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { destinations } from "./universe";
 import { referencePlanetMaterial } from "./planetMaterial";
+import { createShipModel } from "./shipModel";
 export type FlightState = {
   flying: boolean;
   boost: boolean;
@@ -121,167 +122,6 @@ function glowTexture() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
-}
-function shipModel() {
-  const group = new THREE.Group();
-  const hull = new THREE.MeshStandardMaterial({
-    color: 0xb8bcaf,
-    roughness: 0.48,
-    metalness: 0.7,
-  });
-  const trim = new THREE.MeshStandardMaterial({
-    color: 0x343c3b,
-    roughness: 0.48,
-    metalness: 0.75,
-  });
-  const red = new THREE.MeshStandardMaterial({
-    color: 0x9d523b,
-    roughness: 0.6,
-    metalness: 0.45,
-  });
-  const glass = new THREE.MeshStandardMaterial({
-    color: 0x132128,
-    roughness: 0.12,
-    metalness: 0.9,
-  });
-  const box = (
-    w: number,
-    h: number,
-    d: number,
-    x: number,
-    y: number,
-    z: number,
-    mat: THREE.Material = hull,
-  ) => {
-    const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    o.position.set(x, y, z);
-    group.add(o);
-    return o;
-  };
-  const shape = new THREE.Shape();
-  shape.moveTo(-0.16, -0.8);
-  shape.lineTo(-0.24, 0.05);
-  shape.lineTo(-0.1, 1.75);
-  shape.lineTo(0.1, 1.75);
-  shape.lineTo(0.24, 0.05);
-  shape.lineTo(0.16, -0.8);
-  shape.closePath();
-  const body = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(shape, {
-      depth: 0.22,
-      bevelEnabled: true,
-      bevelSegments: 2,
-      steps: 1,
-      bevelSize: 0.06,
-      bevelThickness: 0.05,
-    }),
-    hull,
-  );
-  group.add(body);
-  const cockpit = box(0.25, 0.59, 0.15, 0, 0.22, 0.3, glass);
-  cockpit.rotation.x = -0.13;
-  box(0.29, 0.055, 0.03, 0, 0.45, 0.39);
-  box(0.3, 0.05, 0.03, 0, 0.1, 0.39);
-  box(0.05, 0.8, 0.01, -0.1, 1, 0.29, red);
-  box(0.05, 0.8, 0.01, 0.1, 1, 0.29, red);
-  const droidWhite = new THREE.MeshStandardMaterial({
-    color: 0xcbd1c7,
-    metalness: 0.45,
-    roughness: 0.55,
-  });
-  const droidBlue = new THREE.MeshStandardMaterial({
-    color: 0x31566f,
-    metalness: 0.5,
-    roughness: 0.45,
-  });
-  const droidBody = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.07, 0.12, 12),
-    droidWhite,
-  );
-  droidBody.rotation.x = Math.PI / 2;
-  droidBody.position.set(0, -0.32, 0.35);
-  group.add(droidBody);
-  const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(0.085, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-    droidWhite,
-  );
-  dome.rotation.x = Math.PI / 2;
-  dome.position.set(0, -0.32, 0.41);
-  group.add(dome);
-  const blueBand = new THREE.Mesh(
-    new THREE.TorusGeometry(0.081, 0.012, 6, 24),
-    droidBlue,
-  );
-  blueBand.position.set(0, -0.32, 0.415);
-  group.add(blueBand);
-  const droidEye = new THREE.Mesh(
-    new THREE.SphereGeometry(0.017, 8, 6),
-    droidBlue,
-  );
-  droidEye.position.set(0, -0.39, 0.445);
-  group.add(droidEye);
-  const glow = glowTexture();
-  for (const side of [-1, 1])
-    for (const top of [-1, 1]) {
-      const wingShape = new THREE.Shape();
-      wingShape.moveTo(side * 0.15, -0.1);
-      wingShape.lineTo(side * 1.25, -0.42);
-      wingShape.lineTo(side * 1.37, -0.88);
-      wingShape.lineTo(side * 0.18, -0.62);
-      const wing = new THREE.Mesh(
-        new THREE.ExtrudeGeometry(wingShape, {
-          depth: 0.04,
-          bevelEnabled: false,
-        }),
-        hull,
-      );
-      wing.position.z = top * 0.18;
-      wing.rotation.y = side * top * 0.17;
-      group.add(wing);
-      const marking = box(
-        0.38,
-        0.13,
-        0.045,
-        side * 0.98,
-        -0.55,
-        top * 0.37,
-        red,
-      );
-      marking.rotation.z = -side * 0.25;
-      const engine = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.125, 0.145, 0.85, 12),
-        trim,
-      );
-      engine.position.set(side * 0.63, -0.52, top * 0.25);
-      group.add(engine);
-      const rim = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.15, 0.15, 0.13, 12),
-        hull,
-      );
-      rim.position.set(side * 0.63, -0.82, top * 0.25);
-      group.add(rim);
-      const fire = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: glow,
-          color: 0xffb27a,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        }),
-      );
-      fire.position.set(side * 0.63, -1.03, top * 0.25);
-      fire.scale.set(0.65, 0.8, 0.65);
-      fire.name = "engine";
-      group.add(fire);
-      const cannon = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.025, 0.035, 1.3, 6),
-        trim,
-      );
-      cannon.position.set(side * 1.32, -0.04, top * 0.38);
-      group.add(cannon);
-      box(0.1, 0.28, 0.13, side * 1.32, -0.45, top * 0.38);
-    }
-  box(0.26, 0.24, 0.16, 0, -0.66, 0.3, trim);
-  return group;
 }
 function deathStarModel(radius: number) {
   const group = new THREE.Group();
@@ -643,12 +483,24 @@ export default function SpaceScene({
       rocks.setMatrixAt(i, dummy.matrix);
     }
     scene.add(rocks);
-    const ship = shipModel();
+    const ship = createShipModel();
+    const exhausts: THREE.Sprite[] = [];
+    const engineCores = new Set<THREE.MeshStandardMaterial>();
+    ship.traverse((object) => {
+      if (object instanceof THREE.Sprite && object.name === "engine")
+        exhausts.push(object);
+      if (
+        object instanceof THREE.Mesh &&
+        object.material instanceof THREE.MeshStandardMaterial &&
+        object.material.name === "reactor-core"
+      )
+        engineCores.add(object.material);
+    });
     ship.position.set(0, -1.55, 25);
     ship.rotation.set(-1.04, 0, 0);
     ship.scale.setScalar(0.585);
     scene.add(ship);
-    const light = new THREE.PointLight(0xff9f50, 2, 4);
+    const light = new THREE.PointLight(0xf476aa, 0.65, 3);
     light.position.set(0.5, -3.7, 6);
     scene.add(light);
     const steer = { x: 0, y: 0 },
@@ -855,22 +707,24 @@ export default function SpaceScene({
       ship.quaternion.copy(camera.quaternion).multiply(modelQuaternion);
       engineOffset.set(0, -0.35, 1.1).applyQuaternion(camera.quaternion);
       light.position.copy(ship.position).add(engineOffset);
-      ship.children
-        .filter((c) => c.name === "engine")
-        .forEach((engine, i) => {
-          const engineActive = !s.paused && (thrusting || s.travel);
-          const pulse =
-            s.reduced || !engineActive
-              ? 1
-              : 1 + Math.sin(elapsed * 16 + i) * 0.09;
-          if (engine instanceof THREE.Sprite)
-            engine.material.opacity = engineActive ? 1 : 0.35;
-          engine.scale.set(
-            0.65 * pulse,
-            (engineActive ? (fast ? 1.5 : 0.8) : 0.5) * pulse,
-            0.65,
-          );
-        });
+      const engineActive = !s.paused && (thrusting || s.travel);
+      engineCores.forEach((material) => {
+        material.emissiveIntensity = engineActive ? (fast ? 1.8 : 1.15) : 0.65;
+      });
+      light.intensity = engineActive ? 1.35 : 0.55;
+      exhausts.forEach((engine, i) => {
+        const pulse =
+          s.reduced || !engineActive
+            ? 1
+            : 1 + Math.sin(elapsed * 16 + i) * 0.09;
+        if (engine instanceof THREE.Sprite)
+          engine.material.opacity = engineActive ? 0.8 : 0.22;
+        engine.scale.set(
+          0.32 * pulse,
+          (engineActive ? (fast ? 0.66 : 0.42) : 0.25) * pulse,
+          0.32,
+        );
+      });
       if (!s.reduced && !s.paused) {
         planets[0].children[0].rotation.y += dt * 0.014;
         planets[1].children[0].rotation.y += dt * 0.025;
@@ -921,9 +775,10 @@ export default function SpaceScene({
         if (
           o instanceof THREE.Mesh ||
           o instanceof THREE.Points ||
-          o instanceof THREE.Line
+          o instanceof THREE.Line ||
+          o instanceof THREE.Sprite
         ) {
-          o.geometry.dispose();
+          if (!(o instanceof THREE.Sprite)) o.geometry.dispose();
           const mats = Array.isArray(o.material) ? o.material : [o.material];
           mats.forEach((m) => {
             Object.values(m).forEach((v) => {
