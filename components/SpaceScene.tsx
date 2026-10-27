@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { destinations } from "./universe";
+import { referencePlanetMaterial } from "./planetMaterial";
 export type FlightState = {
   flying: boolean;
   boost: boolean;
@@ -435,6 +436,8 @@ export default function SpaceScene({
   useEffect(() => {
     const el = mount.current;
     if (!el) return;
+    let disposed = false;
+    const referenceTextures = new Set<THREE.Texture>();
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -447,7 +450,9 @@ export default function SpaceScene({
       onReady();
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio, window.innerWidth < 600 ? 2 : 2.25),
+    );
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -541,6 +546,40 @@ export default function SpaceScene({
     scene.add(deathStar);
     planets.push(deathStar);
     const radii = [3.85, 2.1, 1.6, 3.3];
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.onLoad = () => {
+      if (!disposed) onReady();
+    };
+    const textureLoader = new THREE.TextureLoader(loadingManager);
+    destinations.forEach((destination, index) => {
+      textureLoader.load(
+        destination.image,
+        (texture) => {
+          if (disposed) {
+            texture.dispose();
+            return;
+          }
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          referenceTextures.add(texture);
+          const surface = new THREE.Mesh(
+            new THREE.SphereGeometry(radii[index], 128, 96),
+            referencePlanetMaterial(texture, destination.reference),
+          );
+          surface.name = "reference-globe";
+          planets[index].children.forEach((child) => {
+            child.visible = false;
+          });
+          planets[index].add(surface);
+        },
+        undefined,
+        () => {
+          // The existing geometric/procedural world remains visible if an asset cannot load.
+        },
+      );
+    });
     // Two distant suns: a quiet nod to Tatooine's binary sunset.
     const sunGlow = glowTexture();
     [
@@ -607,7 +646,7 @@ export default function SpaceScene({
     const ship = shipModel();
     ship.position.set(0, -1.55, 25);
     ship.rotation.set(-1.04, 0, 0);
-    ship.scale.setScalar(0.65);
+    ship.scale.setScalar(0.585);
     scene.add(ship);
     const light = new THREE.PointLight(0xff9f50, 2, 4);
     light.position.set(0.5, -3.7, 6);
@@ -697,7 +736,6 @@ export default function SpaceScene({
     const observer = new ResizeObserver(resize);
     observer.observe(el);
     resize();
-    onReady();
     let frame = 0,
       last = performance.now(),
       elapsed = 0;
@@ -868,6 +906,8 @@ export default function SpaceScene({
     };
     frame = requestAnimationFrame(animate);
     return () => {
+      disposed = true;
+      referenceTextures.forEach((texture) => texture.dispose());
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("pointermove", pointerMove);

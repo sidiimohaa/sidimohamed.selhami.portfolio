@@ -991,3 +991,13 @@ button svg {
     opacity: 0.025;
   }
 }
+
+/* Preserve the supplied photographs instead of overlaying synthetic grain or shadow. */
+.map-globe.has-reference {
+  background-repeat: no-repeat;
+  box-shadow: none;
+}
+.map-globe.has-reference::before,
+.map-globe.has-reference::after {
+  content: none;
+}

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import Preloader from "./Preloader";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
-import { destinations } from "./universe";
+import { destinations, planetReferenceStyle } from "./universe";
 
 function OrbitalLogo() {
   return (
@@ -323,10 +323,13 @@ export default function Experience() {
                     <span className="map-index mono">
                       {p.number} <ArrowUpRight size={16} />
                     </span>
-                    <div className={`map-globe ${p.className}`} />
+                    <div
+                      className={`map-globe has-reference ${p.className}`}
+                      style={planetReferenceStyle(p)}
+                    />
                     <span className="map-category mono">{p.tag}</span>
                     <strong>{p.name}</strong>
-                    <span className="map-desc">{p.description}</span>
+                    <span className="map-desc">{p.summary}</span>
                     <span className="map-bottom mono">
                       {p.category}
                       <ChevronRight size={15} />
@@ -373,7 +376,8 @@ export default function Experience() {
                 </button>
               </div>
               <div
-                className={`arrival-planet map-globe ${current.className}`}
+                className={`arrival-planet map-globe has-reference ${current.className}`}
+                style={planetReferenceStyle(current)}
               />
               <p className="eyebrow">{current.tag}</p>
               <h2 id="arrival-title">{current.name.toUpperCase()}</h2>
