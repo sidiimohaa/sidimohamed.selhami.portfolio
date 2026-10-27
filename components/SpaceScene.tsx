@@ -501,7 +501,7 @@ export default function SpaceScene({
     addPlanet("green", 2.1, [-11, -3.5, -16], 0x8abdb1);
     addPlanet("moon", 1.6, [17, -5, -27], 0xa4b2b4);
     const deathStar = deathStarModel(3.3);
-    deathStar.position.set(-9, 5, 1);
+    deathStar.position.set(-9, 5, -12);
     scene.add(deathStar);
     planets.push(deathStar);
     const radii = [3.85, 2.1, 1.6, 3.3];
@@ -549,27 +549,31 @@ export default function SpaceScene({
     }
     scene.add(rocks);
     const ship = shipModel();
-    ship.position.set(0.65, -2.65, 5);
-    ship.rotation.set(0.64, 0.22, -0.34);
+    ship.position.set(0, -1.55, 25);
+    ship.rotation.set(-1.04, 0, 0);
     ship.scale.setScalar(0.8);
     scene.add(ship);
     const light = new THREE.PointLight(0xff9f50, 2, 4);
     light.position.set(0.5, -3.7, 6);
     scene.add(light);
-    const pointer = { x: 0, y: 0 },
-      steer = { x: 0, y: 0 },
+    const steer = { x: 0, y: 0 },
       anchor = { x: 0, y: 0 };
     const keys = new Set<string>();
     const touches = new Set<number>();
     const velocity = new THREE.Vector3();
+    const heading = { yaw: 0, pitch: 0 };
+    const viewRotation = new THREE.Euler(0, 0, 0, "YXZ");
+    const modelRotation = new THREE.Euler(-1.04, 0, 0, "YXZ");
+    const modelQuaternion = new THREE.Quaternion();
+    const forward = new THREE.Vector3();
+    let shipDistance = 7,
+      shipHeight = 1.55;
     let dragging = false,
       baseZ = 32,
       lastReset = state.resetKey;
     const keydown = (e: KeyboardEvent) => {
       if (live.current.paused || live.current.travel) return;
-      if (
-        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)
-      )
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key))
         e.preventDefault();
       keys.add(e.key.toLowerCase());
     };
@@ -588,8 +592,6 @@ export default function SpaceScene({
       release();
     };
     const pointerMove = (e: PointerEvent) => {
-      pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-      pointer.y = -((e.clientY / window.innerHeight) * 2 - 1);
       if (dragging) {
         const reach = Math.min(el.clientWidth, el.clientHeight) * 0.21;
         steer.x = THREE.MathUtils.clamp((e.clientX - anchor.x) / reach, -1, 1);
@@ -629,6 +631,12 @@ export default function SpaceScene({
       camera.position.z += nextZ - baseZ;
       baseZ = nextZ;
       camera.updateProjectionMatrix();
+      // Preserve the foreground framing in portrait without clipping the wings.
+      shipDistance = w / h < 0.8 ? 10 : 7;
+      shipHeight =
+        shipDistance *
+        Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) *
+        0.48;
     };
     const observer = new ResizeObserver(resize);
     observer.observe(el);
@@ -642,18 +650,21 @@ export default function SpaceScene({
     const collisionNormal = new THREE.Vector3();
     const targetVelocity = new THREE.Vector3();
     const flightTarget = new THREE.Vector3();
-    const shipOffset = new THREE.Vector3(0, -4.3, -18);
-    const engineOffset = new THREE.Vector3(0, -1, 1);
+    const shipOffset = new THREE.Vector3();
+    const shipPosition = new THREE.Vector3();
+    const engineOffset = new THREE.Vector3();
     const animate = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       elapsed += dt;
       const s = live.current;
-      const lerp = 1 - Math.exp(-dt * 4);
       if (s.resetKey !== lastReset) {
         camera.position.set(0, 0, baseZ);
-        ship.position.set(0, -4.3, baseZ - 18);
-        ship.rotation.set(0.64, 0.22, -0.34);
+        heading.yaw = 0;
+        heading.pitch = 0;
+        camera.quaternion.identity();
+        ship.position.set(0, -shipHeight, baseZ - shipDistance);
+        ship.rotation.set(-1.04, 0, 0);
         velocity.set(0, 0, 0);
         keys.clear();
         release();
@@ -678,6 +689,10 @@ export default function SpaceScene({
           ),
           k,
         );
+        heading.yaw = THREE.MathUtils.lerp(heading.yaw, 0, k);
+        heading.pitch = THREE.MathUtils.lerp(heading.pitch, -0.055, k);
+        viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
+        camera.quaternion.setFromEuler(viewRotation);
         velocity.set(0, 0, 0);
       } else if (s.flying && !s.paused) {
         dx = THREE.MathUtils.clamp(
@@ -695,15 +710,24 @@ export default function SpaceScene({
           1,
         );
         const active = Math.abs(dx) + Math.abs(dy) > 0.05 || fast;
-        const rate = fast ? 13 : 5.4;
-        targetVelocity.set(
-          dx * rate,
-          dy * rate,
-          active ? -(fast ? 9 : 2.5) : s.reduced ? 0 : -0.12,
+        heading.yaw -= dx * dt * 0.38;
+        heading.yaw = Math.atan2(Math.sin(heading.yaw), Math.cos(heading.yaw));
+        heading.pitch = THREE.MathUtils.clamp(
+          heading.pitch + dy * dt * 0.3,
+          -0.85,
+          0.85,
         );
+        viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
+        camera.quaternion.setFromEuler(viewRotation);
+        forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        const speed = fast ? 16 : active ? 5.5 : s.reduced ? 0 : 1.2;
+        targetVelocity.copy(forward).multiplyScalar(speed);
         velocity.lerp(targetVelocity, 1 - Math.exp(-dt * 2.4));
         camera.position.addScaledVector(velocity, dt);
-        // Keep the ship outside each surface; planet interiors are intentionally absent.
+        // Test the ship's actual forward position, rather than the camera behind it.
+        shipOffset
+          .set(0, -shipHeight, -shipDistance)
+          .applyQuaternion(camera.quaternion);
         safePosition.copy(camera.position).add(shipOffset);
         planets.forEach((planet, i) => {
           collisionNormal.copy(safePosition).sub(planet.position);
@@ -722,30 +746,16 @@ export default function SpaceScene({
           }
         });
       }
-      ship.position.x = THREE.MathUtils.lerp(
-        ship.position.x,
-        camera.position.x + dx * 0.9,
-        lerp,
-      );
-      ship.position.y = THREE.MathUtils.lerp(
-        ship.position.y,
-        camera.position.y -
-          4.3 +
-          dy * 0.5 +
-          (s.reduced ? 0 : Math.sin(elapsed * 0.7) * 0.035),
-        lerp,
-      );
-      ship.position.z = camera.position.z - 18;
-      ship.rotation.z = THREE.MathUtils.lerp(
-        ship.rotation.z,
-        -0.34 - dx * 0.32,
-        lerp,
-      );
-      ship.rotation.x = THREE.MathUtils.lerp(
-        ship.rotation.x,
-        0.64 + dy * 0.12,
-        lerp,
-      );
+      // Keep the existing model close to the camera, looking into the scene.
+      shipOffset
+        .set(dx * 0.12, -shipHeight + dy * 0.08, -shipDistance)
+        .applyQuaternion(camera.quaternion);
+      shipPosition.copy(camera.position).add(shipOffset);
+      ship.position.copy(shipPosition);
+      modelRotation.set(-1.04 + dy * 0.06, -dx * 0.1, -dx * 0.26, "YXZ");
+      modelQuaternion.setFromEuler(modelRotation);
+      ship.quaternion.copy(camera.quaternion).multiply(modelQuaternion);
+      engineOffset.set(0, -0.35, 1.1).applyQuaternion(camera.quaternion);
       light.position.copy(ship.position).add(engineOffset);
       ship.children
         .filter((c) => c.name === "engine")
@@ -761,8 +771,8 @@ export default function SpaceScene({
         planets[0].children[0].rotation.y += dt * 0.014;
         planets[1].children[0].rotation.y += dt * 0.025;
       }
-      // A camera-centered star volume makes long free-flight trips continuous.
-      stars.position.copy(camera.position);
+      // Retain a little translational parallax while recycling the distant star volume.
+      stars.position.copy(camera.position).multiplyScalar(0.92);
       planets.forEach((planet, i) => {
         const marker = markers.current[i];
         if (!marker) return;

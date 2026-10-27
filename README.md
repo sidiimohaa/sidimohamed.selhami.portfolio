@@ -18,7 +18,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS 4, Motion, Three.js, Lottie 
 ## Commandes
 
 - Le vol libre est disponible directement après le préloader, sans écran d’introduction ni tableau de bord.
-- Flèches, ZQSD ou WASD : traverser l’espace avec une caméra qui accompagne le vaisseau.
+- Flèches, ZQSD ou WASD : traverser l’espace avec une caméra de poursuite derrière le vaisseau. Les commandes orientent le vol ; le vaisseau avance dans la direction visée.
 - Glisser dans l’espace : diriger à la souris ou au doigt.
 - Maj ou deux doigts pendant le glissement : accélérer. E : rejoindre la dernière destination sélectionnée.
 - Survoler une planète pour afficher son nom ; cliquer pour l’approcher. La carte reste accessible en haut à droite.
