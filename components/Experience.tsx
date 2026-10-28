@@ -62,11 +62,14 @@ export default function Experience() {
     ground = surface !== null ? destinations[surface] : null,
     groundLanding = ground ? landings[ground.name] : undefined;
   const guidance = useRef<number | null>(null),
+    approachProgress = useRef<HTMLElement>(null),
     arrivedRef = useRef(arrived);
   arrivedRef.current = arrived;
   const onFlight = useCallback((flight: FlightTelemetry) => {
     guidance.current = flight.target;
     audio.current?.flight(flight);
+    if (approachProgress.current)
+      approachProgress.current.style.transform = `scaleX(${flight.approachProgress})`;
     if (flight.manual && arrivedRef.current) setArrived(false);
   }, []);
   const onDroid = useCallback(() => {
@@ -81,6 +84,10 @@ export default function Experience() {
   const onReady = useCallback(() => setReady(true), []),
     onUnsupported = useCallback(() => setUnsupported(true), []);
   const completeArrival = useCallback(() => setLoading(false), []);
+  const completeApproach = useCallback(() => {
+    setTravel(false);
+    setArrived(true);
+  }, []);
   useEffect(
     () => () => {
       timers.current.forEach(clearTimeout);
@@ -96,18 +103,10 @@ export default function Experience() {
       setMapOpen(false);
       setArrived(false);
       setTravel(true);
-      audio.current?.exit();
-      timers.current.push(
-        setTimeout(
-          () => {
-            setTravel(false);
-            setArrived(true);
-          },
-          reduced ? 650 : 3200,
-        ),
-      );
+      // The flight animation signals arrival after braking, rather than a wall-clock timer.
+      if (unsupported) timers.current.push(setTimeout(completeApproach, 650));
     },
-    [reduced],
+    [unsupported, completeApproach],
   );
   const land = useCallback(() => {
     timers.current.forEach(clearTimeout);
@@ -174,7 +173,17 @@ export default function Experience() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [loading, destination, travel, mapOpen, helpOpen, surface, landing, land, launch]);
+  }, [
+    loading,
+    destination,
+    travel,
+    mapOpen,
+    helpOpen,
+    surface,
+    landing,
+    land,
+    launch,
+  ]);
   useEffect(() => {
     if (!mapOpen && !helpOpen) return;
     const old = document.activeElement as HTMLElement;
@@ -257,6 +266,7 @@ export default function Experience() {
         }}
         onSelect={launch}
         onFlight={onFlight}
+        onApproachComplete={completeApproach}
         onDroid={onDroid}
         onHyperspace={onHyperspace}
         onReady={onReady}
@@ -353,11 +363,10 @@ export default function Experience() {
             <button aria-label="Annuler l’approche" onClick={cancelApproach}>
               <X size={13} />
             </button>
-            <motion.i
+            <i
+              ref={approachProgress}
               className="course-progress"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: reduced ? 0.65 : 3.2, ease: "linear" }}
+              style={{ transform: `scaleX(${unsupported ? 1 : 0})` }}
             />
           </motion.div>
         )}
@@ -463,7 +472,8 @@ export default function Experience() {
             </span>
             {landing && (
               <button className="land-button mono" onClick={land}>
-                <PlaneLanding size={13} /> ATTERRIR SUR {current.name.toUpperCase()}
+                <PlaneLanding size={13} /> ATTERRIR SUR{" "}
+                {current.name.toUpperCase()}
               </button>
             )}
             <div className="orbit-actions">
@@ -532,11 +542,16 @@ export default function Experience() {
                 </div>
                 <div>
                   <dt>Atterrir</dt>
-                  <dd>En orbite de Coruscant ou de Tatooine, bouton Atterrir ou E</dd>
+                  <dd>
+                    En orbite de Coruscant ou de Tatooine, bouton Atterrir ou E
+                  </dd>
                 </div>
                 <div>
                   <dt>Marcher</dt>
-                  <dd>Au sol, flèches ou ZQSD (Maj pour courir), ou glisser à gauche au doigt</dd>
+                  <dd>
+                    Au sol, flèches ou ZQSD (Maj pour courir), ou glisser à
+                    gauche au doigt
+                  </dd>
                 </div>
                 <div>
                   <dt>Regarder</dt>

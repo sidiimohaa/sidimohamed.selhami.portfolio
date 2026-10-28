@@ -1164,6 +1164,7 @@ button svg {
   height: 1px;
   background: #c3d2aa;
   transform-origin: left;
+  transition: transform 120ms linear;
 }
 .orbit-card {
   position: absolute;

@@ -10,6 +10,7 @@ import {
   createStarfield,
 } from "./spaceAmbience";
 import { createSpaceTraffic, type HyperspacePhase } from "./spaceTraffic";
+import { createApproachFlight } from "./approachFlight";
 export type FlightState = {
   flying: boolean;
   boost: boolean;
@@ -27,9 +28,11 @@ export type FlightTelemetry = {
   boost: boolean;
   manual: boolean;
   target: number | null;
+  approachProgress: number;
 };
 type Props = {
   onFlight: (telemetry: FlightTelemetry) => void;
+  onApproachComplete: () => void;
   onDroid: () => void;
   onHyperspace: (phase: HyperspacePhase) => void;
   state: FlightState;
@@ -298,6 +301,7 @@ export default function SpaceScene({
   state,
   onSelect,
   onFlight,
+  onApproachComplete,
   onDroid,
   onHyperspace,
   onReady,
@@ -313,8 +317,10 @@ export default function SpaceScene({
     droidButton = useRef<HTMLButtonElement>(null);
   const hovered = useRef<number | null>(null),
     flightCallback = useRef(onFlight),
+    approachCallback = useRef(onApproachComplete),
     hyperspaceCallback = useRef(onHyperspace);
   flightCallback.current = onFlight;
+  approachCallback.current = onApproachComplete;
   hyperspaceCallback.current = onHyperspace;
   useEffect(() => {
     const el = mount.current;
@@ -719,7 +725,11 @@ export default function SpaceScene({
     const safePosition = new THREE.Vector3();
     const collisionNormal = new THREE.Vector3();
     const targetVelocity = new THREE.Vector3();
-    const flightTarget = new THREE.Vector3();
+    let approach: ReturnType<typeof createApproachFlight> | null = null;
+    let approachDestination = -1;
+    const cameraAttitude = new THREE.Euler(0, 0, 0, "YXZ");
+    const identity = new THREE.Quaternion();
+    let settling = false;
     const shipOffset = new THREE.Vector3();
     const shipPosition = new THREE.Vector3();
     const engineOffset = new THREE.Vector3();
@@ -756,6 +766,10 @@ export default function SpaceScene({
         hovered.current = null;
         droidAt = -Infinity;
         lastDroidSignal = s.droidSignal;
+        approach = null;
+        settling = false;
+        camera.fov = camera.aspect < 0.8 ? 52 : 50;
+        camera.updateProjectionMatrix();
         traffic.reset();
         shootingStars.reset();
       }
@@ -768,32 +782,37 @@ export default function SpaceScene({
         release();
         velocity.set(0, 0, 0);
       }
+      if (!s.travel && approach) {
+        settling = !approach.completed && !s.reduced;
+        approach = null;
+      }
       if (s.travel) {
-        const target = planets[s.destination],
-          radius = radii[s.destination];
-        const k = s.reduced ? 1 : 1 - Math.exp(-dt * 1.2);
-        // Frame every world at a similar size, clear of the ship and the orbit card.
-        const portrait = camera.aspect < 0.8,
-          tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
-          share = portrait ? Math.min(0.36, camera.aspect * 0.45) : 0.36,
-          range = Math.max(
-            radius / (tanHalf * share),
-            radius + shipDistance + 3,
-          ),
-          lift = (portrait ? -0.08 : 0.2) * range * tanHalf;
-        camera.position.lerp(
-          flightTarget.set(
-            target.position.x,
-            target.position.y - lift,
-            target.position.z + range,
-          ),
-          k,
-        );
-        heading.yaw = THREE.MathUtils.lerp(heading.yaw, 0, k);
-        heading.pitch = THREE.MathUtils.lerp(heading.pitch, 0, k);
-        viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
-        camera.quaternion.setFromEuler(viewRotation);
+        if (!approach || approachDestination !== s.destination) {
+          keys.clear();
+          release();
+          approachDestination = s.destination;
+          approach = createApproachFlight({
+            camera,
+            ship,
+            destination: planets[s.destination].position,
+            radius: radii[s.destination],
+            shipDistance,
+            shipHeight,
+            reduced: s.reduced,
+            obstacles: planets.map((planet, index) => ({
+              position: planet.position,
+              radius: radii[index],
+            })),
+          });
+          settling = false;
+        }
+        const wasComplete = approach.completed;
+        if (!s.paused) approach.update(dt);
+        cameraAttitude.setFromQuaternion(camera.quaternion, "YXZ");
+        heading.yaw = cameraAttitude.y;
+        heading.pitch = cameraAttitude.x;
         velocity.set(0, 0, 0);
+        if (!wasComplete && approach.completed) approachCallback.current();
       } else if (s.flying && !s.paused) {
         dx = THREE.MathUtils.clamp(
           steer.x +
@@ -849,32 +868,63 @@ export default function SpaceScene({
           }
         });
       }
-      // Keep the existing model close to the camera, looking into the scene.
-      shipOffset
-        .set(dx * 0.12, -shipHeight + dy * 0.08, -shipDistance)
-        .applyQuaternion(camera.quaternion);
-      shipPosition.copy(camera.position).add(shipOffset);
-      ship.position.copy(shipPosition);
-      modelRotation.set(-1.04 + dy * 0.06, -dx * 0.1, -dx * 0.26, "YXZ");
-      modelQuaternion.setFromEuler(modelRotation);
-      ship.quaternion.copy(camera.quaternion).multiply(modelQuaternion);
+      // Manual flight keeps the established foreground framing. The autopilot owns its craft pose.
+      if (!s.travel) {
+        shipOffset
+          .set(dx * 0.12, -shipHeight + dy * 0.08, -shipDistance)
+          .applyQuaternion(camera.quaternion);
+        shipPosition.copy(camera.position).add(shipOffset);
+        if (settling) ship.position.lerp(shipPosition, 1 - Math.exp(-dt * 9));
+        else ship.position.copy(shipPosition);
+        modelRotation.set(-1.04 + dy * 0.06, -dx * 0.1, -dx * 0.26, "YXZ");
+        modelQuaternion.setFromEuler(modelRotation);
+        modelQuaternion.premultiply(camera.quaternion);
+        if (settling) {
+          ship.quaternion.slerp(modelQuaternion, 1 - Math.exp(-dt * 9));
+          if (
+            ship.position.distanceToSquared(shipPosition) < 0.000001 &&
+            ship.quaternion.angleTo(modelQuaternion) < 0.001
+          )
+            settling = false;
+        } else ship.quaternion.copy(modelQuaternion);
+        const baseFov = camera.aspect < 0.8 ? 52 : 50;
+        if (camera.fov !== baseFov) {
+          camera.fov = THREE.MathUtils.damp(camera.fov, baseFov, 9, dt);
+          if (Math.abs(camera.fov - baseFov) < 0.001) camera.fov = baseFov;
+          camera.updateProjectionMatrix();
+        }
+        // Clear only the cinematic roll; the pilot retains the current direction.
+        cameraAttitude.setFromQuaternion(camera.quaternion, "YXZ");
+        if (Math.abs(cameraAttitude.z) > 0.00001) {
+          viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
+          identity.setFromEuler(viewRotation);
+          camera.quaternion.slerp(identity, 1 - Math.exp(-dt * 9));
+        }
+      }
       engineOffset.set(0, -0.35, 1.1).applyQuaternion(camera.quaternion);
       light.position.copy(ship.position).add(engineOffset);
-      const engineActive = !s.paused && (thrusting || s.travel);
+      const enginePower = s.paused
+        ? 0
+        : s.travel
+          ? (approach?.power ?? 0)
+          : thrusting
+            ? 1
+            : 0;
+      const engineActive = enginePower > 0.02;
       engineCores.forEach((material) => {
-        material.emissiveIntensity = engineActive ? (fast ? 1.8 : 1.15) : 0.65;
+        material.emissiveIntensity = 0.65 + enginePower * (fast ? 1.15 : 0.7);
       });
-      light.intensity = engineActive ? 1.35 : 0.55;
+      light.intensity = 0.55 + enginePower * 0.8;
       exhausts.forEach((engine, i) => {
         const pulse =
           s.reduced || !engineActive
             ? 1
             : 1 + Math.sin(elapsed * 16 + i) * 0.09;
         if (engine instanceof THREE.Sprite)
-          engine.material.opacity = engineActive ? 0.8 : 0.22;
+          engine.material.opacity = 0.22 + enginePower * 0.58;
         engine.scale.set(
           0.32 * pulse,
-          (engineActive ? (fast ? 0.66 : 0.42) : 0.25) * pulse,
+          (0.25 + enginePower * (s.travel ? 0.33 : fast ? 0.41 : 0.17)) * pulse,
           0.32,
         );
       });
@@ -1022,11 +1072,12 @@ export default function SpaceScene({
           throttle: s.paused
             ? 0
             : s.travel
-              ? 0.6
+              ? (approach?.power ?? 0)
               : Math.min(1, velocity.length() / 16),
           boost: fast && thrusting,
           manual: thrusting,
           target: aimed,
+          approachProgress: approach?.progress ?? 0,
         });
         lastTelemetry = now;
         lastManual = thrusting;

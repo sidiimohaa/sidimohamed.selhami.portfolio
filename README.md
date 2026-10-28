@@ -37,6 +37,8 @@ Le modèle 3D du vaisseau suit la référence conservée dans references/x-wing.
 
 ## Exploration immersive
 
+L'approche automatique suit une courbe avec accélération progressive puis freinage. Le X-wing s'incline selon le virage et la caméra le poursuit avec un léger retard ; la poussée visuelle et sonore suit sa vitesse. Le trajet contourne les autres planètes. L'arrivée est déclenchée par la fin réelle du vol, et non par un minuteur indépendant. Annuler une approche rend les commandes au pilote. Au repos, le vaisseau n'avance toujours pas. Le mode mouvement réduit conserve une arrivée directe sans inclinaison ni effet de vitesse.
+
 - Le halo de ciblage, le nom et la distance apparaissent uniquement lorsque la planète est visée ou survolée. E rejoint la planète visée (ou la planète focalisée au clavier).
 - L’approche garde la vue 3D visible et peut être annulée. L’arrivée affiche une petite transmission non modale ; le pilotage la referme naturellement. Les intérieurs des planètes restent à développer.
 - Les références planétaires restent attachées aux sphères dans un repère fixe. Une lumière directionnelle, une atmosphère indépendante, les nuages d’Endor, une fine poussière de Tatooine et les éclairages nocturnes de Coruscant donnent du relief pendant les déplacements.
