@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Rocket } from "lucide-react";
 import { createCoruscantZone } from "./coruscantZone";
 import { createHothZone } from "./hothZone";
+import { landingArrival } from "./landingFlight";
 import { createTatooineZone } from "./tatooineZone";
 import type { PadEvent } from "./coruscantLife";
 import type { Landing } from "./universe";
@@ -506,21 +507,13 @@ export default function LandingScene({
       }
       if (current === "arrival") {
         // The ship brakes in from beyond the pad, sinks onto its gear, then the pilot steps out.
-        const glide = easeOut(clock / 3.6),
-          sink = ease(clock / 4.4);
-        ship.position.set(
-          shipRest.x,
-          shipRest.y + (1 - sink) * 40,
-          shipRest.z - (1 - glide) * 112,
-        );
-        ship.rotation.set(
-          -0.25 * (1 - glide),
-          Math.PI,
-          Math.sin(sink * Math.PI) * 0.06,
-        );
+        const arrival=landingArrival(clock,shipRest,zone.arrival?.shipFrom,zone.arrival?.shipYaw);
+        ship.position.copy(arrival.position);
+        ship.rotation.copy(arrival.rotation);
         zone.setThrust(clock < 4.4 ? 1 : Math.max(0, 1 - (clock - 4.4) / 0.8));
         if (clock < 4.6) {
-          camera.position.lerpVectors(wideStart, wideEnd, ease(clock / 4.6));
+          const reveal=zone.arrival?.reveal??0;
+          camera.position.lerpVectors(wideStart, wideEnd, ease((clock-reveal)/(4.6-reveal)));
           camera.lookAt(
             ship.position.x,
             ship.position.y + 1.5,

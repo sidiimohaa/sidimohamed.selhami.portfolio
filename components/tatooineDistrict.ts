@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createJawa, createSandcrawler } from "./jawaModels";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { createCoruscantCargo } from "./coruscantCargo";
@@ -151,18 +152,9 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     block(-8.5, 45.8, 1.1);
     for (let part = 0; part < 4; part++)
         add(new THREE.TorusGeometry(.12 + part * .035, .045, 6, 16), metal, -9 + part * .35, 1.15, 45.8, Math.PI / 2);
-    // An unmistakable sandcrawler silhouette rests farther out in the desert.
-    box(rust, 7.5, 5.8, 12, -21, 4.1, 100);
-    box(rust, 6.9, 1.9, 9.5, -21, 7.3, 100);
-    box(dark, 7.55, .45, 3.4, -21, 6.5, 94.1);
-    for (const side of [-1, 1]) {
-        box(dark, 1.45, 2.3, 13, -21 + side * 3.6, 1.25, 100);
-        for (let wheel = 0; wheel < 7; wheel++)
-            add(new THREE.CylinderGeometry(.78, .78, .2, 12), rust, -21 + side * 4.36, 1.2, 94.8 + wheel * 1.7, 0, 0, Math.PI / 2);
-        for (let seam = 0; seam < 8; seam++)
-            box(dark, .035, 4.8, .045, -21 + side * 3.77, 4.1, 95.3 + seam * 1.3);
-        box(amber, .25, .18, .05, -21 + side * 2.4, 4.8, 94.08);
-    }
+    // The rusted tracked transporter rests on the dune beyond the market.
+    const crawler=createSandcrawler(),crawlerGround=districtPoint(-21,100);
+    crawler.position.set(-21,groundHeight(crawlerGround.x,crawlerGround.z),100);group.add(crawler);
     const actors: {
         group: THREE.Group;
         arms: THREE.Group[];
@@ -175,6 +167,11 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         collider: Spot;
     }[] = [];
     function character(jawa: boolean, u: number, v: number, range: number, phase: number) {
+        if(jawa){
+          const {group:g,arms,legs}=createJawa(),p=districtPoint(u,v),collider={x:p.x,z:p.z,r:.4};
+          movers.push(collider);shadow(g,1,.8,.012);actors.push({group:g,arms,legs,u,v,range,phase,jawa,collider});
+          g.position.set(u,-.06,v);group.add(g);return;
+        }
         const g = new THREE.Group();
         const body = new THREE.MeshStandardMaterial({ color: jawa ? 0x62432c : [0xa99471, 0x7c7056, 0xb59c79][Math.floor(phase) % 3], roughness: 1 });
         const headMat = new THREE.MeshStandardMaterial({ color: jawa ? 0x141411 : 0xa57e5b, roughness: .95 });

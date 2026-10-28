@@ -104,7 +104,7 @@ export type Zone = {
   walkRadius: number;
   explorePoint?: THREE.Vector3;
   // Where the arrival is watched from, then the closer view it settles to (also used at takeoff).
-  arrival?: { from: THREE.Vector3; to: THREE.Vector3 };
+  arrival?: { from: THREE.Vector3; to: THREE.Vector3; shipFrom?:THREE.Vector3; shipYaw?:number; reveal?:number };
   interior?: {name:string;entry:THREE.Vector3;exit:THREE.Vector3;contains:(x:number,z:number)=>boolean};
   constrainWalk?: (walker: { x: number; z: number }) => void;
   routeTo?: (from: THREE.Vector3, to: THREE.Vector3) => THREE.Vector3[];

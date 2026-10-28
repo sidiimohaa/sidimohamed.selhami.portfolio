@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createProbeDroid } from "./probeDroid";
 import { createDroidKit } from "./droidModels";
 
 export type PadEvent = "droid" | "speeder-arrive" | "speeder-leave";
@@ -462,13 +463,8 @@ export function createPadLife(options: {
   movers.push(cartSpot);
 
   // A surveillance drone circling above the pad.
-  const drone = new THREE.Group();
-  const droneLight = glowSprite(glow, 0xff4a3a, 0.3);
-  droneLight.position.y = -0.18;
-  const ring = mesh(new THREE.TorusGeometry(0.24, 0.02, 6, 24), orange);
-  ring.rotation.x = Math.PI / 2;
-  drone.add(mesh(new THREE.SphereGeometry(0.16, 14, 10), dark), ring, droneLight);
-  if (has.drone) group.add(drone);
+  const probe=has.drone?createProbeDroid():null;
+  if(probe)group.add(probe.group);
 
   // Steam: coolant venting from the engines after touchdown, and bursts from floor grates.
   const steam = particles(glow, 150, {
@@ -710,8 +706,12 @@ export function createPadLife(options: {
 
       // Drone.
       const orbit = reduced ? 0.6 : elapsed * 0.25;
-      drone.position.set(Math.cos(orbit) * 7, 5.5 + (reduced ? 0 : Math.sin(elapsed * 1.7) * 0.2), 2 + Math.sin(orbit) * 7);
-      droneLight.material.opacity = Math.pow(Math.max(0, Math.sin(elapsed * 2.6)), 8);
+      if(probe){
+        const drone=probe.group;
+        drone.position.set(Math.cos(orbit)*7,5.5+(reduced?0:Math.sin(elapsed*1.7)*.16),2+Math.sin(orbit)*7);
+        drone.rotation.y=Math.atan2(walker.x-drone.position.x,walker.z-drone.position.z);
+        probe.tick(elapsed,reduced);
+      }
 
       // Steam from the engines fades from a hiss after touchdown to a slow idle.
       if (parkedFor >= 0) parkedFor += dt;

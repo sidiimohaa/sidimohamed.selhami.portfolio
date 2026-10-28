@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createJawa } from "./jawaModels";
 import { createDroidKit } from "./droidModels";
 import { glowTexture } from "./landingKit";
 import { bakePart, createSandtrooper, part, rounded } from "./tatooineCharacters";
@@ -16,6 +17,7 @@ const toward = (current: number, target: number, dt: number, rate = 6) =>
 
 // A robed figure: a hooded Jawa when no skin is given, otherwise a traveller.
 function robed(height: number, robe: number, skin?: number): Robed {
+  if(skin===undefined){const figure=createJawa(robe);figure.group.scale.setScalar(height/1.2);return{root:figure.group,head:figure.head,arms:figure.arms};}
   const root = new THREE.Group();
   const cloth = new THREE.MeshStandardMaterial({ color: robe, roughness: 1 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x0d0b09, roughness: 0.9 });

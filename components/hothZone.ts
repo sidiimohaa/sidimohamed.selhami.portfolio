@@ -5,10 +5,11 @@ import { createHothBattle, createSnowspeeder } from "./hothBattle";
 import { createBriefingTable } from "./hothBriefing";
 import { createTerminals, glowTexture, parkShip, random, type Spot, type Zone } from "./landingKit";
 import { createShipModel } from "./shipModel";
+import { createHothGlacier } from "./hothGlacier";
 import type { Landing } from "./universe";
 
 // Echo Base's main hangar: a vaulted glacier cavern, open at +z onto
-// the plain. The ship arrives over the back cliff and takes off through the mouth, as everywhere.
+// the plain. The ship enters and leaves through the carved mouth in the great ice wall.
 const SIDE = 24,
   BACK = -26,
   MOUTH = 34,
@@ -292,6 +293,8 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
     }
   }
   group.add(iceVault());
+  const glacier=createHothGlacier({side:SIDE,back:BACK,mouth:MOUTH,vaultHeight});
+  group.add(glacier.group);
   for(let i=0;i<64;i++){
     const x=(rand()<.5?-1:1)*(7+rand()*16),z=BACK+3+rand()*(MOUTH-BACK-3),length=.4+rand()*1.8;
     add(new THREE.ConeGeometry(.08+rand()*.18,length,7),ice,[x,vaultHeight(x,z)-length/2,z],[Math.PI,rand()*Math.PI,(rand()-.5)*.14]);
@@ -421,8 +424,8 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
     fog,
     exposure: 0.95,
     walkRadius: 50,
-    // The arrival is watched from the plain, through the mouth.
-    arrival: { from: new THREE.Vector3(4, 15, 58), to: new THREE.Vector3(11, 5.5, 25) },
+    // The wide view reveals the wall's scale before following the craft through its opening.
+    arrival: { from: new THREE.Vector3(110,65,440), to: new THREE.Vector3(11,7,65), shipFrom:new THREE.Vector3(0,12,160),shipYaw:0,reveal:1.4 },
     constrainWalk: (walker) => {
       walker.x = THREE.MathUtils.clamp(walker.x, -SIDE + 3.5, SIDE - 3.5);
       walker.z = THREE.MathUtils.clamp(walker.z, BACK + 4, MOUTH + 12);
@@ -446,6 +449,8 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       stations.tick(elapsed, reduced);
       table.tick(elapsed, reduced, stations.terminals);
       battle.tick(dt, reduced);
+      const daylightMix=smooth(walker.z,16,46),blend=1-Math.exp(-dt*3);
+      ambient.intensity+=((1.05+daylightMix*.5)-ambient.intensity)*blend;
       if (!reduced) clock += dt;
       flakes.points.visible = !reduced;
       flakes.material.uniforms.time.value = clock;
