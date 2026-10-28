@@ -95,3 +95,102 @@ export function planetReferenceStyle(
     backgroundPosition: `${((centerX - radius) / (width - diameter)) * 100}% ${((centerY - radius) / (height - diameter)) * 100}%`,
   };
 }
+
+export type LandingTerminal = {
+  id: string;
+  label: string;
+  heading: string;
+  body: string;
+  meta?: string;
+  links?: { label: string; href: string }[];
+};
+export type Landing = {
+  pad: string;
+  welcome: string;
+  soundscape: "city" | "desert";
+  terminals: LandingTerminal[];
+};
+
+// Textes provisoires : remplace-les par tes coordonnées (Coruscant) et tes projets (Tatooine).
+export const landings: Partial<Record<string, Landing>> = {
+  Coruscant: {
+    pad: "PLATEFORME 3-7 · NIVEAU 5127",
+    soundscape: "city",
+    welcome:
+      "Bienvenue sur Coruscant. Approchez un terminal pour lire sa transmission.",
+    terminals: [
+      {
+        id: "identite",
+        label: "Identité",
+        heading: "Prénom Nom",
+        body: "Métier · Ville, Pays",
+      },
+      {
+        id: "transmission",
+        label: "Transmission",
+        heading: "bonjour@exemple.com",
+        body: "Écrivez-moi pour un projet, une question ou un simple bonjour.",
+        links: [{ label: "Envoyer un message", href: "mailto:bonjour@exemple.com" }],
+      },
+      {
+        id: "reseaux",
+        label: "Réseaux",
+        heading: "Me retrouver en ligne",
+        body: "Mon parcours et mes travaux, ailleurs dans la galaxie.",
+        links: [
+          { label: "LinkedIn", href: "https://www.linkedin.com/" },
+          { label: "GitHub", href: "https://github.com/" },
+        ],
+      },
+      {
+        id: "disponibilite",
+        label: "Disponibilité",
+        heading: "Ouvert aux collaborations",
+        body: "Stage, alternance, freelance ou projet personnel : parlons-en.",
+      },
+    ],
+  },
+  Tatooine: {
+    pad: "BAIE D’AMARRAGE 94 · MOS EISLEY",
+    welcome:
+      "Bienvenue sur Tatooine. Chaque terminal de la baie présente un projet.",
+    soundscape: "desert",
+    terminals: [
+      {
+        id: "alpha",
+        label: "Alpha",
+        heading: "Projet Alpha",
+        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
+        meta: "Rôle · Technos · Année",
+        links: [
+          { label: "Voir le projet", href: "https://example.com/" },
+          { label: "Code source", href: "https://github.com/" },
+        ],
+      },
+      {
+        id: "beta",
+        label: "Bêta",
+        heading: "Projet Bêta",
+        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
+        meta: "Rôle · Technos · Année",
+        links: [{ label: "Voir le projet", href: "https://example.com/" }],
+      },
+      {
+        id: "gamma",
+        label: "Gamma",
+        heading: "Projet Gamma",
+        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
+        meta: "Rôle · Technos · Année",
+        links: [{ label: "Voir le projet", href: "https://example.com/" }],
+      },
+      {
+        id: "delta",
+        label: "Delta",
+        heading: "Projet Delta",
+        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
+        meta: "Rôle · Technos · Année",
+        links: [{ label: "Voir le projet", href: "https://example.com/" }],
+      },
+    ],
+  },
+};

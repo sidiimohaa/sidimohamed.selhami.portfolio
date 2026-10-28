@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion, useMotionValue } from "motion/react";
+import { Volume2, VolumeX } from "lucide-react";
 const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
 
 // A single diffuse exit glow, rather than a repeating flash.
@@ -87,19 +88,27 @@ export default function Preloader({
   ready,
   reduced,
   onComplete,
+  sound,
+  onToggleSound,
+  onExit,
 }: {
   ready: boolean;
   reduced: boolean;
   onComplete: () => void;
+  sound: boolean;
+  onToggleSound: () => void;
+  onExit: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null),
     canvas = useRef<HTMLCanvasElement>(null);
   const readyRef = useRef(ready),
-    completeRef = useRef(onComplete);
+    completeRef = useRef(onComplete),
+    exitRef = useRef(onExit);
   const [exiting, setExiting] = useState(false);
   const opacity = useMotionValue(1);
   readyRef.current = ready;
   completeRef.current = onComplete;
+  exitRef.current = onExit;
   useEffect(() => {
     const element = canvas.current,
       overlay = root.current;
@@ -147,6 +156,7 @@ export default function Preloader({
       ) {
         exitAt = now;
         setExiting(true);
+        exitRef.current();
       }
       const phase =
         exitAt === null
@@ -254,6 +264,16 @@ export default function Preloader({
           aria-hidden="true"
         />
       )}
+      <button
+        className="hyperspace-sound sound-button"
+        aria-label={
+          sound ? "Couper l’ambiance sonore" : "Activer l’ambiance sonore"
+        }
+        aria-pressed={sound}
+        onClick={onToggleSound}
+      >
+        {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
+      </button>
       <div className="hyperspace-caption mono">
         <i aria-hidden="true" />
         {exiting ? "RETOUR EN ESPACE RÉEL" : "SORTIE D’HYPERESPACE"}

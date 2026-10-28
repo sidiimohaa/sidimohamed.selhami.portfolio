@@ -2,18 +2,36 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { destinations } from "./universe";
-import { referencePlanetMaterial } from "./planetMaterial";
+import { createPlanetLayers } from "./planetMaterial";
 import { createShipModel } from "./shipModel";
+import {
+  createNebula,
+  createShootingStars,
+  createStarfield,
+} from "./spaceAmbience";
+import { createSpaceTraffic, type HyperspacePhase } from "./spaceTraffic";
 export type FlightState = {
   flying: boolean;
   boost: boolean;
   destination: number;
   travel: boolean;
+  arrived: boolean;
   reduced: boolean;
   paused: boolean;
+  hidden: boolean;
   resetKey: number;
+  droidSignal: number;
+};
+export type FlightTelemetry = {
+  throttle: number;
+  boost: boolean;
+  manual: boolean;
+  target: number | null;
 };
 type Props = {
+  onFlight: (telemetry: FlightTelemetry) => void;
+  onDroid: () => void;
+  onHyperspace: (phase: HyperspacePhase) => void;
   state: FlightState;
   onSelect: (index: number) => void;
   onReady: () => void;
@@ -121,6 +139,19 @@ function glowTexture() {
   g.addColorStop(1, "rgba(255,70,20,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+function beaconTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const ctx = c.getContext("2d")!,
+    g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.18, "rgba(255,255,255,.75)");
+  g.addColorStop(0.5, "rgba(255,255,255,.12)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
   return new THREE.CanvasTexture(c);
 }
 function deathStarModel(radius: number) {
@@ -266,6 +297,9 @@ function deathStarModel(radius: number) {
 export default function SpaceScene({
   state,
   onSelect,
+  onFlight,
+  onDroid,
+  onHyperspace,
   onReady,
   onUnsupported,
 }: Props) {
@@ -273,6 +307,15 @@ export default function SpaceScene({
     live = useRef(state);
   live.current = state;
   const markers = useRef<(HTMLButtonElement | null)[]>([]);
+  const distanceLabels = useRef<(HTMLElement | null)[]>([]),
+    joystick = useRef<HTMLDivElement>(null),
+    joystickThumb = useRef<HTMLElement>(null),
+    droidButton = useRef<HTMLButtonElement>(null);
+  const hovered = useRef<number | null>(null),
+    flightCallback = useRef(onFlight),
+    hyperspaceCallback = useRef(onHyperspace);
+  flightCallback.current = onFlight;
+  hyperspaceCallback.current = onHyperspace;
   useEffect(() => {
     const el = mount.current;
     if (!el) return;
@@ -309,35 +352,14 @@ export default function SpaceScene({
     const rim = new THREE.DirectionalLight(0x7b9da6, 0.3);
     rim.position.set(6, -5, 8);
     scene.add(rim);
-    const rand = random(74),
-      starsGeo = new THREE.BufferGeometry(),
-      coords = [],
-      colors = [];
-    for (let i = 0; i < 4200; i++) {
-      coords.push(
-        (rand() - 0.5) * 460,
-        (rand() - 0.5) * 320,
-        (rand() - 0.5) * 500,
-      );
-      const t = 0.35 + rand() * 0.65;
-      colors.push(t, t * 0.97, t * 0.85);
-    }
-    starsGeo.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(coords, 3),
-    );
-    starsGeo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-    const stars = new THREE.Points(
-      starsGeo,
-      new THREE.PointsMaterial({
-        size: 0.06,
-        sizeAttenuation: true,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.85,
-      }),
-    );
+    const rand = random(74);
+    const nebula = createNebula(renderer);
+    scene.add(nebula.dome);
+    const starfield = createStarfield(renderer.getPixelRatio()),
+      stars = starfield.points;
     scene.add(stars);
+    const shootingStars = createShootingStars();
+    scene.add(shootingStars.group);
     const planets: THREE.Group[] = [];
     const addPlanet = (
       kind: "sand" | "green" | "moon",
@@ -386,6 +408,7 @@ export default function SpaceScene({
     scene.add(deathStar);
     planets.push(deathStar);
     const radii = [3.85, 2.1, 1.6, 3.3];
+    const planetLayers: ReturnType<typeof createPlanetLayers>[] = [];
     const loadingManager = new THREE.LoadingManager();
     loadingManager.onLoad = () => {
       if (!disposed) onReady();
@@ -404,15 +427,18 @@ export default function SpaceScene({
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
           referenceTextures.add(texture);
-          const surface = new THREE.Mesh(
-            new THREE.SphereGeometry(radii[index], 128, 96),
-            referencePlanetMaterial(texture, destination.reference),
+          const layered = createPlanetLayers(
+            texture,
+            destination.reference,
+            radii[index],
+            index,
+            camera.position.clone().sub(planets[index].position),
           );
-          surface.name = "reference-globe";
           planets[index].children.forEach((child) => {
             child.visible = false;
           });
-          planets[index].add(surface);
+          planets[index].add(...layered.layers);
+          planetLayers.push(layered);
         },
         undefined,
         () => {
@@ -469,21 +495,83 @@ export default function SpaceScene({
       75,
     );
     const dummy = new THREE.Object3D();
-    for (let i = 0; i < 75; i++) {
-      const angle = rand() * Math.PI * 2,
-        r = 6.4 + (rand() - 0.5) * 1.2;
-      dummy.position.set(
-        15 + Math.cos(angle) * r,
-        3.5 + Math.sin(angle) * 1.5 + (rand() - 0.5) * 0.3,
-        -17 + Math.sin(angle) * 3.5,
-      );
-      dummy.rotation.set(rand() * 5, rand() * 5, rand() * 5);
-      dummy.scale.setScalar(0.15 + rand() * 0.7);
-      dummy.updateMatrix();
-      rocks.setMatrixAt(i, dummy.matrix);
-    }
+    const debris = Array.from({ length: 75 }, () => ({
+      angle: rand() * Math.PI * 2,
+      reach: 6.4 + (rand() - 0.5) * 1.2,
+      lift: (rand() - 0.5) * 0.3,
+      tumble: new THREE.Euler(rand() * 5, rand() * 5, rand() * 5),
+      spin: (rand() - 0.5) * 0.8,
+      drift: 0.018 + rand() * 0.014,
+      size: 0.15 + rand() * 0.7,
+    }));
+    const placeDebris = (dt: number) => {
+      debris.forEach((rock, i) => {
+        rock.angle += dt * rock.drift;
+        rock.tumble.x += dt * rock.spin;
+        rock.tumble.y += dt * rock.spin * 0.6;
+        dummy.position.set(
+          15 + Math.cos(rock.angle) * rock.reach,
+          3.5 + Math.sin(rock.angle) * 1.5 + rock.lift,
+          -17 + Math.sin(rock.angle) * 3.5,
+        );
+        dummy.rotation.copy(rock.tumble);
+        dummy.scale.setScalar(rock.size);
+        dummy.updateMatrix();
+        rocks.setMatrixAt(i, dummy.matrix);
+      });
+      rocks.instanceMatrix.needsUpdate = true;
+    };
+    placeDebris(0);
     scene.add(rocks);
+    // Patrol beacons circling the station, hidden by it on the far side of their orbits.
+    const beaconGlow = beaconTexture();
+    const patrols = [
+      { reach: 4.5, tilt: 0.5, yaw: 0.3, speed: 0.32, angle: 0.4 },
+      { reach: 5.1, tilt: -0.35, yaw: -0.6, speed: -0.24, angle: 2.6 },
+      { reach: 4.2, tilt: 1.1, yaw: 1.4, speed: 0.4, angle: 4.4 },
+    ].map((orbit) => {
+      const beacon = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: beaconGlow,
+          color: 0xd8f0e6,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      beacon.scale.setScalar(0.32);
+      scene.add(beacon);
+      const plane = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(orbit.tilt, orbit.yaw, 0),
+      );
+      return { ...orbit, beacon, plane };
+    });
+    const placePatrols = (dt: number) => {
+      patrols.forEach((patrol, index) => {
+        patrol.angle += dt * patrol.speed;
+        patrol.beacon.position
+          .set(
+            Math.cos(patrol.angle) * patrol.reach,
+            0,
+            Math.sin(patrol.angle) * patrol.reach,
+          )
+          .applyQuaternion(patrol.plane)
+          .add(deathStar.position);
+        patrol.beacon.material.opacity =
+          0.45 +
+          0.55 * Math.pow(Math.max(0, Math.sin(elapsed * 2.1 + index * 2)), 14);
+      });
+    };
+    const traffic = createSpaceTraffic(renderer, (phase) =>
+      hyperspaceCallback.current(phase),
+    );
+    scene.add(traffic.group);
+    const obstacles = planets.map((planet, index) => ({
+      position: planet.position,
+      radius: radii[index],
+    }));
     const ship = createShipModel();
+    const shipBounds = new THREE.Box3().setFromObject(ship);
     const exhausts: THREE.Sprite[] = [];
     const engineCores = new Set<THREE.MeshStandardMaterial>();
     ship.traverse((object) => {
@@ -500,6 +588,19 @@ export default function SpaceScene({
     ship.rotation.set(-1.04, 0, 0);
     ship.scale.setScalar(0.585);
     scene.add(ship);
+    const droidHead = ship.getObjectByName("astromech-head");
+    const droidRest = droidHead?.rotation.z ?? 0;
+    let droidAt = -Infinity,
+      lastDroidSignal = state.droidSignal;
+    const droidEyeMaterials = new Set<THREE.MeshStandardMaterial>();
+    droidHead?.traverse((object) => {
+      if (
+        object instanceof THREE.Mesh &&
+        object.material instanceof THREE.MeshStandardMaterial &&
+        object.material.name === "droid-eye"
+      )
+        droidEyeMaterials.add(object.material);
+    });
     const light = new THREE.PointLight(0xf476aa, 0.65, 3);
     light.position.set(0.5, -3.7, 6);
     scene.add(light);
@@ -532,6 +633,9 @@ export default function SpaceScene({
         dragging = false;
         steer.x = 0;
         steer.y = 0;
+        joystick.current?.classList.remove("is-active");
+        if (joystickThumb.current)
+          joystickThumb.current.style.transform = "translate(0px,0px)";
       }
     };
     const blur = () => {
@@ -543,6 +647,8 @@ export default function SpaceScene({
         const reach = Math.min(el.clientWidth, el.clientHeight) * 0.21;
         steer.x = THREE.MathUtils.clamp((e.clientX - anchor.x) / reach, -1, 1);
         steer.y = THREE.MathUtils.clamp((anchor.y - e.clientY) / reach, -1, 1);
+        if (joystickThumb.current)
+          joystickThumb.current.style.transform = `translate(${steer.x * 26}px,${-steer.y * 26}px)`;
       }
     };
     const pointerDown = (e: PointerEvent) => {
@@ -555,6 +661,13 @@ export default function SpaceScene({
       if (!dragging) {
         anchor.x = e.clientX;
         anchor.y = e.clientY;
+        if (
+          (e.pointerType === "touch" || el.clientWidth < 600) &&
+          joystick.current
+        ) {
+          joystick.current.style.transform = `translate(${anchor.x - 44}px,${anchor.y - 44}px)`;
+          joystick.current.classList.add("is-active");
+        }
       }
       touches.add(e.pointerId);
       dragging = true;
@@ -565,6 +678,7 @@ export default function SpaceScene({
     window.addEventListener("pointerdown", pointerDown);
     window.addEventListener("pointerup", release);
     window.addEventListener("pointercancel", cancelLostPointer);
+    el.addEventListener("lostpointercapture", cancelLostPointer);
     window.addEventListener("blur", blur);
     window.addEventListener("keydown", keydown);
     window.addEventListener("keyup", keyup);
@@ -574,7 +688,17 @@ export default function SpaceScene({
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.fov = w / h < 0.8 ? 52 : 50;
-      const nextZ = w / h < 0.8 ? 66 : 32;
+      // On narrow screens, step back until every world fits inside the frame.
+      const halfWidth =
+        Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+      const fit = Math.max(
+        ...planets.map(
+          (planet, i) =>
+            planet.position.z +
+            (Math.abs(planet.position.x) + radii[i] + 1.5) / halfWidth,
+        ),
+      );
+      const nextZ = w / h < 0.8 ? Math.max(66, fit) : 32;
       camera.position.z += nextZ - baseZ;
       baseZ = nextZ;
       camera.updateProjectionMatrix();
@@ -599,11 +723,25 @@ export default function SpaceScene({
     const shipOffset = new THREE.Vector3();
     const shipPosition = new THREE.Vector3();
     const engineOffset = new THREE.Vector3();
+    const shipCorner = new THREE.Vector3();
+    const shipRect = { left: 0, right: 0, top: 0, bottom: 0 };
+    const distanceFormat = new Intl.NumberFormat("fr-FR", {
+      maximumFractionDigits: 0,
+    });
+    let lastTelemetry = 0,
+      lastManual = false,
+      lastTarget: number | null = null,
+      lastBoost = false;
     const animate = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
-      elapsed += dt;
       const s = live.current;
+      // While the visitor is on a planet's surface, space keeps its state but stops drawing.
+      if (s.hidden) {
+        frame = requestAnimationFrame(animate);
+        return;
+      }
+      elapsed += dt;
       if (s.resetKey !== lastReset) {
         camera.position.set(0, 0, baseZ);
         heading.yaw = 0;
@@ -615,6 +753,11 @@ export default function SpaceScene({
         keys.clear();
         release();
         lastReset = s.resetKey;
+        hovered.current = null;
+        droidAt = -Infinity;
+        lastDroidSignal = s.droidSignal;
+        traffic.reset();
+        shootingStars.reset();
       }
       const fast = s.boost || keys.has("shift") || touches.size > 1;
       let dx = 0,
@@ -626,18 +769,28 @@ export default function SpaceScene({
         velocity.set(0, 0, 0);
       }
       if (s.travel) {
-        const target = planets[s.destination];
+        const target = planets[s.destination],
+          radius = radii[s.destination];
         const k = s.reduced ? 1 : 1 - Math.exp(-dt * 1.2);
+        // Frame every world at a similar size, clear of the ship and the orbit card.
+        const portrait = camera.aspect < 0.8,
+          tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
+          share = portrait ? Math.min(0.36, camera.aspect * 0.45) : 0.36,
+          range = Math.max(
+            radius / (tanHalf * share),
+            radius + shipDistance + 3,
+          ),
+          lift = (portrait ? -0.08 : 0.2) * range * tanHalf;
         camera.position.lerp(
           flightTarget.set(
             target.position.x,
-            target.position.y + 2,
-            target.position.z + radii[s.destination] + 25,
+            target.position.y - lift,
+            target.position.z + range,
           ),
           k,
         );
         heading.yaw = THREE.MathUtils.lerp(heading.yaw, 0, k);
-        heading.pitch = THREE.MathUtils.lerp(heading.pitch, -0.055, k);
+        heading.pitch = THREE.MathUtils.lerp(heading.pitch, 0, k);
         viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
         camera.quaternion.setFromEuler(viewRotation);
         velocity.set(0, 0, 0);
@@ -725,14 +878,91 @@ export default function SpaceScene({
           0.32,
         );
       });
-      if (!s.reduced && !s.paused) {
-        planets[0].children[0].rotation.y += dt * 0.014;
-        planets[1].children[0].rotation.y += dt * 0.025;
+      if (!s.paused) planetLayers.forEach((layer) => layer.tick(dt, s.reduced));
+      const lively = s.paused || s.reduced ? 0 : dt;
+      placeDebris(lively);
+      placePatrols(lively);
+      starfield.tick(elapsed, s.reduced);
+      nebula.dome.position.copy(camera.position);
+      shootingStars.tick(
+        lively,
+        camera,
+        s.flying && !s.travel && !s.paused && !s.reduced,
+      );
+      traffic.tick(
+        s.paused ? 0 : dt,
+        camera,
+        { active: s.flying && !s.reduced, travel: s.travel },
+        obstacles,
+      );
+      if (s.droidSignal !== lastDroidSignal) {
+        lastDroidSignal = s.droidSignal;
+        droidAt = elapsed;
+      }
+      const droidAge = elapsed - droidAt,
+        droidActive = droidAge < 1.5;
+      if (droidHead)
+        droidHead.rotation.z =
+          droidRest +
+          (droidActive && !s.reduced
+            ? Math.sin((droidAge / 1.5) * Math.PI * 2) *
+              Math.sin((droidAge / 1.5) * Math.PI) *
+              0.65
+            : 0);
+      droidEyeMaterials.forEach((material) => {
+        material.emissiveIntensity = droidActive ? 1.1 : 0.22;
+      });
+      ship.updateMatrixWorld(true);
+      // The ship's screen footprint, so planet labels can step around it.
+      shipRect.left = shipRect.top = Infinity;
+      shipRect.right = shipRect.bottom = -Infinity;
+      for (let corner = 0; corner < 8; corner++) {
+        shipCorner
+          .set(
+            corner & 1 ? shipBounds.max.x : shipBounds.min.x,
+            corner & 2 ? shipBounds.max.y : shipBounds.min.y,
+            corner & 4 ? shipBounds.max.z : shipBounds.min.z,
+          )
+          .applyMatrix4(ship.matrixWorld)
+          .project(camera);
+        const x = (shipCorner.x * 0.5 + 0.5) * el.clientWidth,
+          y = (-shipCorner.y * 0.5 + 0.5) * el.clientHeight;
+        shipRect.left = Math.min(shipRect.left, x);
+        shipRect.right = Math.max(shipRect.right, x);
+        shipRect.top = Math.min(shipRect.top, y);
+        shipRect.bottom = Math.max(shipRect.bottom, y);
+      }
+      if (droidButton.current && droidHead) {
+        droidHead.getWorldPosition(projected).project(camera);
+        const button = droidButton.current;
+        const visible = !s.paused && !s.travel && s.flying;
+        button.style.visibility = visible ? "visible" : "hidden";
+        button.disabled = !visible;
+        button.style.transform = `translate(${(projected.x * 0.5 + 0.5) * el.clientWidth - 18}px,${(-projected.y * 0.5 + 0.5) * el.clientHeight - 18}px)`;
+        button.dataset.active = String(droidActive);
       }
       // Retain a little translational parallax while recycling the distant star volume.
       stars.position.copy(camera.position).multiplyScalar(0.92);
-      planets.forEach((planet, i) => {
-        const marker = markers.current[i];
+      let aimed: number | null = null,
+        closest = 0.42;
+      if (!s.paused && !s.travel && s.flying) {
+        planets.forEach((planet, index) => {
+          projected.copy(planet.position).project(camera);
+          if (projected.z <= -1 || projected.z >= 1) return;
+          if (hovered.current === index) {
+            aimed = index;
+            return;
+          }
+          if (hovered.current !== null) return;
+          const angle = Math.hypot(projected.x * camera.aspect, projected.y);
+          if (angle < closest) {
+            closest = angle;
+            aimed = index;
+          }
+        });
+      }
+      planets.forEach((planet, index) => {
+        const marker = markers.current[index];
         if (!marker) return;
         projected.copy(planet.position).project(camera);
         const distance = camera.position.distanceTo(planet.position);
@@ -742,19 +972,67 @@ export default function SpaceScene({
           Math.abs(projected.x) < 1.2 &&
           Math.abs(projected.y) < 1.2 &&
           !s.paused &&
-          !s.travel;
+          !s.travel &&
+          s.flying;
         marker.style.visibility = visible ? "visible" : "hidden";
         marker.disabled = !visible;
+        marker.dataset.targeted = String(visible && index === aimed);
         const size = THREE.MathUtils.clamp(
-          (radii[i] * el.clientHeight) /
+          (radii[index] * el.clientHeight) /
             (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance),
           36,
           260,
         );
         marker.style.width = `${size}px`;
         marker.style.height = `${size}px`;
-        marker.style.transform = `translate(${(projected.x * 0.5 + 0.5) * el.clientWidth - size / 2}px,${(-projected.y * 0.5 + 0.5) * el.clientHeight - size / 2}px)`;
+        const centerX = (projected.x * 0.5 + 0.5) * el.clientWidth,
+          centerY = (-projected.y * 0.5 + 0.5) * el.clientHeight;
+        marker.style.transform = `translate(${centerX - size / 2}px,${centerY - size / 2}px)`;
+        marker.dataset.orbiting = String(s.arrived && index === s.destination);
+        // Lift the label above the world when it would sit on the ship or below the screen.
+        const compact = el.clientWidth < 600,
+          labelTop = centerY + size / 2 + (compact ? 12 : 18),
+          labelBottom = labelTop + (compact ? 36 : 46),
+          labelHalf = compact ? 56 : 70,
+          margin = marker.dataset.label === "above" ? 14 : 0;
+        const crowded =
+          (centerX + labelHalf > shipRect.left - margin &&
+            centerX - labelHalf < shipRect.right + margin &&
+            labelBottom > shipRect.top - margin &&
+            labelTop < shipRect.bottom + margin) ||
+          labelBottom > el.clientHeight - 8 + margin;
+        marker.dataset.label = crowded ? "above" : "below";
+        const label = distanceLabels.current[index];
+        if (label) {
+          const range = Math.max(
+            0,
+            ship.position.distanceTo(planet.position) - radii[index],
+          );
+          const text = `DISTANCE · ${distanceFormat.format(Math.round(range * 10) * 10)} km`;
+          if (label.textContent !== text) label.textContent = text;
+        }
       });
+      if (
+        now - lastTelemetry > 100 ||
+        lastManual !== thrusting ||
+        lastTarget !== aimed ||
+        lastBoost !== fast
+      ) {
+        flightCallback.current({
+          throttle: s.paused
+            ? 0
+            : s.travel
+              ? 0.6
+              : Math.min(1, velocity.length() / 16),
+          boost: fast && thrusting,
+          manual: thrusting,
+          target: aimed,
+        });
+        lastTelemetry = now;
+        lastManual = thrusting;
+        lastTarget = aimed;
+        lastBoost = fast;
+      }
       renderer.render(scene, camera);
       frame = requestAnimationFrame(animate);
     };
@@ -762,12 +1040,14 @@ export default function SpaceScene({
     return () => {
       disposed = true;
       referenceTextures.forEach((texture) => texture.dispose());
+      nebula.dispose();
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("pointermove", pointerMove);
       window.removeEventListener("pointerdown", pointerDown);
       window.removeEventListener("pointerup", release);
       window.removeEventListener("pointercancel", cancelLostPointer);
+      el.removeEventListener("lostpointercapture", cancelLostPointer);
       window.removeEventListener("blur", blur);
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("keyup", keyup);
@@ -808,13 +1088,45 @@ export default function SpaceScene({
           className="planet-hit"
           aria-label={`Approcher ${destination.name}`}
           onClick={() => onSelect(index)}
+          onPointerEnter={() => {
+            hovered.current = index;
+          }}
+          onPointerLeave={() => {
+            if (hovered.current === index) hovered.current = null;
+          }}
+          onFocus={() => {
+            hovered.current = index;
+          }}
+          onBlur={() => {
+            if (hovered.current === index) hovered.current = null;
+          }}
+          data-destination={index}
+          aria-describedby={`planet-range-${index}`}
         >
           <span>
             {destination.name}
             <small>{destination.category}</small>
+            <em
+              id={`planet-range-${index}`}
+              ref={(element) => {
+                distanceLabels.current[index] = element;
+              }}
+              className="planet-distance"
+            />
           </span>
         </button>
       ))}
+      <button
+        ref={droidButton}
+        className="droid-hit"
+        aria-label="Saluer l’astromécano"
+        onClick={onDroid}
+      >
+        <span>ASTROMÉCANO</span>
+      </button>
+      <div ref={joystick} className="touch-joystick" aria-hidden="true">
+        <i ref={joystickThumb} />
+      </div>
     </div>
   );
 }

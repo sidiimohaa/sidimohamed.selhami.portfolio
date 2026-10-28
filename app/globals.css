@@ -55,6 +55,8 @@ button svg {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  /* clip, unlike hidden, cannot be scrolled when focus lands near an edge */
+  overflow: clip;
   background: #090d0b;
 }
 .space-haze {
@@ -1000,4 +1002,580 @@ button svg {
 .map-globe.has-reference::before,
 .map-globe.has-reference::after {
   content: none;
+}
+
+/* Flight guidance stays attached to the world, and appears only when aimed at. */
+.planet-hit[data-targeted="true"] {
+  border-color: #c4d3ac70;
+  box-shadow: 0 0 0 9px #b6cba508;
+}
+.planet-hit[data-targeted="true"] > span {
+  opacity: 1;
+}
+.planet-hit[data-label="above"] > span {
+  top: auto;
+  bottom: calc(100% + 18px);
+}
+.planet-hit[data-orbiting="true"] > span {
+  opacity: 0;
+}
+.planet-distance {
+  display: block;
+  font-family: var(--mono);
+  font-size: 6px;
+  line-height: 1.5;
+  font-style: normal;
+  letter-spacing: 0.6px;
+  color: #b7c7a5;
+  margin-top: 8px;
+}
+.droid-hit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 36px;
+  height: 36px;
+  z-index: 6;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  visibility: hidden;
+  padding: 0;
+}
+.droid-hit:hover,
+.droid-hit:focus-visible {
+  border-color: #afc7d278;
+  background: #b4d2e90a;
+}
+.droid-hit > span {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 6px;
+  letter-spacing: 1px;
+  color: #bdcdd3;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.droid-hit:hover > span,
+.droid-hit:focus-visible > span {
+  opacity: 1;
+}
+.droid-hit[data-active="true"]:after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 1px solid #9cc4dc88;
+  border-radius: 50%;
+  animation: droid-salute 1.4s ease-out both;
+  pointer-events: none;
+}
+@keyframes droid-salute {
+  from {
+    transform: scale(0.65);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+.touch-joystick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 88px;
+  height: 88px;
+  z-index: 7;
+  border: 1px solid #c4d6ae55;
+  border-radius: 50%;
+  background: #c4d6ae07;
+  opacity: 0;
+  transition: opacity 0.16s;
+  pointer-events: none;
+}
+.touch-joystick.is-active {
+  opacity: 1;
+}
+.touch-joystick:before,
+.touch-joystick:after {
+  content: "";
+  position: absolute;
+  background: #bdd2a92e;
+}
+.touch-joystick:before {
+  width: 1px;
+  height: 54px;
+  left: 43px;
+  top: 16px;
+}
+.touch-joystick:after {
+  width: 54px;
+  height: 1px;
+  left: 16px;
+  top: 43px;
+}
+.touch-joystick i {
+  position: absolute;
+  left: 33px;
+  top: 33px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid #d3dfbe99;
+  background: #b8cda42b;
+  box-shadow: 0 0 15px #b8cda411;
+}
+.course-badge {
+  position: absolute;
+  top: 101px;
+  left: 50%;
+  transform: translateX(-50%) !important;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1px solid #a6b98b33;
+  background: #0b130ce0;
+  backdrop-filter: blur(10px);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: #bdcca8;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.course-badge > button {
+  display: grid;
+  place-items: center;
+  margin-left: 9px;
+  width: 20px;
+  height: 20px;
+  color: #a3b58c;
+}
+.course-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: #c3d2aa;
+  transform-origin: left;
+}
+.orbit-card {
+  position: absolute;
+  top: 105px;
+  right: 36px;
+  z-index: 20;
+  width: 300px;
+  padding: 18px 20px 8px;
+  border: 1px solid #b3c8993d;
+  background: #0c140ddb;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 60px #0003;
+}
+.orbit-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 6px;
+  letter-spacing: 1px;
+  color: #a8bc90;
+  margin-bottom: 12px;
+}
+.orbit-card-top > span {
+  display: flex;
+  align-items: center;
+}
+.orbit-card-top .close-button {
+  width: 19px;
+  height: 19px;
+}
+.orbit-card h2 {
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.8px;
+  margin: 0 0 13px;
+}
+.orbit-card > p {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #b5c0a7;
+  margin: 0 0 16px;
+}
+.orbit-note {
+  font-size: 5px;
+  line-height: 1.6;
+  letter-spacing: 0.7px;
+  color: #879d6e;
+  display: block;
+}
+.orbit-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  margin-top: 15px;
+  padding-top: 3px;
+}
+.orbit-actions .text-button {
+  font-size: 5px;
+  letter-spacing: 0.4px;
+  gap: 5px;
+}
+.help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+}
+.help .help-audio-note {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #899d76;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.hyperspace-sound {
+  position: absolute;
+  right: 35px;
+  bottom: 30px;
+  z-index: 4;
+  color: #a6bfd2;
+  border-color: #a9c6dd22;
+}
+@media (max-width: 600px) {
+  .orbit-card {
+    top: 90px;
+    right: 20px;
+    width: calc(100% - 40px);
+    max-width: 350px;
+    padding: 16px 18px 7px;
+  }
+  .orbit-card h2 {
+    font-size: 23px;
+  }
+  .orbit-card > p {
+    font-size: 10px;
+    line-height: 1.75;
+  }
+  .course-badge {
+    top: 90px;
+    max-width: calc(100% - 40px);
+    font-size: 6px;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .course-badge > span {
+    white-space: normal;
+    line-height: 1.7;
+  }
+  .course-badge > button {
+    margin-left: 0;
+  }
+  .hyperspace-sound {
+    right: 20px;
+    bottom: 18px;
+  }
+  .planet-distance {
+    font-size: 5px;
+    margin-top: 6px;
+  }
+  .planet-hit[data-label="above"] > span {
+    bottom: calc(100% + 12px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .droid-hit[data-active="true"]:after {
+    animation: none;
+    opacity: 0.3;
+  }
+  .touch-joystick {
+    transition: none;
+  }
+}
+
+/* Landing zones: a planet's surface replaces open space until take-off. */
+.on-surface .space-canvas {
+  visibility: hidden;
+}
+.land-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid #df936980;
+  color: var(--orange);
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+.land-button:hover {
+  color: #ffd2b5;
+  background: #df936914;
+}
+.surface {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+.surface:active {
+  cursor: grabbing;
+}
+.surface-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.surface-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, #ffcf9e, #b4602c 55%, #2a140a);
+  animation: surface-enter 1.6s ease forwards;
+}
+.surface-fade.is-leaving {
+  animation: surface-leave 0.9s ease forwards;
+}
+@keyframes surface-enter {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes surface-leave {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.surface-status {
+  position: absolute;
+  top: 101px;
+  left: 50%;
+  transform: translateX(-50%) !important;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #a6b98b33;
+  background: #0b130ce0;
+  backdrop-filter: blur(10px);
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: #bdcca8;
+  white-space: nowrap;
+}
+.surface-status button {
+  color: var(--orange);
+  font: inherit;
+  letter-spacing: inherit;
+}
+.surface-hint {
+  position: absolute;
+  top: 101px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 21;
+  width: min(460px, calc(100% - 32px));
+  margin: 0;
+  text-align: center;
+  font-size: 8px;
+  line-height: 1.8;
+  letter-spacing: 0.8px;
+  color: #dce1d1;
+  text-shadow: 0 1px 12px #000;
+  pointer-events: none;
+}
+.surface-hint span {
+  display: block;
+  margin-top: 6px;
+  font-size: 6px;
+  color: #a2b092;
+}
+.terminal-panel {
+  position: absolute;
+  top: 105px;
+  right: 36px;
+  z-index: 20;
+  width: 320px;
+  padding: 18px 20px 10px;
+  border: 1px solid #8fd2f04d;
+  background: #08131add;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 60px #0004;
+}
+.terminal-panel h2 {
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.6px;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.terminal-meta {
+  display: block;
+  margin: -4px 0 10px;
+  font-size: 6px;
+  letter-spacing: 1px;
+  color: #8fcbe2;
+}
+.terminal-panel > p {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #b5c3c7;
+  margin: 0 0 6px;
+}
+.terminal-panel .orbit-card-top {
+  color: #8fcbe2;
+}
+.terminal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+}
+.terminal-links .text-button {
+  text-decoration: none;
+  color: #9fdcf2;
+}
+.terminal-links .text-button:hover {
+  color: var(--orange);
+}
+.surface-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: calc(100% - 32px);
+  padding: 8px 10px 8px 16px;
+  border: 1px solid #a6b98b33;
+  background: #0b130ce0;
+  backdrop-filter: blur(10px);
+}
+.surface-place {
+  font-size: 6px;
+  letter-spacing: 0.9px;
+  color: #a8bc90;
+  white-space: nowrap;
+}
+.surface-terminals {
+  display: flex;
+  gap: 2px;
+}
+.surface-terminals button {
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  font-size: 7px;
+  letter-spacing: 0.6px;
+  color: #bdcca8;
+  white-space: nowrap;
+}
+.surface-terminals button.is-near {
+  border-color: #8fd2f066;
+  color: #dff6ff;
+}
+.surface-takeoff {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid #df936980;
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: var(--orange);
+  white-space: nowrap;
+}
+.surface-takeoff:hover {
+  background: #df936914;
+}
+.surface-takeoff:disabled {
+  opacity: 0.5;
+}
+.surface-fallback {
+  z-index: 20;
+  overflow: auto;
+  padding: 110px 24px 40px;
+  background: #090d0b;
+  touch-action: auto;
+}
+.surface-fallback-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 16px 0 24px;
+}
+.terminal-panel.is-static {
+  position: static;
+  width: auto;
+}
+@media (max-width: 600px) {
+  .terminal-panel {
+    top: auto;
+    bottom: 132px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    padding: 14px 16px 8px;
+  }
+  .terminal-panel h2 {
+    font-size: 20px;
+  }
+  .surface-bar {
+    bottom: 14px;
+    width: calc(100% - 28px);
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 10px;
+    padding: 10px;
+  }
+  .surface-place {
+    width: 100%;
+    text-align: center;
+  }
+  .surface-terminals {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .surface-terminals button {
+    padding: 7px 8px;
+    font-size: 6px;
+  }
+  .surface-hint,
+  .surface-status {
+    top: 84px;
+  }
+  .surface-status {
+    max-width: calc(100% - 32px);
+    white-space: normal;
+    line-height: 1.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface-fade {
+    animation-duration: 0.3s;
+  }
 }

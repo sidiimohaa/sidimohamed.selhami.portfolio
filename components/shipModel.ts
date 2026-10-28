@@ -125,8 +125,14 @@ function bakeModel(model: THREE.Group) {
   model.updateMatrixWorld(true);
   const groups = new Map<THREE.Material, THREE.BufferGeometry[]>();
   const sprites: THREE.Sprite[] = [],
+    animated: THREE.Object3D[] = [],
     originals = new Set<THREE.BufferGeometry>();
   model.traverse((object) => {
+    if (object.name === "astromech-head") {
+      animated.push(object);
+      return;
+    }
+    if (object.parent?.name === "astromech-head") return;
     if (object instanceof THREE.Sprite) {
       sprites.push(object);
       return;
@@ -165,6 +171,7 @@ function bakeModel(model: THREE.Group) {
     geometries.forEach((geometry) => geometry.dispose());
   });
   sprites.forEach((sprite) => result.attach(sprite));
+  animated.forEach((object) => result.attach(object));
   originals.forEach((geometry) => geometry.dispose());
   return result;
 }
@@ -377,16 +384,28 @@ export function createShipModel() {
     beam([side * 0.21, -0.8, 0.27], [side * 0.21, -0.34, 0.27], 0.014, steel);
   const droid = cylinder(0.067, 0.115, [0, -0.29, 0.34], ivory);
   droid.rotation.x = Math.PI / 2;
+  const head = new THREE.Group();
+  head.name = "astromech-head";
+  head.position.set(0, -0.29, 0.398);
+  model.add(head);
   const dome = add(
     new THREE.SphereGeometry(0.083, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
     ivory,
+    head,
   );
   dome.rotation.x = Math.PI / 2;
-  dome.position.set(0, -0.29, 0.398);
-  const band = add(new THREE.TorusGeometry(0.079, 0.013, 6, 24), blue);
-  band.position.set(0, -0.29, 0.402);
-  const eye = add(new THREE.SphereGeometry(0.018, 8, 6), blue);
-  eye.position.set(0, -0.36, 0.433);
+  const band = add(new THREE.TorusGeometry(0.079, 0.013, 6, 24), blue, head);
+  band.position.z = 0.004;
+  const eyeMaterial = new THREE.MeshStandardMaterial({
+    color: 0x244e70,
+    emissive: 0x4383ba,
+    emissiveIntensity: 0.22,
+    roughness: 0.4,
+    metalness: 0.4,
+  });
+  eyeMaterial.name = "droid-eye";
+  const eye = add(new THREE.SphereGeometry(0.018, 8, 6), eyeMaterial, head);
+  eye.position.set(0, -0.07, 0.035);
   // Octagonal rear access plate, bolts and exhaust-side cooling slots.
   const hatch = add(new THREE.CylinderGeometry(0.235, 0.235, 0.035, 8), steel);
   hatch.position.set(0, -0.9, 0.015);

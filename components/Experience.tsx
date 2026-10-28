@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   ArrowUpRight,
-  ArrowRight,
   Volume2,
   VolumeX,
   X,
@@ -13,10 +12,16 @@ import {
   Navigation,
   CircleHelp,
   Map,
+  PlaneLanding,
 } from "lucide-react";
 import Preloader from "./Preloader";
+import { createFlightAudio, type FlightAudio } from "./flightAudio";
+import type { FlightTelemetry } from "./SpaceScene";
+import type { HyperspacePhase } from "./spaceTraffic";
+import type { SurfaceCue } from "./LandingScene";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
-import { destinations, planetReferenceStyle } from "./universe";
+const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
+import { destinations, landings, planetReferenceStyle } from "./universe";
 
 function OrbitalLogo() {
   return (
@@ -47,27 +52,51 @@ export default function Experience() {
     [travel, setTravel] = useState(false),
     [arrived, setArrived] = useState(false),
     [unsupported, setUnsupported] = useState(false),
-    [resetKey, setResetKey] = useState(0);
-  const audio = useRef<{ ctx: AudioContext; gain: GainNode } | null>(null),
+    [resetKey, setResetKey] = useState(0),
+    [droidSignal, setDroidSignal] = useState(0),
+    [surface, setSurface] = useState<number | null>(null);
+  const audio = useRef<FlightAudio | null>(null),
     timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const current = destinations[destination];
+  const current = destinations[destination],
+    landing = landings[current.name],
+    ground = surface !== null ? destinations[surface] : null,
+    groundLanding = ground ? landings[ground.name] : undefined;
+  const guidance = useRef<number | null>(null),
+    arrivedRef = useRef(arrived);
+  arrivedRef.current = arrived;
+  const onFlight = useCallback((flight: FlightTelemetry) => {
+    guidance.current = flight.target;
+    audio.current?.flight(flight);
+    if (flight.manual && arrivedRef.current) setArrived(false);
+  }, []);
+  const onDroid = useCallback(() => {
+    setDroidSignal((value) => value + 1);
+    audio.current?.droid();
+  }, []);
+  const onExitSound = useCallback(() => audio.current?.exit(), []);
+  const onHyperspace = useCallback((phase: HyperspacePhase) => {
+    if (phase === "arrive") audio.current?.exit(0.5);
+    else audio.current?.jump();
+  }, []);
   const onReady = useCallback(() => setReady(true), []),
     onUnsupported = useCallback(() => setUnsupported(true), []);
   const completeArrival = useCallback(() => setLoading(false), []);
   useEffect(
     () => () => {
       timers.current.forEach(clearTimeout);
-      void audio.current?.ctx.close();
+      audio.current?.dispose();
     },
     [],
   );
   const launch = useCallback(
     (index: number) => {
       timers.current.forEach(clearTimeout);
+      setSurface(null);
       setDestination(index);
       setMapOpen(false);
       setArrived(false);
       setTravel(true);
+      audio.current?.exit();
       timers.current.push(
         setTimeout(
           () => {
@@ -80,6 +109,30 @@ export default function Experience() {
     },
     [reduced],
   );
+  const land = useCallback(() => {
+    timers.current.forEach(clearTimeout);
+    setArrived(false);
+    setTravel(false);
+    setMapOpen(false);
+    setSurface(destination);
+    audio.current?.exit(0.8);
+  }, [destination]);
+  const takeOff = useCallback(() => {
+    setSurface(null);
+    setArrived(true);
+  }, []);
+  const onSurfaceCue = useCallback((cue: SurfaceCue) => {
+    const voice = audio.current;
+    if (cue === "terminal") voice?.chime();
+    else if (cue === "takeoff") voice?.jump();
+    else if (cue === "step") voice?.step();
+    else if (cue === "droid") voice?.droid();
+    else voice?.speeder(cue === "speeder-arrive" ? "arrive" : "leave");
+  }, []);
+  const soundscape = groundLanding?.soundscape ?? null;
+  useEffect(() => {
+    audio.current?.ambience(sound ? soundscape : null);
+  }, [soundscape, sound]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -95,9 +148,18 @@ export default function Experience() {
         !travel &&
         !mapOpen &&
         !helpOpen &&
-        !arrived
-      )
-        launch(destination);
+        surface === null
+      ) {
+        const focused = (document.activeElement as HTMLElement | null)?.dataset
+          .destination;
+        const aimed =
+          focused !== undefined
+            ? Number(focused)
+            : (guidance.current ?? destination);
+        // In orbit of a world with a landing zone, E takes the ship down.
+        if (arrivedRef.current && landing && aimed === destination) land();
+        else launch(aimed);
+      }
       if (e.key === "Shift") setBoost(true);
     };
     const up = (e: KeyboardEvent) => {
@@ -112,9 +174,9 @@ export default function Experience() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [loading, destination, travel, mapOpen, helpOpen, arrived, launch]);
+  }, [loading, destination, travel, mapOpen, helpOpen, surface, landing, land, launch]);
   useEffect(() => {
-    if (!mapOpen && !helpOpen && !arrived) return;
+    if (!mapOpen && !helpOpen) return;
     const old = document.activeElement as HTMLElement;
     const modal = document.querySelector<HTMLElement>('[role="dialog"]');
     modal?.querySelector<HTMLElement>("button")?.focus();
@@ -138,29 +200,13 @@ export default function Experience() {
       window.removeEventListener("keydown", trap);
       old?.focus();
     };
-  }, [mapOpen, helpOpen, arrived]);
+  }, [mapOpen, helpOpen]);
   const toggleSound = () => {
-    if (!audio.current) {
-      const ctx = new AudioContext(),
-        gain = ctx.createGain();
-      gain.gain.value = 0;
-      gain.connect(ctx.destination);
-      [54, 81, 109].forEach((f, i) => {
-        const oscillator = ctx.createOscillator();
-        oscillator.type = "sine";
-        oscillator.frequency.value = f + i * 0.35;
-        oscillator.connect(gain);
-        oscillator.start();
-      });
-      audio.current = { ctx, gain };
-    }
-    void audio.current.ctx.resume();
-    audio.current.gain.gain.setTargetAtTime(
-      sound ? 0 : 0.022,
-      audio.current.ctx.currentTime,
-      0.4,
-    );
-    setSound(!sound);
+    if (typeof AudioContext === "undefined") return;
+    if (!audio.current) audio.current = createFlightAudio();
+    const enabled = !sound;
+    audio.current.setEnabled(enabled);
+    setSound(enabled);
   };
   const openMap = () => {
     timers.current.forEach(clearTimeout);
@@ -175,14 +221,23 @@ export default function Experience() {
     setMapOpen(false);
     setHelpOpen(false);
     setBoost(false);
+    setSurface(null);
     setDestination(0);
     setResetKey((key) => key + 1);
   };
-  const paused = loading || mapOpen || helpOpen || arrived;
+  const replayArrival = () => {
+    reset();
+    setLoading(true);
+  };
+  const cancelApproach = () => {
+    timers.current.forEach(clearTimeout);
+    setTravel(false);
+  };
+  const paused = loading || mapOpen || helpOpen || surface !== null;
   return (
     <main
       aria-busy={loading}
-      className={`experience open-space ${travel ? "is-travelling" : ""}`}
+      className={`experience open-space ${travel ? "is-travelling" : ""} ${ground ? "on-surface" : ""}`}
     >
       <div className="space-haze" />
       <div className="star-backup" />
@@ -193,14 +248,30 @@ export default function Experience() {
           boost,
           destination,
           travel,
+          arrived,
           reduced,
           paused,
+          hidden: surface !== null,
           resetKey,
+          droidSignal,
         }}
         onSelect={launch}
+        onFlight={onFlight}
+        onDroid={onDroid}
+        onHyperspace={onHyperspace}
         onReady={onReady}
         onUnsupported={onUnsupported}
       />
+      {ground && groundLanding && (
+        <LandingScene
+          planet={ground.name}
+          landing={groundLanding}
+          reduced={reduced}
+          paused={mapOpen || helpOpen}
+          onCue={onSurfaceCue}
+          onTakeoff={takeOff}
+        />
+      )}
       <div className="vignette" />
       <div className="grain" />
       <AnimatePresence>
@@ -209,13 +280,16 @@ export default function Experience() {
             ready={ready}
             reduced={reduced}
             onComplete={completeArrival}
+            sound={sound}
+            onToggleSound={toggleSound}
+            onExit={onExitSound}
           />
         )}
       </AnimatePresence>
       <h1 className="sr-only">
         ORBITAL — Explorez mon univers en vaisseau spatial
       </h1>
-      <header className="header">
+      <header className="header" inert={loading}>
         <button
           className="brand"
           onClick={reset}
@@ -255,7 +329,10 @@ export default function Experience() {
           <button
             className="sound-button"
             aria-label="Afficher les commandes"
-            onClick={() => setHelpOpen(true)}
+            onClick={() => {
+              cancelApproach();
+              setHelpOpen(true);
+            }}
           >
             <CircleHelp size={16} />
           </button>
@@ -264,18 +341,24 @@ export default function Experience() {
       <AnimatePresence>
         {travel && (
           <motion.div
-            className="travel-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            className="course-badge"
+            role="status"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
+            onPointerDown={(event) => event.stopPropagation()}
           >
-            <div className="travel-lines" />
-            <div>
-              <Navigation size={22} />
-              <p>SAUT HYPERSPATIAL</p>
-              <h2>{current.name.toUpperCase()}</h2>
-              <span className="mono">CALCUL DE LA TRAJECTOIRE EN COURS</span>
-            </div>
+            <Navigation size={12} />
+            <span>EN APPROCHE · {current.name.toUpperCase()}</span>
+            <button aria-label="Annuler l’approche" onClick={cancelApproach}>
+              <X size={13} />
+            </button>
+            <motion.i
+              className="course-progress"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: reduced ? 0.65 : 3.2, ease: "linear" }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -347,72 +430,56 @@ export default function Experience() {
       </AnimatePresence>
       <AnimatePresence>
         {arrived && (
-          <motion.div
-            className="modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setArrived(false)}
+          <motion.aside
+            className="orbit-card"
+            role="region"
+            aria-labelledby="orbit-title"
+            aria-live="polite"
+            initial={{ opacity: 0, y: reduced ? 0 : 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: reduced ? 0 : 8 }}
+            onPointerDown={(event) => event.stopPropagation()}
           >
-            <motion.section
-              className="arrival modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="arrival-title"
-              initial={{ opacity: 0, y: 25 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="modal-top mono">
-                <span>
-                  <i className="live-dot" /> MISE EN ORBITE RÉUSSIE
-                </span>
-                <button
-                  className="close-button"
-                  onClick={() => setArrived(false)}
-                  aria-label="Fermer la destination"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div
-                className={`arrival-planet map-globe has-reference ${current.className}`}
-                style={planetReferenceStyle(current)}
-              />
-              <p className="eyebrow">{current.tag}</p>
-              <h2 id="arrival-title">{current.name.toUpperCase()}</h2>
-              <p>{current.description}</p>
-              <div className="arrival-message">
-                <span className="mono">
-                  TRANSMISSION REÇUE / {current.number}
-                </span>
-                <p>
-                  {destination === 3 ? (
-                    <>
-                      La station reste silencieuse.
-                      <br />
-                      Poursuivez votre exploration en orbite.
-                    </>
-                  ) : (
-                    <>
-                      Ce monde est encore en formation.
-                      <br />
-                      Son histoire s’écrira bientôt.
-                    </>
-                  )}
-                </p>
-              </div>
-              <button className="primary-cta" onClick={openMap}>
-                <span>EXPLORER UNE AUTRE PLANÈTE</span>
-                <ArrowUpRight size={18} />
+            <div className="orbit-card-top mono">
+              <span>
+                <i className="live-dot" /> EN ORBITE · {current.number}
+              </span>
+              <button
+                className="close-button"
+                aria-label="Fermer la transmission"
+                onClick={() => setArrived(false)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <h2 id="orbit-title">{current.name}</h2>
+            <p>{current.description}</p>
+            <span className="orbit-note mono">
+              {landing
+                ? "ZONE D’ATTERRISSAGE DÉGAGÉE · E POUR ATTERRIR"
+                : destination === 3
+                  ? "TRANSMISSION DE LA STATION"
+                  : "L’EXPLORATION DE CE MONDE SE PRÉPARE"}
+            </span>
+            {landing && (
+              <button className="land-button mono" onClick={land}>
+                <PlaneLanding size={13} /> ATTERRIR SUR {current.name.toUpperCase()}
+              </button>
+            )}
+            <div className="orbit-actions">
+              <button className="text-button" onClick={openMap}>
+                CHANGER DE CAP <ArrowUpRight size={12} />
               </button>
               <button className="text-button" onClick={() => setArrived(false)}>
-                POURSUIVRE LE VOL <ArrowRight size={14} />
+                POURSUIVRE LE VOL
               </button>
-            </motion.section>
-          </motion.div>
+            </div>
+          </motion.aside>
         )}
       </AnimatePresence>
+      <span className="sr-only" role="status">
+        {droidSignal > 0 ? "L’astromécano vous salue." : ""}
+      </span>
       <AnimatePresence>
         {helpOpen && (
           <motion.div
@@ -461,16 +528,37 @@ export default function Experience() {
                 </div>
                 <div>
                   <dt>Approcher</dt>
-                  <dd>Cliquez sur une planète ou ouvrez la carte</dd>
+                  <dd>Visez une planète puis E, ou ouvrez la carte</dd>
+                </div>
+                <div>
+                  <dt>Atterrir</dt>
+                  <dd>En orbite de Coruscant ou de Tatooine, bouton Atterrir ou E</dd>
+                </div>
+                <div>
+                  <dt>Marcher</dt>
+                  <dd>Au sol, flèches ou ZQSD (Maj pour courir), ou glisser à gauche au doigt</dd>
+                </div>
+                <div>
+                  <dt>Regarder</dt>
+                  <dd>Au sol, glisser à la souris, ou à droite au doigt</dd>
                 </div>
                 <div>
                   <dt>Fermer</dt>
                   <dd>Échap</dd>
                 </div>
               </dl>
-              <button className="text-button" onClick={reset}>
-                <RotateCcw size={13} /> REVENIR AU POINT DE DÉPART
-              </button>
+              <p className="help-audio-note">
+                Activez le son pour entendre les moteurs, la sortie
+                d’hyperespace et votre compagnon de bord.
+              </p>
+              <div className="help-actions">
+                <button className="text-button" onClick={reset}>
+                  <RotateCcw size={13} /> REVENIR AU DÉPART
+                </button>
+                <button className="text-button" onClick={replayArrival}>
+                  REJOUER L’ARRIVÉE <Navigation size={12} />
+                </button>
+              </div>
             </motion.section>
           </motion.div>
         )}
