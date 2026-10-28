@@ -616,6 +616,15 @@ export default function SpaceScene({
     const touches = new Set<number>();
     const velocity = new THREE.Vector3();
     const heading = { yaw: 0, pitch: 0 };
+    // Manual flight, as on autopilot: the controls ease in and out, the craft banks into turns and
+    // the chase view trails its heading. The stick holds the eased controls.
+    const view = { yaw: 0, pitch: 0 },
+      stick = { x: 0, y: 0 };
+    let bank = 0,
+      steered = false;
+    const flightRotation = new THREE.Euler(0, 0, 0, "YXZ"),
+      flightQuaternion = new THREE.Quaternion();
+    const bodyBase = new THREE.Quaternion().setFromEuler(new THREE.Euler(-1.04, 0, 0));
     const viewRotation = new THREE.Euler(0, 0, 0, "YXZ");
     const modelRotation = new THREE.Euler(-1.04, 0, 0, "YXZ");
     const modelQuaternion = new THREE.Quaternion();
@@ -757,9 +766,11 @@ export default function SpaceScene({
       elapsed += dt;
       if (s.resetKey !== lastReset) {
         camera.position.set(0, 0, baseZ);
-        heading.yaw = 0;
-        heading.pitch = 0;
+        heading.yaw = view.yaw = 0;
+        heading.pitch = view.pitch = 0;
+        stick.x = stick.y = bank = 0;
         camera.quaternion.identity();
+        flightQuaternion.identity();
         ship.position.set(0, -shipHeight, baseZ - shipDistance);
         ship.rotation.set(-1.04, 0, 0);
         velocity.set(0, 0, 0);
@@ -780,6 +791,7 @@ export default function SpaceScene({
       let dx = 0,
         dy = 0,
         thrusting = false;
+      steered = false;
       if (s.paused) {
         keys.clear();
         release();
@@ -812,8 +824,11 @@ export default function SpaceScene({
         const wasComplete = approach.completed;
         if (!s.paused) approach.update(dt);
         cameraAttitude.setFromQuaternion(camera.quaternion, "YXZ");
-        heading.yaw = cameraAttitude.y;
-        heading.pitch = cameraAttitude.x;
+        heading.yaw = view.yaw = cameraAttitude.y;
+        heading.pitch = view.pitch = cameraAttitude.x;
+        stick.x = stick.y = bank = 0;
+        flightRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
+        flightQuaternion.setFromEuler(flightRotation);
         velocity.set(0, 0, 0);
         if (!wasComplete && approach.completed) approachCallback.current();
       } else if (s.flying && !s.paused) {
@@ -832,27 +847,41 @@ export default function SpaceScene({
           1,
         );
         const active = Math.abs(dx) + Math.abs(dy) > 0.05 || fast;
-        heading.yaw -= dx * dt * 0.38;
+        steered = true;
+        // Turns build up and settle rather than starting and stopping dead.
+        const ease = 1 - Math.exp(-dt * (s.reduced ? 12 : 5));
+        stick.x += (dx - stick.x) * ease;
+        stick.y += (dy - stick.y) * ease;
+        heading.yaw -= stick.x * dt * 0.5;
         heading.yaw = Math.atan2(Math.sin(heading.yaw), Math.cos(heading.yaw));
         heading.pitch = THREE.MathUtils.clamp(
-          heading.pitch + dy * dt * 0.3,
+          heading.pitch + stick.y * dt * 0.36,
           -0.85,
           0.85,
         );
-        viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
+        // The craft banks into the turn and swings out across the frame; the view catches up.
+        bank = THREE.MathUtils.damp(bank, s.reduced ? 0 : -stick.x * 0.42, 6, dt);
+        const follow = s.reduced ? 1 : 1 - Math.exp(-dt * 4);
+        view.yaw +=
+          Math.atan2(Math.sin(heading.yaw - view.yaw), Math.cos(heading.yaw - view.yaw)) * follow;
+        view.pitch += (heading.pitch - view.pitch) * follow;
+        viewRotation.set(view.pitch, view.yaw, bank * 0.08, "YXZ");
         camera.quaternion.setFromEuler(viewRotation);
-        forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        flightRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
+        flightQuaternion.setFromEuler(flightRotation);
+        forward.set(0, 0, -1).applyQuaternion(flightQuaternion);
         const speed = active ? (fast ? 16 : 5.5) : 0;
         thrusting = active;
         targetVelocity.copy(forward).multiplyScalar(speed);
-        // Releasing the controls stops immediately: no automatic cruise or coasting.
-        if (active) velocity.lerp(targetVelocity, 1 - Math.exp(-dt * 2.4));
-        else velocity.set(0, 0, 0);
+        // Thrust builds up; releasing the controls brakes to a stop in about a second, with no
+        // automatic cruise.
+        velocity.lerp(targetVelocity, 1 - Math.exp(-dt * (active ? 2.4 : 3.5)));
+        if (!active && velocity.lengthSq() < 0.0004) velocity.set(0, 0, 0);
         camera.position.addScaledVector(velocity, dt);
         // Test the ship's actual forward position, rather than the camera behind it.
         shipOffset
           .set(0, -shipHeight, -shipDistance)
-          .applyQuaternion(camera.quaternion);
+          .applyQuaternion(flightQuaternion);
         safePosition.copy(camera.position).add(shipOffset);
         planets.forEach((planet, i) => {
           collisionNormal.copy(safePosition).sub(planet.position);
@@ -871,17 +900,20 @@ export default function SpaceScene({
           }
         });
       }
-      // Manual flight keeps the established foreground framing. The autopilot owns its craft pose.
+      // Manual flight keeps the established foreground framing, along the flight heading.
+      // The autopilot owns its craft pose.
       if (!s.travel) {
+        if (!s.flying) flightQuaternion.copy(camera.quaternion);
         shipOffset
-          .set(dx * 0.12, -shipHeight + dy * 0.08, -shipDistance)
-          .applyQuaternion(camera.quaternion);
+          .set(stick.x * 0.12, -shipHeight + stick.y * 0.08, -shipDistance)
+          .applyQuaternion(flightQuaternion);
         shipPosition.copy(camera.position).add(shipOffset);
         if (settling) ship.position.lerp(shipPosition, 1 - Math.exp(-dt * 9));
         else ship.position.copy(shipPosition);
-        modelRotation.set(-1.04 + dy * 0.06, -dx * 0.1, -dx * 0.26, "YXZ");
-        modelQuaternion.setFromEuler(modelRotation);
-        modelQuaternion.premultiply(camera.quaternion);
+        // Nose into the turn and bank about the flight axis, as the autopilot does.
+        modelRotation.set(stick.y * 0.1, -stick.x * 0.12, bank, "YXZ");
+        modelQuaternion.setFromEuler(modelRotation).multiply(bodyBase);
+        modelQuaternion.premultiply(flightQuaternion);
         if (settling) {
           ship.quaternion.slerp(modelQuaternion, 1 - Math.exp(-dt * 9));
           if (
@@ -890,16 +922,19 @@ export default function SpaceScene({
           )
             settling = false;
         } else ship.quaternion.copy(modelQuaternion);
-        const baseFov = camera.aspect < 0.8 ? 52 : 50;
+        // The view widens a touch with speed, as on autopilot.
+        const baseFov =
+          (camera.aspect < 0.8 ? 52 : 50) +
+          (s.reduced ? 0 : Math.min(1, velocity.length() / 16) * 3);
         if (camera.fov !== baseFov) {
-          camera.fov = THREE.MathUtils.damp(camera.fov, baseFov, 9, dt);
+          camera.fov = THREE.MathUtils.damp(camera.fov, baseFov, settling ? 9 : 3, dt);
           if (Math.abs(camera.fov - baseFov) < 0.001) camera.fov = baseFov;
           camera.updateProjectionMatrix();
         }
         // Clear only the cinematic roll; the pilot retains the current direction.
         cameraAttitude.setFromQuaternion(camera.quaternion, "YXZ");
-        if (Math.abs(cameraAttitude.z) > 0.00001) {
-          viewRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
+        if (!steered && Math.abs(cameraAttitude.z) > 0.00001) {
+          viewRotation.set(view.pitch, view.yaw, 0, "YXZ");
           identity.setFromEuler(viewRotation);
           camera.quaternion.slerp(identity, 1 - Math.exp(-dt * 9));
         }
@@ -912,7 +947,7 @@ export default function SpaceScene({
           ? (approach?.power ?? 0)
           : thrusting
             ? 1
-            : 0;
+            : Math.min(1, velocity.length() / 5.5) * 0.6;
       const engineActive = enginePower > 0.02;
       engineCores.forEach((material) => {
         material.emissiveIntensity = 0.65 + enginePower * (fast ? 1.15 : 0.7);
