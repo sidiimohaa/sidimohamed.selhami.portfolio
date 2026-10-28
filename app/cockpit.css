@@ -706,3 +706,20 @@
     transition: none;
   }
 }
+
+/* Keep the physical flight deck in view below the projection. */
+@media (min-width: 901px) and (min-height: 650px) {
+  .cockpit-map .cockpit-readout-shell {
+    width: min(800px, 80vw);
+  }
+  .cockpit-map .cockpit-readout {
+    min-height: 164px;
+    padding: 18px;
+    gap: 20px;
+    grid-template-columns: 90px minmax(0, 1fr) 160px;
+  }
+  .cockpit-map .cockpit-preview {
+    width: 84px;
+    height: 84px;
+  }
+}

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 function metalTexture() {
   const canvas = document.createElement("canvas");
@@ -35,6 +36,21 @@ function metalTexture() {
     ctx.moveTo(x, y);
     ctx.lineTo(x + rand() * 16 - 8, y + rand() * 24);
     ctx.stroke();
+  }
+  // Exposed edges, old repairs and oil around panel seams give the shell a working history.
+  for (let i = 0; i < 350; i++) {
+    const x = rand() * 512,
+      y = Math.floor(rand() * 4) * 128 + (rand() < 0.5 ? 5 : 120);
+    ctx.fillStyle = i % 3 ? "#b8b9a980" : "#201a1580";
+    ctx.fillRect(x, y + rand() * 5, 1 + rand() * 12, 0.5 + rand() * 2);
+  }
+  for (let seam = 0; seam < 7; seam++) {
+    const x = 20 + rand() * 470;
+    const stain = ctx.createLinearGradient(x, 0, x, 160);
+    stain.addColorStop(0, "#161b1b66");
+    stain.addColorStop(1, "#161b1b00");
+    ctx.fillStyle = stain;
+    ctx.fillRect(x, 0, 4 + rand() * 9, 160);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -114,9 +130,11 @@ export function createCockpitModel(): THREE.Group {
   group.name = "x-wing-cockpit";
   const worn = new THREE.MeshStandardMaterial({
     map: metalTexture(),
-    roughness: 0.68,
-    metalness: 0.66,
+    roughness: 0.76,
+    metalness: 0.5,
   });
+  worn.bumpMap = worn.map;
+  worn.bumpScale = 0.006;
   const graphite = new THREE.MeshStandardMaterial({
     color: 0x161e23,
     roughness: 0.76,
@@ -188,7 +206,15 @@ export function createCockpitModel(): THREE.Group {
     size: [number, number, number],
     at: [number, number, number],
     rotate: [number, number, number] = [0, 0, 0],
-  ) => add(new THREE.BoxGeometry(...size), material, ...at, ...rotate);
+  ) =>
+    add(
+      material === worn || material === edge || material === graphite
+        ? new RoundedBoxGeometry(...size, 1, Math.min(...size) * 0.14)
+        : new THREE.BoxGeometry(...size),
+      material,
+      ...at,
+      ...rotate,
+    );
   const beam = (
     a: number[],
     b: number[],
@@ -204,11 +230,13 @@ export function createCockpitModel(): THREE.Group {
       delta.clone().normalize(),
     );
     matrix.compose(start.add(end).multiplyScalar(0.5), rotation, scale);
-    const geometry = new THREE.BoxGeometry(
+    const geometry = new RoundedBoxGeometry(
       width,
       delta.length(),
       depth,
-    ).toNonIndexed();
+      1,
+      Math.min(width, depth) * 0.18,
+    );
     geometry.applyMatrix4(matrix);
     const bucket = batches.get(material) ?? [];
     bucket.push(geometry);

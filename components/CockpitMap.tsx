@@ -12,7 +12,9 @@ import {
   X,
 } from "lucide-react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { createCockpitModel } from "./cockpitModel";
+import { createCockpitSystems } from "./cockpitSystems";
 import { createCockpitProjection } from "./cockpitProjection";
 import { createStarfield } from "./spaceAmbience";
 import { destinations, landings, planetReferenceStyle } from "./universe";
@@ -108,11 +110,20 @@ export default function CockpitMap({
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 600);
     const cockpit = createCockpitModel();
+    const systems = createCockpitSystems();
+    cockpit.add(systems.group);
     const projection = createCockpitProjection();
     const stars = createStarfield(renderer.getPixelRatio());
     scene.add(cockpit, projection.group, stars.points);
+    const studio = new RoomEnvironment();
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const environment = pmrem.fromScene(studio, 0.015, 0.1, 50);
+    scene.environment = environment.texture;
+    scene.environmentIntensity = 0.32;
+    studio.dispose();
+    pmrem.dispose();
     scene.add(new THREE.HemisphereLight(0x8da9c9, 0x151b26, 1.5));
-    const key = new THREE.DirectionalLight(0xb4c8de, 2.1);
+    const key = new THREE.DirectionalLight(0xd3c4ad, 2.6);
     key.position.set(-2, 4, 4);
     scene.add(key);
     const projectorLight = new THREE.PointLight(0x47ccff, 8, 8, 2);
@@ -121,7 +132,37 @@ export default function CockpitMap({
     const amber = new THREE.PointLight(0xff7b35, 2.5, 5, 2);
     amber.position.set(-1.6, 0.8, 0.3);
     scene.add(amber);
+    const fill = new THREE.PointLight(0x709cc6, 5, 7, 2);
+    fill.position.set(1.6, 2.2, 1.4);
+    scene.add(fill);
     const look = new THREE.Vector3(0, 1.35, -3.4);
+    const head = { x: 0, y: 0 },
+      lean = { x: 0, y: 0 };
+    const shell = dialog.current;
+    const pointerMove = (event: PointerEvent) => {
+      if (
+        event.pointerType !== "mouse" ||
+        (event.target as HTMLElement).closest("button,a")
+      )
+        return;
+      const bounds = el.getBoundingClientRect();
+      head.x = THREE.MathUtils.clamp(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -1,
+        1,
+      );
+      head.y = THREE.MathUtils.clamp(
+        1 - ((event.clientY - bounds.top) / bounds.height) * 2,
+        -1,
+        1,
+      );
+    };
+    const pointerLeave = () => {
+      head.x = 0;
+      head.y = 0;
+    };
+    shell?.addEventListener("pointermove", pointerMove, { passive: true });
+    shell?.addEventListener("pointerleave", pointerLeave);
     const projected = new THREE.Vector3();
     let width = 1,
       height = 1;
@@ -148,14 +189,32 @@ export default function CockpitMap({
       const enter = live.current.reduced
         ? 1
         : THREE.MathUtils.smootherstep(age / 1.2, 0, 1);
+      lean.x = THREE.MathUtils.damp(
+        lean.x,
+        live.current.reduced ? 0 : head.x,
+        5,
+        dt,
+      );
+      lean.y = THREE.MathUtils.damp(
+        lean.y,
+        live.current.reduced ? 0 : head.y,
+        5,
+        dt,
+      );
       camera.position.set(
-        0,
+        lean.x * 0.028 * enter,
         THREE.MathUtils.lerp(2.3, 1.55, enter),
         THREE.MathUtils.lerp(6.5, 2.9, enter),
       );
+      look.x = lean.x * 0.14 * enter;
+      look.y = 1.35 + lean.y * 0.06 * enter;
       camera.lookAt(look);
       camera.updateMatrixWorld();
       projection.tick(age, live.current.selected, live.current.reduced);
+      systems.tick(age, live.current.selected, live.current.reduced);
+      projectorLight.intensity = live.current.reduced
+        ? 8
+        : 8 + Math.sin(age * 0.9) * 0.25;
       stars.tick(age, true);
       projection.group.updateMatrixWorld(true);
       projection.planets.forEach((planet, index) => {
@@ -186,6 +245,8 @@ export default function CockpitMap({
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      shell?.removeEventListener("pointermove", pointerMove);
+      shell?.removeEventListener("pointerleave", pointerLeave);
       projection.dispose();
       const geometries = new Set<THREE.BufferGeometry>();
       const materials = new Set<THREE.Material>();
@@ -211,6 +272,7 @@ export default function CockpitMap({
       });
       textures.forEach((texture) => texture.dispose());
       geometries.forEach((geometry) => geometry.dispose());
+      environment.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
