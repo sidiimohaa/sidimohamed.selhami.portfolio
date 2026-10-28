@@ -3,13 +3,15 @@ import * as THREE from "three";
 export function createSurfaceNavigator(radius: number, isFree: (x: number, z: number) => boolean) {
     const step = 1.25, half = Math.ceil(radius / step), size = half * 2 + 1;
     const free = new Uint8Array(size * size);
+    const edges = new Uint8Array(size * size * 9);
     const point = (id: number) => new THREE.Vector3((id % size - half) * step, 0, (Math.floor(id / size) - half) * step);
     for (let id = 0; id < free.length; id++) {
         const p = point(id);
         free[id] = Number(isFree(p.x, p.z));
     }
     const clear = (a: THREE.Vector3, b: THREE.Vector3) => {
-        const count = Math.ceil(a.distanceTo(b) / .3);
+        // Sample closely enough to catch the corners of narrow door porches.
+        const count = Math.ceil(a.distanceTo(b) / .05);
         for (let i = 0; i <= count; i++) {
             const t = count ? i / count : 0;
             if (!isFree(THREE.MathUtils.lerp(a.x, b.x, t), THREE.MathUtils.lerp(a.z, b.z, t)))
@@ -85,6 +87,12 @@ export function createSurfaceNavigator(radius: number, isFree: (x: number, z: nu
                         continue;
                     if (dx && dz && (!free[z * size + nx] || !free[nz * size + x]))
                         continue;
+                    const edge=id*9+(dz+1)*3+dx+1;
+                    if(!edges[edge]){
+                        const safe=clear(point(id),point(next))?2:1;
+                        edges[edge]=safe;edges[next*9+(1-dz)*3+1-dx]=safe;
+                    }
+                    if(edges[edge]===1)continue;
                     const cost = costs[id] + Math.hypot(dx, dz);
                     if (cost >= costs[next])
                         continue;

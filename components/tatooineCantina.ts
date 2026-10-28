@@ -234,7 +234,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
     bakePart(shell);
     bakePart(inside);
     const contains = (u: number, v: number) => u < -5.05 && u > -21.8 && v > 54.3 && v < 70.7;
-    const isBlocked = (u: number, v: number) => walls.some(w => u > w.minU - .35 && u < w.maxU + .35 && v > w.minV - .35 && v < w.maxV + .35);
+    const isBlocked = (u: number, v: number, clearance=.35) => walls.some(w => u > w.minU - clearance && u < w.maxU + clearance && v > w.minV - clearance && v < w.maxV + clearance);
     return { group, circles, contains, isBlocked, bartender: crowd.bartenderSpot, entry: { u: -8.2, v: 62 }, exit: { u: -1.8, v: 62 },
         constrain: (walker: {
             u: number;

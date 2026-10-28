@@ -453,6 +453,15 @@ button svg {
     #12161d 90%
   );
 }
+.ice {
+  background: radial-gradient(
+    circle at 30% 25%,
+    #eef4f8,
+    #b8cad8 30%,
+    #5d7286 65%,
+    #141c24 90%
+  );
+}
 .death-star {
   background:
     linear-gradient(transparent 49%, #161e1b 49% 51%, transparent 51%),

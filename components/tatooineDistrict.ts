@@ -270,7 +270,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     let clock = 0;
     return { group, colliders, movers, explorePoint:districtPoint(0,34),
         interior:{name:"CANTINA",entry:districtPoint(cantina.entry.u,cantina.entry.v),exit:districtPoint(cantina.exit.u,cantina.exit.v),contains:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.contains(p.u,p.v);}},
-        isBlocked:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.isBlocked(p.u,p.v);},
+        isBlocked:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.isBlocked(p.u,p.v,.45);},
         constrain:(walker:{x:number;z:number})=>{const p=districtCoordinates(walker.x,walker.z);cantina.constrain(p);const w=districtPoint(p.u,p.v);walker.x=w.x;walker.z=w.z;},
         // The band can be heard from the street, muffled and fading with distance from the porch.
         music:(walker:{x:number;z:number})=>{

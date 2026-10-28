@@ -5,6 +5,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Rocket } from "lucide-react";
 import { createCoruscantZone } from "./coruscantZone";
+import { createHothZone } from "./hothZone";
 import { createTatooineZone } from "./tatooineZone";
 import type { PadEvent } from "./coruscantLife";
 import type { Landing } from "./universe";
@@ -13,6 +14,7 @@ import type { Landing } from "./universe";
 const zones = {
   Coruscant: createCoruscantZone,
   Tatooine: createTatooineZone,
+  Hoth: createHothZone,
 } as const;
 
 export type SurfaceCue = "terminal" | "takeoff" | "step" | "cantina-enter" | "cantina-leave" | PadEvent;
@@ -104,8 +106,8 @@ export default function LandingScene({
     el.prepend(renderer.domElement);
     const scene = new THREE.Scene();
     let environment:THREE.WebGLRenderTarget|undefined;
-    if(planet==="Tatooine"){
-      renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    if(planet==="Tatooine"||planet==="Hoth"){
+      if(planet==="Tatooine"){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
       const generator=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment();
       environment=generator.fromScene(room,.02);scene.environment=environment.texture;scene.environmentIntensity=.45;
       generator.dispose();room.dispose();
@@ -175,8 +177,8 @@ export default function LandingScene({
       clock = 0;
       setPhase(next);
     };
-    const wideStart = new THREE.Vector3(30, 16, 46),
-      wideEnd = new THREE.Vector3(14, 6, 26),
+    const wideStart = zone.arrival?.from.clone() ?? new THREE.Vector3(30, 16, 46),
+      wideEnd = zone.arrival?.to.clone() ?? new THREE.Vector3(14, 6, 26),
       eye = new THREE.Vector3(),
       look = new THREE.Quaternion(),
       fromPosition = new THREE.Vector3(),
@@ -479,7 +481,8 @@ export default function LandingScene({
       resize();
     };
     const animate = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
+      // The first frame's timestamp can precede the start time; never step backwards.
+      const dt = THREE.MathUtils.clamp((now - last) / 1000, 0, 0.05);
       last = now;
       if (live.current.hidden) {
         keys.clear();

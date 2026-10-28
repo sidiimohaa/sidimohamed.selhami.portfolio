@@ -413,7 +413,8 @@ export default function SpaceScene({
     deathStar.position.set(-12, 10, -22);
     scene.add(deathStar);
     planets.push(deathStar);
-    const radii = [3.85, 2.1, 1.6, 3.3];
+    addPlanet("moon", 2.4, [10, 13, -44], 0xcfe6f5);
+    const radii = [3.85, 2.1, 1.6, 3.3, 2.4];
     const planetLayers: ReturnType<typeof createPlanetLayers>[] = [];
     const loadingManager = new THREE.LoadingManager();
     loadingManager.onLoad = () => {

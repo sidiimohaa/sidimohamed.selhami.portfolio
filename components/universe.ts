@@ -80,6 +80,24 @@ export const destinations = [
     description:
       "Une surface d’acier striée de lumière, une tranchée à l’équateur, une parabole monumentale. Un clin d’œil à l’univers qui inspire ce voyage, à découvrir depuis l’orbite.",
   },
+  {
+    name: "Hoth",
+    category: "Les diplômes",
+    tag: "FORMATIONS & DIPLÔMES",
+    number: "05",
+    className: "ice",
+    image: "/planets/hoth.png",
+    reference: {
+      width: 900,
+      height: 900,
+      centerX: 450,
+      centerY: 450,
+      radius: 405,
+    },
+    summary: "Un monde de glace où des plans holographiques révèlent mes diplômes.",
+    description:
+      "Des plaines gelées, des tempêtes et une base taillée dans la glace. Sur la table de briefing, des plans holographiques dévoilent mes diplômes, un objectif atteint après l’autre.",
+  },
 ];
 
 // The supplied references are already rendered globes, not flat world maps.
@@ -107,11 +125,11 @@ export type LandingTerminal = {
 export type Landing = {
   pad: string;
   welcome: string;
-  soundscape: "city" | "desert";
+  soundscape: "city" | "desert" | "ice";
   terminals: LandingTerminal[];
 };
 
-// Textes provisoires : remplace-les par tes coordonnées (Coruscant) et tes projets (Tatooine).
+// Textes provisoires : remplace-les par tes coordonnées (Coruscant), tes projets (Tatooine) et tes diplômes (Hoth).
 export const landings: Partial<Record<string, Landing>> = {
   Coruscant: {
     pad: "PLATEFORME 3-7 · NIVEAU 5127",
@@ -147,6 +165,45 @@ export const landings: Partial<Record<string, Landing>> = {
         label: "Disponibilité",
         heading: "Ouvert aux collaborations",
         body: "Stage, alternance, freelance ou projet personnel : parlons-en.",
+      },
+    ],
+  },
+  // Hoth présente les diplômes : un par terminal, du plus ancien au plus récent (quatre au plus
+  // sur les plans holographiques).
+  Hoth: {
+    pad: "HANGAR PRINCIPAL · BASE ÉCHO",
+    welcome:
+      "Bienvenue sur Hoth. Les plans de la table de briefing révèlent mes diplômes, chaque terminal en détaille un.",
+    soundscape: "ice",
+    terminals: [
+      {
+        id: "diplome-1",
+        label: "2018",
+        heading: "Intitulé du premier diplôme",
+        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
+        meta: "École · Ville · 2018",
+      },
+      {
+        id: "diplome-2",
+        label: "2020",
+        heading: "Intitulé du deuxième diplôme",
+        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
+        meta: "École · Ville · 2020",
+      },
+      {
+        id: "diplome-3",
+        label: "2022",
+        heading: "Intitulé du troisième diplôme",
+        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
+        meta: "École · Ville · 2022",
+      },
+      {
+        id: "diplome-4",
+        label: "2024",
+        heading: "Intitulé du quatrième diplôme",
+        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
+        meta: "École · Ville · 2024",
+        links: [{ label: "Voir le diplôme", href: "https://example.com/" }],
       },
     ],
   },

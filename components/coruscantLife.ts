@@ -165,7 +165,7 @@ export function createPadLife(options: {
   guard?: boolean;
   drone?: boolean;
   taxi?: boolean;
-  ground?: "grates" | "sand";
+  ground?: "grates" | "sand" | "snow";
   steam?: number;
 }) {
   const { glow, engines, notify } = options;
@@ -173,7 +173,7 @@ export function createPadLife(options: {
     guard: options.guard ?? true,
     drone: options.drone ?? true,
     taxi: options.taxi ?? true,
-    sand: options.ground === "sand",
+    sand: options.ground === "sand" || options.ground === "snow",
   };
   const group = new THREE.Group();
   const orange = new THREE.MeshStandardMaterial({ color: 0xc8692d, roughness: 0.6, metalness: 0.25 }),
@@ -480,9 +480,9 @@ export function createPadLife(options: {
     puff: true,
   });
   group.add(steam.points);
-  // On sand there are no grates: gusts lift dust off the floor instead.
+  // On sand or snow there are no grates: gusts lift dust or powder off the floor instead.
   const dust = particles(glow, 120, {
-    color: 0xc9a273,
+    color: options.ground === "snow" ? 0xe9f0f6 : 0xc9a273,
     size: 0.7,
     grow: 2.6,
     opacity: 0.2,

@@ -2,16 +2,19 @@ import * as THREE from "three";
 import { destinations } from "./universe";
 
 const DESKTOP = [
-  [-1.65, 1.5, -3.2, 0.45],
-  [-0.6, 2.1, -4.1, 0.35],
-  [0.65, 1.65, -3.5, 0.35],
-  [1.8, 2.15, -4.4, 0.4],
+  [-1.9, 1.5, -3.2, 0.42],
+  [-0.95, 2.15, -4.1, 0.33],
+  [0.05, 1.6, -3.5, 0.33],
+  [1.0, 2.2, -4.4, 0.37],
+  [1.95, 1.55, -3.5, 0.36],
 ] as const;
+// Portrait: three worlds on the upper row, two below.
 const COMPACT = [
-  [-0.72, 2.75, -3.7, 0.32],
-  [0.72, 2.75, -3.9, 0.3],
-  [-0.72, 1.85, -3.4, 0.3],
-  [0.72, 1.85, -3.6, 0.32],
+  [-0.95, 2.8, -3.8, 0.28],
+  [0, 2.95, -4, 0.27],
+  [0.95, 2.8, -3.8, 0.27],
+  [-0.5, 1.85, -3.5, 0.3],
+  [0.5, 1.85, -3.6, 0.29],
 ] as const;
 
 const vertex = `
@@ -257,7 +260,8 @@ export function createCockpitProjection() {
   });
 
   const linksGeometry = new THREE.BufferGeometry();
-  const linkPositions = new Float32Array(18);
+  // One segment between each pair of neighbouring worlds.
+  const linkPositions = new Float32Array((destinations.length - 1) * 6);
   linksGeometry.setAttribute(
     "position",
     new THREE.BufferAttribute(linkPositions, 3),

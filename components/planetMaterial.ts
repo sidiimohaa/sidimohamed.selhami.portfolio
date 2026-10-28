@@ -105,7 +105,7 @@ export function createPlanetLayers(
           sunDirection: { value: light },
           color: {
             value: new THREE.Color(
-              index === 0 ? 0xd6bf8d : index === 1 ? 0x71b6d6 : 0x9f9ed5,
+              index === 0 ? 0xd6bf8d : index === 1 ? 0x71b6d6 : index === 4 ? 0xbfdcf0 : 0x9f9ed5,
             ),
           },
         },
@@ -121,16 +121,16 @@ export function createPlanetLayers(
     atmosphere.name = "atmosphere";
     layers.push(atmosphere);
   }
-  if (index === 0 || index === 1) {
+  if (index === 0 || index === 1 || index === 4) {
     cloudLayer = new THREE.Mesh(
       new THREE.SphereGeometry(radius * 1.013, 64, 48),
       new THREE.ShaderMaterial({
         uniforms: {
           sunDirection: { value: light },
           cloudColor: {
-            value: new THREE.Color(index === 1 ? 0xe7f1ef : 0xd9bd8f),
+            value: new THREE.Color(index === 1 ? 0xe7f1ef : index === 4 ? 0xf4f8fb : 0xd9bd8f),
           },
-          density: { value: index === 1 ? 0.13 : 0.035 },
+          density: { value: index === 1 ? 0.13 : index === 4 ? 0.1 : 0.035 },
         },
         vertexShader: vertex,
         fragmentShader: `${noise}
@@ -142,7 +142,7 @@ export function createPlanetLayers(
         toneMapped: false,
       }),
     );
-    cloudLayer.name = index === 1 ? "independent-clouds" : "dust-veil";
+    cloudLayer.name = index === 1 ? "independent-clouds" : index === 4 ? "snow-storms" : "dust-veil";
     layers.push(cloudLayer);
   }
   if (index === 2) {
