@@ -233,7 +233,8 @@ export function createSandtrooper(officer = false) {
     part(blaster, new THREE.BoxGeometry(.05, .11, .04), metal, [.12, .9, .25]);
     bakePart(blaster);
     group.add(blaster);
-    return { group, tick: (time: number, walking: boolean, reduced: boolean) => {
+    // Limbs are exposed so scenes can pose them after tick, for scanning or riding.
+    return { group, head, arms, legs, tick: (time: number, walking: boolean, reduced: boolean) => {
             head.rotation.y = reduced ? 0 : Math.sin(time * .45) * .18;
             legs.forEach((leg, i) => leg.rotation.x = walking && !reduced ? Math.sin(time * 3.1 + i * Math.PI) * .24 : 0);
             arms.forEach((arm, i) => arm.rotation.x = -.15 + (walking && !reduced ? Math.sin(time * 3.1 + i * Math.PI) * .045 : 0));

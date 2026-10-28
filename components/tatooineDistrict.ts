@@ -5,7 +5,9 @@ import { createCoruscantCargo } from "./coruscantCargo";
 import { glowTexture, random, type Spot } from "./landingKit";
 import { createHeroDroids } from "./tatooineCharacters";
 import { createTatooineCantina } from "./tatooineCantina";
+import { createDistrictMap } from "./tatooineMap";
 import { createLandspeeder, createTatooineScenery } from "./tatooineScenery";
+import { createStreetLife } from "./tatooineStreetLife";
 export const TATOOINE_GATE = 2.58;
 export function districtPoint(u: number, v: number) { return new THREE.Vector3(Math.cos(TATOOINE_GATE) * u + Math.sin(TATOOINE_GATE) * v, 0, -Math.sin(TATOOINE_GATE) * u + Math.cos(TATOOINE_GATE) * v); }
 export function districtCoordinates(x: number, z: number) { return { u: Math.cos(TATOOINE_GATE) * x - Math.sin(TATOOINE_GATE) * z, v: Math.sin(TATOOINE_GATE) * x + Math.cos(TATOOINE_GATE) * z }; }
@@ -210,8 +212,6 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         group.add(g);
         g.position.set(u, -.06, v);
     }
-    character(true, -6.5, 46.7, 0, 0);
-    character(true, -6.4, 50.5, 0, 1.2);
     character(true, -10.9, 46.4, .65, 2.4);
     character(false, 2.7, 31, 4, 1);
     character(false, -2.8, 38, 3, 3);
@@ -226,16 +226,17 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         v: number;
         direction: number;
         delay: number;
-        collider: Spot;
+        colliders: Spot[];
     }[] = [];
     for (let i = 0; i < 2; i++) {
         const s = new THREE.Group();
         s.name = "mos-eisley-speeder";
         shadow(s,3,4.5,-.04);
         s.add(createLandspeeder(i?0x7f8273:0xa2633c));
-        const p = districtPoint(0, 75 + i * 12), collider = { x: p.x, z: p.z, r: 1.45 };
-        movers.push(collider);
-        speeders.push({ group: s, v: 75 + i * 12, direction: -1, delay: i * 17, collider });
+        // Two circles along the hull keep the visitor out of its nose and tail, not just its middle.
+        const colliders = [-1, 1].map(() => ({ x: 0, z: 0, r: 1.3 }));
+        movers.push(...colliders);
+        speeders.push({ group: s, v: 75 + i * 12, direction: -1, delay: i * 17, colliders });
         group.add(s);
     }
     const dust = Array.from({ length: 16 }, () => {
@@ -253,6 +254,12 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     c3.position.set(1.2,0,-.4);pair.add(r2,c3);shadow(r2,1.1,.7,.012);shadow(c3,.9,.7,.012);
     const cantina=createTatooineCantina(adobe);group.add(cantina.group);
     cantina.circles.forEach(c=>block(c.u,c.v,c.r));
+    const bartender={x:0,z:0,r:cantina.bartender.r};movers.push(bartender);
+    // Haggling Jawas, the checkpoint, a lizard patrol and a herd out on the dunes.
+    const life=createStreetLife((u,v)=>{const p=districtPoint(u,v);return groundHeight(p.x,p.z);});group.add(life.group);
+    life.colliders.forEach(c=>block(c.u,c.v,c.r));
+    const map=createDistrictMap(shops.filter((_,i)=>i!==4),{u:-3.3,v:21.8,facing:Math.PI-.5});group.add(map.group);
+    block(map.collider.u,map.collider.v,map.collider.r);
     const scenery=createTatooineScenery(adobe);group.add(scenery.group);
     scenery.colliders.forEach(c=>block(c.u,c.v,c.r));
     const troopSpots=scenery.movers.map(c=>{const p=districtPoint(c.u,c.v);return {x:p.x,z:p.z,r:c.r};});
@@ -265,6 +272,12 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         interior:{name:"CANTINA",entry:districtPoint(cantina.entry.u,cantina.entry.v),exit:districtPoint(cantina.exit.u,cantina.exit.v),contains:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.contains(p.u,p.v);}},
         isBlocked:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.isBlocked(p.u,p.v);},
         constrain:(walker:{x:number;z:number})=>{const p=districtCoordinates(walker.x,walker.z);cantina.constrain(p);const w=districtPoint(p.u,p.v);walker.x=w.x;walker.z=w.z;},
+        // The band can be heard from the street, muffled and fading with distance from the porch.
+        music:(walker:{x:number;z:number})=>{
+          const p=districtCoordinates(walker.x,walker.z);
+          if(cantina.contains(p.u,p.v))return{level:1,inside:true};
+          return{level:Math.max(0,1-Math.hypot(p.u+3.2,p.v-62)/28)**1.6*.6,inside:false};
+        },
         tick(dt: number, reduced: boolean, walker: {
             x: number;
             z: number;
@@ -275,6 +288,8 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
             const move = reduced ? 0 : dt;
             const local = districtCoordinates(walker.x, walker.z);
             cantina.tick(clock,reduced);scenery.tick(dt,clock,reduced,local);
+            life.tick(clock,dt,reduced);map.tick(clock,reduced,local);
+            const bar=districtPoint(cantina.bartender.u,cantina.bartender.v);bartender.x=bar.x;bartender.z=bar.z;
             scenery.movers.forEach((c,i)=>{const p=districtPoint(c.u,c.v);troopSpots[i].x=p.x;troopSpots[i].z=p.z;});
             actors.forEach((a, index) => {
                 const targetV = a.v + Math.sin(clock * .22 + a.phase) * a.range;
@@ -293,7 +308,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
             });
             speeders.forEach((s, index) => {
                 const ahead = (local.v - s.v) * s.direction;
-                const stopped = Math.abs(local.u) < 2 && ahead > 0 && ahead < 6;
+                const stopped = Math.abs(local.u) < 2.3 && ahead > 0 && ahead < 7;
                 if (move && clock > s.delay && !stopped) {
                     s.v += s.direction * move * 2.5;
                     if (Math.floor(clock * 6) !== Math.floor((clock - dt) * 6)) {
@@ -310,9 +325,11 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
                 }
                 s.group.position.set(0, .025 * Math.sin(clock * 2 + index), s.v);
                 s.group.rotation.y = s.direction < 0 ? Math.PI : 0;
-                const p = districtPoint(0, s.v);
-                s.collider.x = p.x;
-                s.collider.z = p.z;
+                s.colliders.forEach((collider, end) => {
+                    const p = districtPoint(0, s.v + (end ? 1.05 : -1.05));
+                    collider.x = p.x;
+                    collider.z = p.z;
+                });
             });
             dust.forEach(p => {
                 p.age += move;

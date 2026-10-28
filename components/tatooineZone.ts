@@ -541,14 +541,28 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     object.castShadow=materials.every(m=>m instanceof THREE.MeshStandardMaterial&&!m.transparent)&&object.geometry.type!=="PlaneGeometry";
   });
 
+  // Indoors, a warm amber haze replaces the desert air.
+  const fog = new THREE.FogExp2(HAZE, 0.0016),
+    smoke = new THREE.Color(0x5a3c22);
   return {
     group,
-    fog: new THREE.FogExp2(HAZE, 0.0016),
+    fog,
     exposure: 1,
     walkRadius: 76,
     explorePoint:district.explorePoint,
     interior:district.interior,
     routeTo,
+    music: district.music,
+    setQuality: (level) => {
+      // Full detail, then a coarser shadow map, then no sun shadows at all.
+      const size = level > 1 ? 2048 : 1024;
+      sun.castShadow = level > 0;
+      if (sun.shadow.mapSize.x !== size) {
+        sun.shadow.mapSize.set(size, size);
+        sun.shadow.map?.dispose();
+        sun.shadow.map = null;
+      }
+    },
     constrainWalk:(walker)=>{
       district.constrain(walker);
       if(!blockedByWall(walker.x,walker.z))return;
@@ -572,6 +586,8 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       const indoors=district.interior.contains(walker.x,walker.z),blend=1-Math.exp(-dt*4);
       ambient.intensity+=((indoors?.32:1.35)-ambient.intensity)*blend;
       second.intensity+=((indoors?.1:.9)-second.intensity)*blend;
+      fog.density+=((indoors?.028:.0016)-fog.density)*blend;
+      fog.color.lerp(indoors?smoke:HAZE,blend);
       stations.tick(elapsed, reduced);
     },
   };

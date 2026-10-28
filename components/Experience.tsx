@@ -126,8 +126,13 @@ export default function Experience() {
     else if (cue === "takeoff") voice?.jump();
     else if (cue === "step") voice?.step();
     else if (cue === "droid") voice?.droid();
-    else if (cue === "cantina-enter" || cue === "cantina-leave") voice?.cantina(cue==="cantina-enter");
-    else voice?.speeder(cue === "speeder-arrive" ? "arrive" : "leave");
+    else if (cue === "speeder-arrive" || cue === "speeder-leave") voice?.speeder(cue === "speeder-arrive" ? "arrive" : "leave");
+  }, []);
+  // The cantina band follows the visitor; kept so it resumes when sound is switched on.
+  const heard = useRef({ level: 0, inside: false });
+  const onSurfaceMusic = useCallback((level: number, inside: boolean) => {
+    heard.current = { level, inside };
+    audio.current?.cantina(level, inside);
   }, []);
   const soundscape = groundLanding?.soundscape ?? null;
   useEffect(() => {
@@ -213,7 +218,10 @@ export default function Experience() {
   }, [helpOpen]);
   const toggleSound = () => {
     if (typeof AudioContext === "undefined") return;
-    if (!audio.current) audio.current = createFlightAudio();
+    if (!audio.current) {
+      audio.current = createFlightAudio();
+      audio.current.cantina(heard.current.level, heard.current.inside);
+    }
     const enabled = !sound;
     audio.current.setEnabled(enabled);
     setSound(enabled);
@@ -284,6 +292,7 @@ export default function Experience() {
           paused={mapOpen || helpOpen}
           hidden={mapOpen}
           onCue={onSurfaceCue}
+          onMusic={onSurfaceMusic}
           onTakeoff={takeOff}
         />
       )}

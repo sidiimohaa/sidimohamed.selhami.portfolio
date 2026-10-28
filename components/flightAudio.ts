@@ -408,26 +408,148 @@ export function createFlightAudio() {
       panner.disconnect();
     };
   };
-  // An original, quiet swung phrase for the cantina; the master sound switch still owns it.
-  const cantinaGain=context.createGain();cantinaGain.gain.value=0;cantinaGain.connect(master);
-  let cantinaSource:AudioBufferSourceNode|null=null;
-  const cantina=(inside:boolean)=>{
-    if(closed)return;
-    if(inside&&!cantinaSource){
-      const length=6.4,rate=context.sampleRate,buffer=context.createBuffer(1,Math.ceil(rate*length),rate),data=buffer.getChannelData(0);
-      const notes=[69,72,76,74,69,67,64,67,71,74,77,76,72,71,67,64];
-      const note=(midi:number,start:number,duration:number,level:number)=>{
-        const frequency=440*Math.pow(2,(midi-69)/12),offset=Math.floor(start*rate);
-        for(let i=0;i<duration*rate&&offset+i<data.length;i++){
-          const t=i/rate,envelope=Math.min(1,t/.01)*Math.exp(-t*11)*(1-t/duration);
-          data[offset+i]+=(Math.sin(2*Math.PI*frequency*t)+.18*Math.sin(6*Math.PI*frequency*t))*envelope*level;
-        }
-      };
-      notes.forEach((pitch,i)=>note(pitch,i*.4+(i%2?.045:0),.29,.34));
-      [48,55,53,55,50,57,55,52].forEach((pitch,i)=>note(pitch,i*.8,.38,.3));
-      cantinaSource=context.createBufferSource();cantinaSource.buffer=buffer;cantinaSource.loop=true;cantinaSource.connect(cantinaGain);cantinaSource.start();
+  // The cantina band: an original eight-bar minor swing at 132 bpm (clarinet-like lead, walking
+  // bass, bell-like comping, kick, snaps and shaker), rendered once into a seamless loop, a few
+  // notes at a time so the frame rate never stutters while it is built.
+  // Heard muffled through the walls outside, full inside; the master sound switch still owns it.
+  const cantinaGain = context.createGain();
+  cantinaGain.gain.value = 0;
+  const cantinaWalls = context.createBiquadFilter();
+  cantinaWalls.type = "lowpass";
+  cantinaWalls.frequency.value = 800;
+  cantinaGain.connect(cantinaWalls);
+  cantinaWalls.connect(master);
+  let cantinaSource: AudioBufferSourceNode | null = null,
+    cantinaLoading = false;
+  const band = async () => {
+    const beat = 60 / 132,
+      rate = context.sampleRate,
+      frames = Math.ceil(32 * beat * rate);
+    const buffer = context.createBuffer(2, frames, rate),
+      left = buffer.getChannelData(0),
+      right = buffer.getChannelData(1);
+    const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+    // Every voice wraps round the end of the loop, so the seam is inaudible.
+    const tasks: (() => void)[] = [];
+    const voice = (
+      start: number,
+      seconds: number,
+      pan: number,
+      sample: (t: number, i: number) => number,
+    ) => tasks.push(() => {
+      const offset = Math.floor(start * beat * rate),
+        count = Math.floor(seconds * rate),
+        l = Math.cos((pan + 1) * Math.PI / 4),
+        r = Math.sin((pan + 1) * Math.PI / 4);
+      for (let i = 0; i < count; i++) {
+        const value = sample(i / rate, i),
+          at = (offset + i) % frames;
+        left[at] += value * l;
+        right[at] += value * r;
+      }
+    });
+    // Lead: odd harmonics for a woody, reedy tone, with a late vibrato.
+    const lead: [number, number, number][] = [
+      [0, 0.67, 74], [0.67, 0.33, 72], [1, 0.67, 69], [1.67, 0.33, 72], [2, 1, 74], [3.67, 0.33, 77],
+      [4, 0.67, 76], [4.67, 0.33, 74], [5, 0.67, 71], [5.67, 0.33, 74], [6, 1.5, 77], [7.67, 0.33, 76],
+      [8, 0.67, 74], [8.67, 0.33, 72], [9, 0.67, 69], [9.67, 0.33, 65], [10, 0.67, 67], [10.67, 0.33, 69], [11, 1, 62],
+      [12, 0.67, 73], [12.67, 0.33, 76], [13, 0.67, 79], [13.67, 0.33, 76], [14, 1.67, 73], [15.67, 0.33, 69],
+      [16, 0.67, 74], [16.67, 0.33, 77], [17, 0.67, 81], [17.67, 0.33, 77], [18, 0.67, 74], [18.67, 0.33, 72], [19, 0.67, 74],
+      [20, 0.67, 74], [20.67, 0.33, 70], [21, 0.67, 65], [21.67, 0.33, 68], [22, 1.5, 70], [23.67, 0.33, 69],
+      [24, 0.67, 73], [24.67, 0.33, 71], [25, 0.67, 69], [25.67, 0.33, 67], [26, 0.67, 64], [26.67, 0.33, 67], [27, 0.67, 73], [27.67, 0.33, 76],
+      [28, 1.5, 74], [29.67, 0.33, 69], [30, 0.67, 74], [30.67, 0.33, 77], [31, 0.67, 74],
+    ];
+    lead.forEach(([start, length, midi]) => {
+      const seconds = length * beat * 0.92,
+        frequency = hz(midi);
+      let phase = 0;
+      voice(start, seconds + 0.05, -0.3, (t) => {
+        const vibrato = t > 0.15 ? Math.sin(t * 2 * Math.PI * 5.5) * 0.004 : 0;
+        phase += (2 * Math.PI * frequency * (1 + vibrato)) / rate;
+        const envelope = Math.min(1, t / 0.02) * Math.exp(-t * 1.6) * Math.min(1, Math.max(0, (seconds + 0.05 - t) / 0.06));
+        return (Math.sin(phase) + 0.45 * Math.sin(3 * phase) + 0.22 * Math.sin(5 * phase) + 0.1 * Math.sin(7 * phase)) * envelope * 0.16;
+      });
+    });
+    // Walking bass, one note a beat.
+    [38, 41, 45, 48, 43, 47, 50, 47, 38, 41, 45, 44, 45, 49, 52, 49, 50, 45, 41, 45, 34, 38, 41, 44, 33, 37, 40, 43, 38, 45, 38, 33].forEach(
+      (midi, i) => {
+        const frequency = hz(midi);
+        voice(i, beat * 0.95, 0, (t) => {
+          const p = 2 * Math.PI * frequency * t;
+          return (Math.sin(p) + 0.35 * Math.sin(2 * p) + 0.1 * Math.sin(3 * p)) * Math.min(1, t / 0.006) * Math.exp(-t * 4.5) * 0.36;
+        });
+      },
+    );
+    // Bell-like chord stabs on the off-beats: Dm7, G7, Dm7, A7, Dm7, B♭7, A7, Dm7.
+    const chords = [[65, 69, 72], [65, 71, 74], [65, 69, 72], [61, 64, 67], [65, 69, 72], [62, 65, 68], [61, 64, 67], [65, 69, 72]];
+    chords.forEach((chord, bar) =>
+      [1, 3, 3.67].forEach((at) =>
+        chord.forEach((midi) => {
+          const frequency = hz(midi);
+          voice(bar * 4 + at, 0.4, 0.45, (t) => {
+            const p = 2 * Math.PI * frequency * t;
+            return (Math.sin(p) + 0.4 * Math.sin(2 * p) + 0.18 * Math.sin(2.97 * p)) * Math.min(1, t / 0.003) * Math.exp(-t * 9) * 0.06;
+          });
+        }),
+      ),
+    );
+    // Kick on one and three, finger snaps on two and four, a swung shaker throughout.
+    let seed = 7;
+    const noise = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let b = 0; b < 32; b++) {
+      if (b % 2 === 0)
+        voice(b, 0.3, 0, (t) => Math.sin(2 * Math.PI * (45 * t + (65 / 18) * (1 - Math.exp(-t * 18)))) * Math.exp(-t * 10) * 0.42);
+      else {
+        let previous = 0;
+        voice(b, 0.12, 0.2, (t) => {
+          const n = noise(),
+            snap = (n - previous) * Math.exp(-t * 38) * 0.14;
+          previous = n;
+          return snap;
+        });
+      }
+      [0, 0.67].forEach((swing) => {
+        let previous = 0;
+        voice(b + swing, 0.06, 0.55, (t) => {
+          const n = noise(),
+            hiss = (n - previous) * Math.exp(-t * 70) * (swing ? 0.05 : 0.032);
+          previous = n;
+          return hiss;
+        });
+      });
     }
-    cantinaGain.gain.setTargetAtTime(inside?.045:0,context.currentTime,.3);
+    let slice = performance.now();
+    for (const task of tasks) {
+      task();
+      if (performance.now() - slice > 6) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        slice = performance.now();
+      }
+    }
+    let peak = 0;
+    for (let i = 0; i < frames; i++) peak = Math.max(peak, Math.abs(left[i]), Math.abs(right[i]));
+    const scale = 0.85 / Math.max(peak, 1e-6);
+    for (let i = 0; i < frames; i++) {
+      left[i] *= scale;
+      right[i] *= scale;
+    }
+    return buffer;
+  };
+  const cantina = (level: number, inside: boolean) => {
+    if (closed) return;
+    if (level > 0 && !cantinaLoading) {
+      cantinaLoading = true;
+      void band().then((buffer) => {
+        if (closed) return;
+        cantinaSource = context.createBufferSource();
+        cantinaSource.buffer = buffer;
+        cantinaSource.loop = true;
+        cantinaSource.connect(cantinaGain);
+        cantinaSource.start();
+      });
+    }
+    cantinaGain.gain.setTargetAtTime(level * 0.06, context.currentTime, 0.3);
+    cantinaWalls.frequency.setTargetAtTime(inside ? 16000 : 500 + level * 1400, context.currentTime, 0.25);
   };
   const dispose = () => {
     if (closed) return;

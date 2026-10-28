@@ -106,6 +106,10 @@ export type Zone = {
   interior?: {name:string;entry:THREE.Vector3;exit:THREE.Vector3;contains:(x:number,z:number)=>boolean};
   constrainWalk?: (walker: { x: number; z: number }) => void;
   routeTo?: (from: THREE.Vector3, to: THREE.Vector3) => THREE.Vector3[];
+  // How loud a zone's music is where the visitor stands, and whether they are inside with it.
+  music?: (walker: { x: number; z: number }) => { level: number; inside: boolean };
+  // 2 is full detail; lower levels trade shadow quality for frame rate.
+  setQuality?: (level: number) => void;
   terminals: ZoneTerminal[];
   ship: THREE.Group;
   shipRest: THREE.Vector3;

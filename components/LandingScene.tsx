@@ -23,6 +23,8 @@ type Props = {
   paused: boolean;
   hidden: boolean;
   onCue: (cue: SurfaceCue) => void;
+  // The zone's music level where the visitor stands, 0 to 1, and whether they are inside with it.
+  onMusic?: (level: number, inside: boolean) => void;
   onTakeoff: () => void;
 };
 type Phase = "arrival" | "explore" | "takeoff";
@@ -48,6 +50,7 @@ export default function LandingScene({
   paused,
   hidden,
   onCue,
+  onMusic,
   onTakeoff,
 }: Props) {
   const mount = useRef<HTMLDivElement>(null),
@@ -66,8 +69,10 @@ export default function LandingScene({
   const live = useRef({ reduced, paused, hidden });
   live.current = { reduced, paused, hidden };
   const cue = useRef(onCue),
+    music = useRef(onMusic),
     leave = useRef(onTakeoff);
   cue.current = onCue;
+  music.current = onMusic;
   leave.current = onTakeoff;
   const controls = useRef<{
     walkTo: (index: number) => void;
@@ -90,7 +95,9 @@ export default function LandingScene({
       setFallback(true);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Phones start lighter; quality then adapts to the frame rate (see adapt below).
+    const ceiling = Math.min(window.devicePixelRatio, coarse ? 1.5 : 2);
+    renderer.setPixelRatio(ceiling);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.domElement.className = "surface-canvas";
@@ -106,6 +113,9 @@ export default function LandingScene({
     const build = zones[planet as keyof typeof zones] ?? createCoruscantZone;
     const zone = build(landing, (event) => cue.current(event));
     renderer.toneMappingExposure = zone.exposure;
+    let ratio = ceiling,
+      quality = coarse ? 1 : 2;
+    zone.setQuality?.(quality);
     scene.add(zone.group);
     scene.fog = zone.fog;
     const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 2600);
@@ -138,6 +148,8 @@ export default function LandingScene({
         travelled: number;
       }
     >();
+    // Automatic walks check their progress, so a parked speeder or a bystander cannot stall them.
+    const progress = { x: 0, z: 0, time: 0, detours: 0 };
     let route: THREE.Vector3[] = [],
       facing: number | null = null,
       current: Phase = live.current.reduced ? "explore" : "arrival",
@@ -448,6 +460,24 @@ export default function LandingScene({
       last = performance.now(),
       elapsed = 0,
       hintTimer = 0;
+    // Automatic quality: a device that keeps missing frames gives up resolution first, down to
+    // one pixel per point, then shadow detail, then a last step below native resolution.
+    let average = 1 / 60,
+      sampled = 0,
+      heardLevel = -1,
+      heardInside = false;
+    const adapt = (dt: number) => {
+      average += (dt - average) * 0.05;
+      if (elapsed < 3 || (sampled += dt) < 2.5) return;
+      sampled = 0;
+      if (average < 1 / 45) return;
+      if (ratio > 1) ratio = Math.max(1, ratio - 0.25);
+      else if (quality > 0 && zone.setQuality) zone.setQuality(--quality);
+      else if (ratio > 0.75) ratio = 0.75;
+      else return;
+      renderer.setPixelRatio(ratio);
+      resize();
+    };
     const animate = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
@@ -459,9 +489,18 @@ export default function LandingScene({
         return;
       }
       elapsed += dt;
+      adapt(dt);
       const { reduced: still, paused: frozen } = live.current;
       if (!frozen) clock += dt;
       zone.tick(frozen ? 0 : dt, elapsed, still, walker);
+      if (zone.music) {
+        const heard = zone.music(walker);
+        if (Math.abs(heard.level - heardLevel) > 0.02 || heard.inside !== heardInside) {
+          heardLevel = heard.level;
+          heardInside = heard.inside;
+          music.current?.(heardLevel, heardInside);
+        }
+      }
       if (current === "arrival") {
         // The ship brakes in from beyond the pad, sinks onto its gear, then the pilot steps out.
         const glide = easeOut(clock / 3.6),
@@ -560,6 +599,43 @@ export default function LandingScene({
               (1 - Math.exp(-dt * 6));
             walker.pitch += (0.04 - walker.pitch) * (1 - Math.exp(-dt * 3));
             moving = true;
+            if ((progress.time += dt) > 0.6) {
+              const travelled = Math.hypot(walker.x - progress.x, walker.z - progress.z);
+              if (travelled > 0.6) progress.detours = 0;
+              else if (++progress.detours > 5) {
+                // Still blocked after several sidesteps: stop rather than push forever.
+                route = [];
+                facing = null;
+              } else {
+                // Step to the side away from the nearest obstacle, alternating if that fails.
+                const sideX = -dz / distance,
+                  sideZ = dx / distance;
+                let nearest: { x: number; z: number } | null = null,
+                  best = 3.2;
+                [...colliders.circles, ...colliders.movers].forEach((spot) => {
+                  const gap = Math.hypot(spot.x - walker.x, spot.z - walker.z) - spot.r;
+                  if (gap < best) {
+                    best = gap;
+                    nearest = spot;
+                  }
+                });
+                const away = nearest as { x: number; z: number } | null;
+                let side = away
+                  ? Math.sign((walker.x - away.x) * sideX + (walker.z - away.z) * sideZ) || 1
+                  : 1;
+                if (progress.detours % 2 === 0) side = -side;
+                route.unshift(
+                  new THREE.Vector3(
+                    walker.x + sideX * side * 2.2 + (dx / distance) * 1.2,
+                    0,
+                    walker.z + sideZ * side * 2.2 + (dz / distance) * 1.2,
+                  ),
+                );
+              }
+              progress.x = walker.x;
+              progress.z = walker.z;
+              progress.time = 0;
+            }
           }
         } else if (facing !== null) {
           // Turn to the terminal and raise the eyes to its hologram, then hand the view back.
@@ -636,6 +712,7 @@ export default function LandingScene({
       window.removeEventListener("blur", blur);
       controls.current = null;
       if(zone.interior)cue.current("cantina-leave");
+      if(zone.music)music.current?.(0,false);
       scene.traverse((object) => {
         if (
           object instanceof THREE.Mesh ||
