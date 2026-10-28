@@ -20,6 +20,7 @@ type Props = {
   landing: Landing;
   reduced: boolean;
   paused: boolean;
+  hidden: boolean;
   onCue: (cue: SurfaceCue) => void;
   onTakeoff: () => void;
 };
@@ -34,14 +35,17 @@ const ease = (t: number) => {
   const k = THREE.MathUtils.clamp(t, 0, 1);
   return k * k * (3 - 2 * k);
 };
-const easeOut = (t: number) => 1 - Math.pow(1 - THREE.MathUtils.clamp(t, 0, 1), 3);
-const shortest = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
+const easeOut = (t: number) =>
+  1 - Math.pow(1 - THREE.MathUtils.clamp(t, 0, 1), 3);
+const shortest = (angle: number) =>
+  Math.atan2(Math.sin(angle), Math.cos(angle));
 
 export default function LandingScene({
   planet,
   landing,
   reduced,
   paused,
+  hidden,
   onCue,
   onTakeoff,
 }: Props) {
@@ -53,9 +57,11 @@ export default function LandingScene({
   const [hint, setHint] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const [fallback, setFallback] = useState(false);
-  const [coarse] = useState(() => window.matchMedia("(pointer: coarse)").matches);
-  const live = useRef({ reduced, paused });
-  live.current = { reduced, paused };
+  const [coarse] = useState(
+    () => window.matchMedia("(pointer: coarse)").matches,
+  );
+  const live = useRef({ reduced, paused, hidden });
+  live.current = { reduced, paused, hidden };
   const cue = useRef(onCue),
     leave = useRef(onTakeoff);
   cue.current = onCue;
@@ -110,7 +116,15 @@ export default function LandingScene({
     // Each pointer either walks, as a joystick under the finger, or looks around by grabbing the view.
     const grips = new Map<
       number,
-      { look: boolean; x: number; y: number; startX: number; startY: number; at: number; travelled: number }
+      {
+        look: boolean;
+        x: number;
+        y: number;
+        startX: number;
+        startY: number;
+        at: number;
+        travelled: number;
+      }
     >();
     let route: THREE.Vector3[] = [],
       facing: number | null = null,
@@ -123,11 +137,14 @@ export default function LandingScene({
     const standOff = () =>
       Math.max(
         3.3,
-        1.75 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect),
+        1.75 /
+          (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect),
       );
     const standFor = (index: number) => {
       const { position } = zone.terminals[index];
-      return position.clone().multiplyScalar(1 - standOff() / position.length());
+      return position
+        .clone()
+        .multiplyScalar(1 - standOff() / position.length());
     };
     const begin = (next: Phase) => {
       current = next;
@@ -215,11 +232,15 @@ export default function LandingScene({
         turn = shortest(to - from);
       route = [];
       if (Math.hypot(walker.x, walker.z) < RING - 0.3)
-        route.push(new THREE.Vector3(Math.cos(from) * RING, 0, Math.sin(from) * RING));
+        route.push(
+          new THREE.Vector3(Math.cos(from) * RING, 0, Math.sin(from) * RING),
+        );
       const steps = Math.ceil(Math.abs(turn) / 0.3);
       for (let step = 1; step <= steps; step++) {
         const angle = from + (turn * step) / steps;
-        route.push(new THREE.Vector3(Math.cos(angle) * RING, 0, Math.sin(angle) * RING));
+        route.push(
+          new THREE.Vector3(Math.cos(angle) * RING, 0, Math.sin(angle) * RING),
+        );
       }
       route.push(stand);
       facing = index;
@@ -266,7 +287,11 @@ export default function LandingScene({
       setHint(false);
     };
     const pointerDown = (event: PointerEvent) => {
-      if (current !== "explore" || live.current.paused || !outsideControls(event.target))
+      if (
+        current !== "explore" ||
+        live.current.paused ||
+        !outsideControls(event.target)
+      )
         return;
       // A mouse always looks; on touch the left half walks and the right half looks.
       const look =
@@ -296,7 +321,8 @@ export default function LandingScene({
       );
       if (grip.look) {
         // The view follows the finger: one screen height of drag turns about one field of view.
-        const rate = THREE.MathUtils.degToRad(camera.fov) / Math.max(el.clientHeight, 1);
+        const rate =
+          THREE.MathUtils.degToRad(camera.fov) / Math.max(el.clientHeight, 1);
         walker.yaw += (event.clientX - grip.x) * rate;
         walker.pitch = THREE.MathUtils.clamp(
           walker.pitch + (event.clientY - grip.y) * rate,
@@ -310,8 +336,16 @@ export default function LandingScene({
         }
       } else {
         const reach = Math.min(el.clientWidth, el.clientHeight) * 0.2;
-        steer.x = THREE.MathUtils.clamp((event.clientX - grip.startX) / reach, -1, 1);
-        steer.y = THREE.MathUtils.clamp((grip.startY - event.clientY) / reach, -1, 1);
+        steer.x = THREE.MathUtils.clamp(
+          (event.clientX - grip.startX) / reach,
+          -1,
+          1,
+        );
+        steer.y = THREE.MathUtils.clamp(
+          (grip.startY - event.clientY) / reach,
+          -1,
+          1,
+        );
         if (thumb.current)
           thumb.current.style.transform = `translate(${steer.x * 26}px,${-steer.y * 26}px)`;
       }
@@ -341,11 +375,14 @@ export default function LandingScene({
     };
     const keyDown = (event: KeyboardEvent) => {
       if (current !== "explore" || live.current.paused) return;
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key))
+      if (
+        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)
+      )
         event.preventDefault();
       keys.add(event.key.toLowerCase());
     };
-    const keyUp = (event: KeyboardEvent) => keys.delete(event.key.toLowerCase());
+    const keyUp = (event: KeyboardEvent) =>
+      keys.delete(event.key.toLowerCase());
     const blur = () => {
       keys.clear();
       release();
@@ -378,6 +415,13 @@ export default function LandingScene({
     const animate = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
+      if (live.current.hidden) {
+        keys.clear();
+        grips.clear();
+        steer.x = steer.y = 0;
+        frame = requestAnimationFrame(animate);
+        return;
+      }
       elapsed += dt;
       const { reduced: still, paused: frozen } = live.current;
       if (!frozen) clock += dt;
@@ -391,18 +435,30 @@ export default function LandingScene({
           shipRest.y + (1 - sink) * 40,
           shipRest.z - (1 - glide) * 112,
         );
-        ship.rotation.set(-0.25 * (1 - glide), Math.PI, Math.sin(sink * Math.PI) * 0.06);
+        ship.rotation.set(
+          -0.25 * (1 - glide),
+          Math.PI,
+          Math.sin(sink * Math.PI) * 0.06,
+        );
         zone.setThrust(clock < 4.4 ? 1 : Math.max(0, 1 - (clock - 4.4) / 0.8));
         if (clock < 4.6) {
           camera.position.lerpVectors(wideStart, wideEnd, ease(clock / 4.6));
-          camera.lookAt(ship.position.x, ship.position.y + 1.5, ship.position.z);
+          camera.lookAt(
+            ship.position.x,
+            ship.position.y + 1.5,
+            ship.position.z,
+          );
         } else {
           const k = ease((clock - 4.6) / (ARRIVAL - 4.6));
           viewer.position.copy(wideEnd);
           viewer.lookAt(shipRest.x, shipRest.y + 1.5, shipRest.z);
           eye.set(walker.x, EYE, walker.z);
           camera.position.lerpVectors(wideEnd, eye, k);
-          camera.quaternion.slerpQuaternions(viewer.quaternion, eyeQuaternion(), k);
+          camera.quaternion.slerpQuaternions(
+            viewer.quaternion,
+            eyeQuaternion(),
+            k,
+          );
         }
         if (clock >= ARRIVAL) {
           settleShip();
@@ -413,7 +469,11 @@ export default function LandingScene({
         viewer.position.lerpVectors(fromPosition, wideEnd, k);
         viewer.lookAt(ship.position.x, ship.position.y + 1.5, ship.position.z);
         camera.position.copy(viewer.position);
-        camera.quaternion.slerpQuaternions(fromQuaternion, viewer.quaternion, k);
+        camera.quaternion.slerpQuaternions(
+          fromQuaternion,
+          viewer.quaternion,
+          k,
+        );
         const lift = Math.max(0, clock - 0.5);
         ship.position.set(
           shipRest.x,
@@ -459,14 +519,19 @@ export default function LandingScene({
             const step = Math.min(distance, RUN * dt);
             walker.x += (dx / distance) * step;
             walker.z += (dz / distance) * step;
-            walker.yaw += shortest(Math.atan2(-dx, -dz) - walker.yaw) * (1 - Math.exp(-dt * 6));
+            walker.yaw +=
+              shortest(Math.atan2(-dx, -dz) - walker.yaw) *
+              (1 - Math.exp(-dt * 6));
             walker.pitch += (0.04 - walker.pitch) * (1 - Math.exp(-dt * 3));
             moving = true;
           }
         } else if (facing !== null) {
           // Turn to the terminal and raise the eyes to its hologram, then hand the view back.
           const terminal = zone.terminals[facing].position;
-          const goal = Math.atan2(-(terminal.x - walker.x), -(terminal.z - walker.z));
+          const goal = Math.atan2(
+            -(terminal.x - walker.x),
+            -(terminal.z - walker.z),
+          );
           const gap = shortest(goal - walker.yaw),
             tilt = Math.atan(1 / standOff()) - walker.pitch;
           walker.yaw += gap * (1 - Math.exp(-dt * 6));
@@ -490,16 +555,17 @@ export default function LandingScene({
         let closest: number | null = null,
           best = standOff() + 0.9;
         // Terminals passed on the way to another one stay quiet.
-        if (!route.length) zone.terminals.forEach((terminal, index) => {
-          const distance = Math.hypot(
-            terminal.position.x - walker.x,
-            terminal.position.z - walker.z,
-          );
-          if (distance < best) {
-            best = distance;
-            closest = index;
-          }
-        });
+        if (!route.length)
+          zone.terminals.forEach((terminal, index) => {
+            const distance = Math.hypot(
+              terminal.position.x - walker.x,
+              terminal.position.z - walker.z,
+            );
+            if (distance < best) {
+              best = distance;
+              closest = index;
+            }
+          });
         if (closest !== nearest) {
           nearest = closest;
           setActive(closest);
@@ -514,7 +580,9 @@ export default function LandingScene({
         if (!walked && (hintTimer += dt) > 12) explored();
       }
       zone.terminals.forEach((terminal, index) => {
-        terminal.focus += ((index === nearest ? 1 : 0) - terminal.focus) * (1 - Math.exp(-dt * 5));
+        terminal.focus +=
+          ((index === nearest ? 1 : 0) - terminal.focus) *
+          (1 - Math.exp(-dt * 5));
       });
       renderer.render(scene, camera);
       frame = requestAnimationFrame(animate);
@@ -538,7 +606,9 @@ export default function LandingScene({
           object instanceof THREE.Sprite
         ) {
           if (!(object instanceof THREE.Sprite)) object.geometry.dispose();
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          const materials = Array.isArray(object.material)
+            ? object.material
+            : [object.material];
           materials.forEach((material) => {
             Object.values(material).forEach((value) => {
               if (value instanceof THREE.Texture) value.dispose();
@@ -555,14 +625,16 @@ export default function LandingScene({
   const terminal = active !== null ? landing.terminals[active] : null;
   if (fallback)
     return (
-      <div className="surface surface-fallback">
+      <div className="surface surface-fallback" inert={hidden}>
         <p className="mono">{landing.pad}</p>
         <div className="surface-fallback-grid">
           {landing.terminals.map((item) => (
             <section key={item.id} className="terminal-panel is-static">
               <span className="mono">{item.label.toUpperCase()}</span>
               <h2>{item.heading}</h2>
-              {item.meta && <span className="terminal-meta mono">{item.meta}</span>}
+              {item.meta && (
+                <span className="terminal-meta mono">{item.meta}</span>
+              )}
               <p>{item.body}</p>
               {item.links?.map((link) => (
                 <a key={link.href} className="text-button" href={link.href}>
@@ -581,13 +653,17 @@ export default function LandingScene({
     <div
       ref={mount}
       className="surface"
+      inert={hidden}
       role="region"
       aria-label={`Zone d’atterrissage de ${planet}. ${landing.welcome}`}
     >
       <div ref={joystick} className="touch-joystick" aria-hidden="true">
         <i ref={thumb} />
       </div>
-      <div className={`surface-fade ${leaving ? "is-leaving" : ""}`} aria-hidden="true" />
+      <div
+        className={`surface-fade ${leaving ? "is-leaving" : ""}`}
+        aria-hidden="true"
+      />
       <AnimatePresence>
         {phase === "arrival" && (
           <motion.div
@@ -640,7 +716,9 @@ export default function LandingScene({
               </span>
             </div>
             <h2 id="terminal-title">{terminal.heading}</h2>
-            {terminal.meta && <span className="terminal-meta mono">{terminal.meta}</span>}
+            {terminal.meta && (
+              <span className="terminal-meta mono">{terminal.meta}</span>
+            )}
             <p>{terminal.body}</p>
             {terminal.links && (
               <div className="terminal-links">
@@ -650,7 +728,9 @@ export default function LandingScene({
                     className="text-button"
                     href={link.href}
                     target={link.href.startsWith("http") ? "_blank" : undefined}
-                    rel={link.href.startsWith("http") ? "noreferrer" : undefined}
+                    rel={
+                      link.href.startsWith("http") ? "noreferrer" : undefined
+                    }
                   >
                     {link.label} <ArrowUpRight size={12} />
                   </a>

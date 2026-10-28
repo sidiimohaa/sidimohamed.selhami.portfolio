@@ -7,7 +7,6 @@ import {
   Volume2,
   VolumeX,
   X,
-  ChevronRight,
   RotateCcw,
   Navigation,
   CircleHelp,
@@ -21,7 +20,8 @@ import type { HyperspacePhase } from "./spaceTraffic";
 import type { SurfaceCue } from "./LandingScene";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
 const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
-import { destinations, landings, planetReferenceStyle } from "./universe";
+const CockpitMap = dynamic(() => import("./CockpitMap"), { ssr: false });
+import { destinations, landings } from "./universe";
 
 function OrbitalLogo() {
   return (
@@ -185,7 +185,7 @@ export default function Experience() {
     launch,
   ]);
   useEffect(() => {
-    if (!mapOpen && !helpOpen) return;
+    if (!helpOpen) return;
     const old = document.activeElement as HTMLElement;
     const modal = document.querySelector<HTMLElement>('[role="dialog"]');
     modal?.querySelector<HTMLElement>("button")?.focus();
@@ -209,7 +209,7 @@ export default function Experience() {
       window.removeEventListener("keydown", trap);
       old?.focus();
     };
-  }, [mapOpen, helpOpen]);
+  }, [helpOpen]);
   const toggleSound = () => {
     if (typeof AudioContext === "undefined") return;
     if (!audio.current) audio.current = createFlightAudio();
@@ -221,6 +221,9 @@ export default function Experience() {
     timers.current.forEach(clearTimeout);
     setTravel(false);
     setArrived(false);
+    setHelpOpen(false);
+    audio.current?.flight({ throttle: 0, boost: false });
+    audio.current?.chime();
     setMapOpen(true);
   };
   const reset = () => {
@@ -260,7 +263,7 @@ export default function Experience() {
           arrived,
           reduced,
           paused,
-          hidden: surface !== null,
+          hidden: surface !== null || mapOpen,
           resetKey,
           droidSignal,
         }}
@@ -278,6 +281,7 @@ export default function Experience() {
           landing={groundLanding}
           reduced={reduced}
           paused={mapOpen || helpOpen}
+          hidden={mapOpen}
           onCue={onSurfaceCue}
           onTakeoff={takeOff}
         />
@@ -299,7 +303,11 @@ export default function Experience() {
       <h1 className="sr-only">
         ORBITAL — Explorez mon univers en vaisseau spatial
       </h1>
-      <header className="header" inert={loading}>
+      <header
+        className="header"
+        inert={loading || mapOpen}
+        style={mapOpen ? { visibility: "hidden" } : undefined}
+      >
         <button
           className="brand"
           onClick={reset}
@@ -373,68 +381,15 @@ export default function Experience() {
       </AnimatePresence>
       <AnimatePresence>
         {mapOpen && (
-          <motion.div
-            className="modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setMapOpen(false)}
-          >
-            <motion.section
-              className="star-map modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="map-title"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="modal-top mono">
-                <span>NAVIGATION / CARTE STELLAIRE</span>
-                <button
-                  className="close-button"
-                  onClick={() => setMapOpen(false)}
-                  aria-label="Fermer la carte"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <p className="eyebrow">L’ESPACE EST À VOUS.</p>
-              <h2 id="map-title">OÙ ALLONS-NOUS ?</h2>
-              <p className="modal-intro">
-                Choisissez un signal. Je vous emmène en orbite.
-              </p>
-              <div className="map-planets">
-                {destinations.map((p, i) => (
-                  <button
-                    className="map-destination"
-                    key={p.name}
-                    onClick={() => launch(i)}
-                  >
-                    <span className="map-index mono">
-                      {p.number} <ArrowUpRight size={16} />
-                    </span>
-                    <div
-                      className={`map-globe has-reference ${p.className}`}
-                      style={planetReferenceStyle(p)}
-                    />
-                    <span className="map-category mono">{p.tag}</span>
-                    <strong>{p.name}</strong>
-                    <span className="map-desc">{p.summary}</span>
-                    <span className="map-bottom mono">
-                      {p.category}
-                      <ChevronRight size={15} />
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="map-note mono">
-                <i /> LES PLANÈTES SONT EN COURS DE FORMATION. EXPLORATION EN
-                ORBITE DISPONIBLE.
-              </div>
-            </motion.section>
-          </motion.div>
+          <CockpitMap
+            initialSelection={destination}
+            reduced={reduced}
+            sound={sound}
+            onToggleSound={toggleSound}
+            onSelectionCue={() => audio.current?.chime()}
+            onClose={() => setMapOpen(false)}
+            onLaunch={launch}
+          />
         )}
       </AnimatePresence>
       <AnimatePresence>

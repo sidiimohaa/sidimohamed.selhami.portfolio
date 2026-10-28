@@ -37,6 +37,8 @@ Le modèle 3D du vaisseau suit la référence conservée dans references/x-wing.
 
 ## Exploration immersive
 
+La carte stellaire s'ouvre à l'intérieur d'un cockpit 3D de X-wing, avec une courte avancée de caméra vers le siège. Quatre planètes holographiques (scanlines, reliefs, méridiens et faisceaux) survolent le projecteur. Sélectionner un globe change le véritable aperçu en couleur et les informations sur la console ; « Rejoindre l'orbite » confirme la destination. Les flèches parcourent les destinations au clavier, Tab parcourt les commandes et Échap revient à la vue précédente. Sur mobile, les quatre projections se disposent sur deux rangées. Le mouvement réduit, le son facultatif et la navigation sans WebGL sont conservés. Les scènes extérieures cessent de se dessiner pendant l'utilisation du cockpit. Les quatre références visuelles sont conservées dans `references/cockpit/`.
+
 L'approche automatique suit une courbe avec accélération progressive puis freinage. Le X-wing s'incline selon le virage et la caméra le poursuit avec un léger retard ; la poussée visuelle et sonore suit sa vitesse. Le trajet contourne les autres planètes. L'arrivée est déclenchée par la fin réelle du vol, et non par un minuteur indépendant. Annuler une approche rend les commandes au pilote. Au repos, le vaisseau n'avance toujours pas. Le mode mouvement réduit conserve une arrivée directe sans inclinaison ni effet de vitesse.
 
 - Le halo de ciblage, le nom et la distance apparaissent uniquement lorsque la planète est visée ou survolée. E rejoint la planète visée (ou la planète focalisée au clavier).

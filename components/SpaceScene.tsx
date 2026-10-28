@@ -748,6 +748,9 @@ export default function SpaceScene({
       const s = live.current;
       // While the visitor is on a planet's surface, space keeps its state but stops drawing.
       if (s.hidden) {
+        keys.clear();
+        release();
+        velocity.set(0, 0, 0);
         frame = requestAnimationFrame(animate);
         return;
       }
@@ -1127,6 +1130,7 @@ export default function SpaceScene({
     <div
       ref={mount}
       className="space-canvas"
+      inert={state.paused || state.hidden}
       role="group"
       aria-label="Espace en trois dimensions, glissez ou utilisez les flèches pour voyager"
     >
