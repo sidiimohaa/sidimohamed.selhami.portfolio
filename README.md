@@ -82,7 +82,7 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 
 ## Atterrissage sur Hoth
 
-- Hoth présente les diplômes (rubrique 05). « Atterrir » pose le X-wing dans le hangar principal de la base Écho : un canyon taillé dans le glacier, couvert de poutrelles et de corniches de glace, et grand ouvert sur la plaine enneigée. Le vaisseau arrive par-dessus la falaise du fond et repart par l'ouverture.
+- Hoth présente les diplômes (rubrique 05). « Atterrir » pose le X-wing dans le hangar principal de la base Écho : une grande voûte de glace irrégulière, bordée de corniches et de stalactites, ouverte sur la plaine enneigée. Quelques lampes de travail latérales éclairent les équipements sans quadriller le plafond. Le vaisseau arrive par-dessus la falaise du fond et repart par l'ouverture.
 - Dans le hangar, on trouve des portes blindées, une galerie de commandement éclairée, un second X-wing en réparation, un snowspeeder, des caisses et l'équipe au sol.
 - La table de briefing (`hothBriefing.ts`) projette, comme les plans d'attaque des rebelles, le schéma holographique d'une station de combat : parallèles, méridiens, tranchée, parabole et anneau de scan. Ses cibles sont les diplômes : chaque cible est reliée à une fiche « Objectif atteint », un tracé lumineux passe de l'une à l'autre, la cible s'allume quand on s'approche de son terminal, et toucher une fiche y mène.
 - Au loin (`hothBattle.ts`), trois marcheurs géants avancent dans la tempête et tirent sur la tranchée. Les canons rebelles et deux snowspeeders ripostent, les tirs soulèvent des gerbes de neige, et le générateur de bouclier brille derrière la tranchée.

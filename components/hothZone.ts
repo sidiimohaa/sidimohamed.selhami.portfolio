@@ -7,7 +7,7 @@ import { createTerminals, glowTexture, parkShip, random, type Spot, type Zone } 
 import { createShipModel } from "./shipModel";
 import type { Landing } from "./universe";
 
-// Echo Base's main hangar: a canyon cut into the glacier, roofed with girders and open at +z onto
+// Echo Base's main hangar: a vaulted glacier cavern, open at +z onto
 // the plain. The ship arrives over the back cliff and takes off through the mouth, as everywhere.
 const SIDE = 24,
   BACK = -26,
@@ -116,6 +116,39 @@ function snowTexture() {
     }
   });
 }
+
+function vaultHeight(x:number,z:number) {
+  const angle=Math.acos(THREE.MathUtils.clamp(x/(SIDE+1.2),-1,1));
+  return ROOF-3+16*Math.pow(Math.sin(angle),.85)
+    +Math.sin(z*.21+angle*3)*.65+Math.sin(z*.62-angle*7)*.22;
+}
+function iceVault() {
+  const across=72,along=46,positions:number[]=[],colors:number[]=[],indices:number[]=[];
+  const pale=new THREE.Color(0xbad2e2),blue=new THREE.Color(0x81a8c2),color=new THREE.Color();
+  for(let j=0;j<=along;j++)for(let i=0;i<=across;i++){
+    const angle=i/across*Math.PI,z=THREE.MathUtils.lerp(BACK-1,MOUTH+1.5,j/along);
+    const x=Math.cos(angle)*(SIDE+1.2),y=vaultHeight(x,z);
+    positions.push(x,y,z);
+    color.copy(pale).lerp(blue,.16+.12*Math.sin(angle*6+z*.14));
+    colors.push(color.r,color.g,color.b);
+  }
+  for(let j=0;j<along;j++)for(let i=0;i<across;i++){
+    const a=j*(across+1)+i,b=a+1,c=a+across+1,d=c+1;
+    indices.push(a,c,b,b,c,d);
+  }
+  // A thick, uneven lip makes the mouth read as carved glacier, not a thin roof panel.
+  const rimStart=positions.length/3;
+  for(let i=0;i<=across;i++)for(const edge of[0,1]){
+    const x=Math.cos(i/across*Math.PI)*(SIDE+1.2),z=MOUTH+1.5;
+    positions.push(x*(edge?1.035:1),vaultHeight(x,z)+(edge?2.2+Math.sin(i*.41)*.35:0),z+edge*.65);
+    colors.push(pale.r,pale.g,pale.b);
+  }
+  for(let i=0;i<across;i++){const a=rimStart+i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}
+  const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
+  geometry.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+  const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.72,metalness:0,side:THREE.DoubleSide}));
+  mesh.name="hoth-ice-vault";return mesh;
+}
 // Packed snow over the pad, with worn markings and the hangar number.
 function floorMarkings(label: string) {
   return canvasTexture(
@@ -179,8 +212,9 @@ function snowfall(count: number) {
         vec3 drift=vec3(2.6,-2.2,-3.4)*time+vec3(sin(time*.7+position.y*40.0),0.0,cos(time*.5+position.x*30.0))*1.2;
         vec3 p=mod(position*box+drift-origin+box*.5,box)-box*.5+origin;
         p.y+=10.0;
-        // Under the girders and shelves only a little snow blows in.
-        float covered=step(abs(p.x),${SIDE - 1}.0)*step(p.z,${MOUTH - 4}.0)*step(${BACK}.0,p.z)*step(p.y,${ROOF}.0);
+        // Windblown snow thins underneath the natural ice vault.
+        float ceiling=${ROOF-3}.0+16.0*pow(sqrt(max(0.0,1.0-p.x*p.x/${(SIDE+1.2)**2})),.85);
+        float covered=step(abs(p.x),${SIDE - 1}.0)*step(p.z,${MOUTH - 4}.0)*step(${BACK}.0,p.z)*step(p.y,ceiling);
         vAlpha=mix(.85,.12,covered);
         vec4 view=modelViewMatrix*vec4(p,1.0);
         gl_Position=projectionMatrix*view;
@@ -257,28 +291,19 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       add(new THREE.ConeGeometry(0.12 + rand() * 0.25, length, 6), ice, [side * (SIDE - 7.6 - rand() * 1.4), ROOF - 5.8 - length / 2, BACK + 4 + rand() * (MOUTH - BACK - 10)], [Math.PI, 0, 0]);
     }
   }
-  // Girders span the canyon, each with a row of hanging lamps.
-  const lampSpots: THREE.Vector3[] = [];
-  for (const z of [-2, 8, 18, 28]) {
-    for (const y of [ROOF, ROOF + 1.4]) add(new THREE.BoxGeometry(SIDE * 2 + 2, 0.4, 0.4), steel, [0, y, z]);
-    for (let x = -SIDE; x <= SIDE; x += 3) {
-      add(new THREE.BoxGeometry(0.18, 1.4, 0.18), steel, [x, ROOF + 0.7, z]);
-      add(new THREE.BoxGeometry(0.14, 2, 0.14), steel, [x + 1.5, ROOF + 0.7, z], [0, 0, Math.atan2(3, 1.4) * (x % 2 ? 1 : -1)]);
-    }
-    for (const x of [-12, -4, 4, 12]) {
-      add(new THREE.BoxGeometry(0.05, 1.6, 0.05), steel, [x, ROOF - 0.8, z]);
-      add(new THREE.BoxGeometry(1.4, 0.3, 0.6), steel, [x, ROOF - 1.7, z]);
-      add(new THREE.BoxGeometry(1.2, 0.06, 0.45), lampGlass, [x, ROOF - 1.87, z]);
-      lampSpots.push(new THREE.Vector3(x, ROOF - 2.1, z));
-    }
+  group.add(iceVault());
+  for(let i=0;i<64;i++){
+    const x=(rand()<.5?-1:1)*(7+rand()*16),z=BACK+3+rand()*(MOUTH-BACK-3),length=.4+rand()*1.8;
+    add(new THREE.ConeGeometry(.08+rand()*.18,length,7),ice,[x,vaultHeight(x,z)-length/2,z],[Math.PI,rand()*Math.PI,(rand()-.5)*.14]);
   }
-  for (const x of [-8, 8]) add(new THREE.BoxGeometry(0.35, 0.35, 32), steel, [x, ROOF + 0.7, 13]);
-  lampSpots.forEach((spot) => {
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xffe6c0, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
-    halo.position.copy(spot);
-    halo.scale.setScalar(3);
-    group.add(halo);
-  });
+  // Small side-mounted work lamps leave the ceiling clear and the central volume open.
+  for(const side of[-1,1])for(const z of[-12,22]){
+    const x=side*(SIDE-3.1);
+    add(new THREE.BoxGeometry(.22,3.4,.22),steel,[x,1.7,z]);
+    add(new THREE.BoxGeometry(.9,.2,.55),steel,[x-side*.3,3.5,z]);
+    add(new THREE.BoxGeometry(.65,.05,.36),lampGlass,[x-side*.3,3.38,z]);
+    const light=new THREE.PointLight(0xffd5a2,16,10,2);light.position.set(x-side*.45,3.3,z);group.add(light);
+  }
   // Blast doors built into the walls, and a lit command gallery across the back.
   const doors: [number, number, number][] = [
     [-SIDE + 1.2, -12, Math.PI / 2],
