@@ -103,6 +103,7 @@ export type Zone = {
   exposure: number;
   walkRadius: number;
   explorePoint?: THREE.Vector3;
+  interior?: {name:string;entry:THREE.Vector3;exit:THREE.Vector3;contains:(x:number,z:number)=>boolean};
   constrainWalk?: (walker: { x: number; z: number }) => void;
   routeTo?: (from: THREE.Vector3, to: THREE.Vector3) => THREE.Vector3[];
   terminals: ZoneTerminal[];

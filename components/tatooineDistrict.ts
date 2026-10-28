@@ -2,11 +2,30 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { createCoruscantCargo } from "./coruscantCargo";
-import { glowTexture, type Spot } from "./landingKit";
+import { glowTexture, random, type Spot } from "./landingKit";
+import { createHeroDroids } from "./tatooineCharacters";
+import { createTatooineCantina } from "./tatooineCantina";
+import { createLandspeeder, createTatooineScenery } from "./tatooineScenery";
 export const TATOOINE_GATE = 2.58;
 export function districtPoint(u: number, v: number) { return new THREE.Vector3(Math.cos(TATOOINE_GATE) * u + Math.sin(TATOOINE_GATE) * v, 0, -Math.sin(TATOOINE_GATE) * u + Math.cos(TATOOINE_GATE) * v); }
 export function districtCoordinates(x: number, z: number) { return { u: Math.cos(TATOOINE_GATE) * x - Math.sin(TATOOINE_GATE) * z, v: Math.sin(TATOOINE_GATE) * x + Math.cos(TATOOINE_GATE) * z }; }
 export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: number, z: number) => number) {
+    const paint=document.createElement("canvas");paint.width=1024;paint.height=512;
+    const brush=paint.getContext("2d")!,rand=random(941977);
+    brush.fillStyle="#d9ccb0";brush.fillRect(0,0,1024,512);
+    for(let chip=0;chip<1400;chip++){
+      const x=rand()*1024,y=rand()*512,w=1+rand()*20,h=1+rand()*8;
+      brush.fillStyle=chip%3?"#786f581c":"#f8e9cb28";brush.beginPath();brush.moveTo(x,y);
+      brush.lineTo(x+w*.8,y-2);brush.lineTo(x+w,y+h*.7);brush.lineTo(x+w*.25,y+h);brush.lineTo(x-3,y+h*.5);brush.fill();
+    }
+    brush.strokeStyle="#69594144";brush.lineWidth=1.2;
+    for(let crack=0;crack<36;crack++){
+      let x=rand()*1024,y=rand()*400;brush.beginPath();brush.moveTo(x,y);
+      for(let step=0;step<7;step++)brush.lineTo(x+=(rand()-.5)*20,y+=rand()*12);brush.stroke();
+    }
+    const grime=brush.createLinearGradient(0,310,0,512);grime.addColorStop(0,"#60554000");grime.addColorStop(1,"#60554066");brush.fillStyle=grime;brush.fillRect(0,310,1024,202);
+    const wallMap=new THREE.CanvasTexture(paint);wallMap.colorSpace=THREE.SRGBColorSpace;wallMap.anisotropy=8;
+    adobe=new THREE.MeshStandardMaterial({map:wallMap,roughness:.96});
     const group = new THREE.Group();
     group.rotation.y = TATOOINE_GATE;
     group.name = "mos-eisley-district";
@@ -17,6 +36,15 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     const cloth = new THREE.MeshStandardMaterial({ color: 0xa56e42, roughness: 1, side: THREE.DoubleSide });
     const pale = new THREE.MeshStandardMaterial({ color: 0xc5b28d, roughness: .95, side: THREE.DoubleSide });
     const amber = new THREE.MeshBasicMaterial({ color: 0xf4bd58 });
+    const footprints=document.createElement("canvas");footprints.width=256;footprints.height=1024;
+    const sandMarks=footprints.getContext("2d")!;sandMarks.fillStyle="#6e563927";
+    for(let mark=0;mark<170;mark++){
+      const x=128+Math.sin(mark*.17)*65+(mark%2?-9:9),y=mark*6;
+      sandMarks.beginPath();sandMarks.ellipse(x,y,2.6,4.1,.12,0,Math.PI*2);sandMarks.fill();
+    }
+    const printMap=new THREE.CanvasTexture(footprints);printMap.colorSpace=THREE.SRGBColorSpace;
+    const tracks=new THREE.Mesh(new THREE.PlaneGeometry(7,49),new THREE.MeshBasicMaterial({map:printMap,transparent:true,depthWrite:false}));
+    tracks.rotation.x=-Math.PI/2;tracks.position.set(0,-.044,45);group.add(tracks);
     const glow = glowTexture();
     const shadowMaterial = new THREE.MeshBasicMaterial({ map: glow, color: 0x2b1b0c, transparent: true, opacity: .32, depthWrite: false });
     const shadow = (parent: THREE.Object3D, w: number, d: number, y: number) => {
@@ -56,17 +84,26 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         c.fillText("MOS EISLEY / PORT FRANC", 256, 99);
         const map = new THREE.CanvasTexture(canvas);
         map.colorSpace = THREE.SRGBColorSpace;
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), new THREE.MeshStandardMaterial({ map, roughness: .9, side: THREE.DoubleSide }));
-        m.position.set(u, y, v);
-        group.add(m);
+        const signMaterial=new THREE.MeshStandardMaterial({map,roughness:.9});
+        for(const side of[-1,1]){
+          const m=new THREE.Mesh(new THREE.PlaneGeometry(width,width/4),signMaterial);
+          m.position.set(u,y,v+side*.015);m.rotation.y=side<0?Math.PI:0;group.add(m);
+        }
+    }
+    function pipeDetail(u:number,v:number,r:number,side:number){
+      for(const dz of[-1.4,1.4]){add(new THREE.CylinderGeometry(.09,.09,2.6,10),metal,u-side*(r+.09),1.3,v+dz);}
+      for(const y of[.25,.45])box(adobe,.18,.1,3.8,u-side*(r+.03),y,v);
+      box(metal,.2,.35,.32,u-side*(r+.14),1.2,v-2);
     }
     // An open street: every shop sits outside a pedestrian and speeder corridor.
     const shops = [[-9, 28, 4.1], [9, 38, 4.1], [-10, 42, 4.3], [10, 55, 4.3], [-10, 63, 4.1], [9, 69, 3.3]];
     for (let index = 0; index < shops.length; index++) {
+        if(index===4)continue;
         const [u, v, r] = shops[index], height = 3.2 + (index % 3) * .55, side = Math.sign(u);
-        add(new THREE.CylinderGeometry(r, r * 1.03, height, 28), adobe, u, height / 2, v);
+        if(index%2){box(adobe,r*1.9,height+1,r*1.7,u,(height+1)/2,v);}
+        else add(new THREE.CylinderGeometry(r,r*1.03,height,32),adobe,u,height/2,v);
         add(new THREE.SphereGeometry(r, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), adobe, u, height, v);
-        block(u, v, r * 1.06);
+        block(u,v,r*(index%2?1.38:1.06));
         // A dark arched doorway opens toward the street, between battered plaster jambs.
         box(dark, .1, 2.1, 1.35, u - side * r, 1.05, v);
         add(new THREE.CylinderGeometry(.12, .12, 2.5, 8), rust, u - side * (r + .08), 1.25, v - .9);
@@ -85,8 +122,13 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         }
         box(rust, .8, .8, 2.5, u - side * (r + .6), .4, v + .2);
         block(u - side * (r + .6), v + .2, 1.2);
-        for (let item = 0; item < 6; item++)
-            add(new THREE.SphereGeometry(.13, 8, 6), index % 2 ? metal : rust, u - side * (r + .6), .92, v - .8 + item * .32);
+        for(let item=0;item<8;item++){
+          const atV=v-1+item*.28,atU=u-side*(r+.6);
+          if(index%2)add(new THREE.CylinderGeometry(.08,.12,.28+(item%3)*.07,12),item%2?rust:pale,atU,1.03,atV);
+          else {add(new THREE.TorusGeometry(.12,.055,6,16),rust,atU,.97,atV,Math.PI/2);}
+        }
+        for(let shutter=0;shutter<4;shutter++)box(dark,.09,.75,.18,u-side*(r+.06),1.75,v+1.5+shutter*.2);
+        pipeDetail(u,v,r,side);
         for (let rib = 0; rib < 4; rib++)
             box(metal, .12, .12, .9, u - side * r, 2.3 + rib * .2, v + 1.2);
     }
@@ -142,6 +184,11 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         if (jawa)
             for (const x of [-.055, .055])
                 piece(new THREE.SphereGeometry(.022, 6, 4), amber, x, h + .18, .28);
+        else{
+          const collar=piece(new THREE.TorusGeometry(.16,.045,6,16),body,0,h+.015,0);collar.rotation.x=Math.PI/2;
+          for(const x of[-.052,.052])piece(new THREE.SphereGeometry(.014,6,4),dark,x,h+.19,.265);
+          piece(new THREE.SphereGeometry(.03,8,6),headMat,0,h+.13,.279);
+        }
         const arms: THREE.Group[] = [], legs: THREE.Group[] = [];
         for (const side of [-1, 1]) {
             const a = new THREE.Group();
@@ -170,6 +217,9 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     character(false, -2.8, 38, 3, 3);
     character(false, 2.8, 59, 4, 5);
     character(false, -4.5, 26, 0, 2);
+    character(false,-2.8,52,2,1.5);
+    character(false,3.2,66,2.2,3.5);
+    character(false,-3.4,35,.6,5.5);
     // Two landspeeders use a separate lane on the right and stop for a visitor in front.
     const speeders: {
         group: THREE.Group;
@@ -181,24 +231,8 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     for (let i = 0; i < 2; i++) {
         const s = new THREE.Group();
         s.name = "mos-eisley-speeder";
-        const paint = new THREE.MeshStandardMaterial({ color: i ? 0x7f8273 : 0xa2633c, metalness: .35, roughness: .7 });
-        shadow(s, 3, 4.5, -.04);
-        const hull = new THREE.Mesh(new RoundedBoxGeometry(1.65, .42, 3.2, 2, .14), paint);
-        hull.position.y = .62;
-        s.add(hull);
-        const seat = new THREE.Mesh(new THREE.BoxGeometry(1.1, .3, 1.1), dark);
-        seat.position.set(0, .88, -.2);
-        s.add(seat);
-        const screen = new THREE.Mesh(new THREE.BoxGeometry(1.35, .35, .04), new THREE.MeshStandardMaterial({ color: 0x56717a, metalness: .5, roughness: .25 }));
-        screen.position.set(0, 1.05, .4);
-        screen.rotation.x = -.3;
-        s.add(screen);
-        for (const side of [-1, 1]) {
-            const engine = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, 1.3, 12), metal);
-            engine.rotation.x = Math.PI / 2;
-            engine.position.set(side * .95, .63, -.8);
-            s.add(engine);
-        }
+        shadow(s,3,4.5,-.04);
+        s.add(createLandspeeder(i?0x7f8273:0xa2633c));
         const p = districtPoint(0, 75 + i * 12), collider = { x: p.x, z: p.z, r: 1.45 };
         movers.push(collider);
         speeders.push({ group: s, v: 75 + i * 12, direction: -1, delay: i * 17, collider });
@@ -215,56 +249,22 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     pair.name = "dune-droids";
     pair.visible = false;
     group.add(pair);
-    const white = new THREE.MeshStandardMaterial({ color: 0xd5d8ce, roughness: .65, metalness: .25 });
-    const blue = new THREE.MeshStandardMaterial({ color: 0x295caa, roughness: .48, metalness: .5 });
-    const gold = new THREE.MeshStandardMaterial({ color: 0xc49a44, roughness: .42, metalness: .65 });
-    const robotPart = (g: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
-    const r2 = new THREE.Group();
-    r2.name = "r2-d2";
-    pair.add(r2);
-    shadow(r2, 1.1, .7, .012);
-    robotPart(r2, new THREE.CylinderGeometry(.29, .29, .62, 20), white, 0, .53, 0);
-    robotPart(r2, new THREE.SphereGeometry(.3, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), metal, 0, .84, 0);
-    robotPart(r2, new THREE.CylinderGeometry(.302, .302, .07, 20), blue, 0, .85, 0);
-    for (let panel = 0; panel < 4; panel++)
-        robotPart(r2, new THREE.CylinderGeometry(.283, .283, .08, 8, 1, true, panel * Math.PI / 2, .38), blue, 0, .95, 0);
-    robotPart(r2, new THREE.CylinderGeometry(.11, .11, .025, 12), blue, 0, 1.13, 0);
-    for (const side of [-1, 1]) {
-        robotPart(r2, new THREE.BoxGeometry(.13, .54, .16), white, side * .37, .4, 0);
-        robotPart(r2, new THREE.BoxGeometry(.19, .13, .3), white, side * .37, .09, .04);
-        robotPart(r2, new THREE.BoxGeometry(.08, .36, .02), blue, side * .11, .54, .283);
-    }
-    robotPart(r2, new THREE.SphereGeometry(.045, 8, 6), dark, -.09, .98, .26);
-    const c3 = new THREE.Group();
-    c3.name = "c-3po";
-    c3.position.set(1.3, 0, -.45);
-    pair.add(c3);
-    shadow(c3, .9, .7, .012);
-    robotPart(c3, new THREE.SphereGeometry(.14, 12, 10), gold, 0, 1.57, 0).scale.set(1, 1.22, .82);
-    robotPart(c3, new RoundedBoxGeometry(.37, .48, .2, 1, .05), gold, 0, 1.17, 0);
-    robotPart(c3, new THREE.CylinderGeometry(.13, .15, .21, 10), dark, 0, .84, 0);
-    for (const x of [-.05, .05])
-        robotPart(c3, new THREE.SphereGeometry(.028, 8, 6), amber, x, 1.6, .11);
-    const c3legs: THREE.Group[] = [], c3arms: THREE.Group[] = [];
-    for (const side of [-1, 1]) {
-        const leg = new THREE.Group();
-        leg.position.set(side * .11, .75, 0);
-        c3.add(leg);
-        c3legs.push(leg);
-        robotPart(leg, new THREE.CylinderGeometry(.065, .05, .63, 8), side === 1 ? metal : gold, 0, -.32, 0);
-        robotPart(leg, new THREE.BoxGeometry(.13, .08, .22), side === 1 ? metal : gold, 0, -.68, .04);
-        const arm = new THREE.Group();
-        arm.position.set(side * .25, 1.34, 0);
-        c3.add(arm);
-        c3arms.push(arm);
-        robotPart(arm, new THREE.CylinderGeometry(.045, .035, .55, 8), gold, 0, -.28, 0);
-        robotPart(arm, new THREE.SphereGeometry(.06, 8, 6), gold, 0, -.58, 0);
-    }
+    const heroes=createHeroDroids(),{r2,c3}=heroes;
+    c3.position.set(1.2,0,-.4);pair.add(r2,c3);shadow(r2,1.1,.7,.012);shadow(c3,.9,.7,.012);
+    const cantina=createTatooineCantina(adobe);group.add(cantina.group);
+    cantina.circles.forEach(c=>block(c.u,c.v,c.r));
+    const scenery=createTatooineScenery(adobe);group.add(scenery.group);
+    scenery.colliders.forEach(c=>block(c.u,c.v,c.r));
+    const troopSpots=scenery.movers.map(c=>{const p=districtPoint(c.u,c.v);return {x:p.x,z:p.z,r:c.r};});
+    movers.push(...troopSpots);
     // Static decorations are baked into a handful of material batches.
     batches.forEach((parts, material) => { const geometry = mergeGeometries(parts, false); parts.forEach(p => p.dispose()); if (geometry)
         group.add(new THREE.Mesh(geometry, material)); });
     let clock = 0;
-    return { group, colliders, movers, explorePoint: districtPoint(0, 34),
+    return { group, colliders, movers, explorePoint:districtPoint(0,34),
+        interior:{name:"CANTINA",entry:districtPoint(cantina.entry.u,cantina.entry.v),exit:districtPoint(cantina.exit.u,cantina.exit.v),contains:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.contains(p.u,p.v);}},
+        isBlocked:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.isBlocked(p.u,p.v);},
+        constrain:(walker:{x:number;z:number})=>{const p=districtCoordinates(walker.x,walker.z);cantina.constrain(p);const w=districtPoint(p.u,p.v);walker.x=w.x;walker.z=w.z;},
         tick(dt: number, reduced: boolean, walker: {
             x: number;
             z: number;
@@ -274,6 +274,8 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
             clock += dt;
             const move = reduced ? 0 : dt;
             const local = districtCoordinates(walker.x, walker.z);
+            cantina.tick(clock,reduced);scenery.tick(dt,clock,reduced,local);
+            scenery.movers.forEach((c,i)=>{const p=districtPoint(c.u,c.v);troopSpots[i].x=p.x;troopSpots[i].z=p.z;});
             actors.forEach((a, index) => {
                 const targetV = a.v + Math.sin(clock * .22 + a.phase) * a.range;
                 const near = Math.hypot(local.u - a.group.position.x, local.v - a.group.position.z) < 1.35;
@@ -325,13 +327,11 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
             const age = clock - 30;
             pair.visible = !reduced && age >= 0 && age < 34;
             if (pair.visible) {
-                const u = -7 + age * .7, v = 87;
+                const u = -7 + age * .7, v = 80;
                 const p = districtPoint(u, v);
                 pair.position.set(u, groundHeight(p.x, p.z), v);
                 pair.rotation.y = Math.PI / 2;
-                c3legs.forEach((leg, i) => leg.rotation.x = Math.sin(age * 3.4 + i * Math.PI) * .3);
-                c3arms.forEach((arm, i) => arm.rotation.x = Math.sin(age * 3.4 + i * Math.PI + Math.PI) * .18);
-                r2.rotation.z = Math.sin(age * 2.3) * .018;
+                heroes.tick(age,reduced);
             }
         }
     };

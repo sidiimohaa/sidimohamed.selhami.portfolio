@@ -222,9 +222,13 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     disc.scale.setScalar(size);
     group.add(disc);
   });
-  group.add(new THREE.HemisphereLight(0xb4c8dc, 0xc8925a, 1.35));
+  const ambient=new THREE.HemisphereLight(0xb4c8dc,0xc8925a,1.35);
+  group.add(ambient);
   const sun = new THREE.DirectionalLight(0xffdcae, 2.6);
   sun.position.copy(SUN).multiplyScalar(300);
+  sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+  Object.assign(sun.shadow.camera,{left:-100,right:100,top:100,bottom:-100,near:1,far:550});
+  sun.shadow.bias=-.0002;sun.shadow.normalBias=.045;
   const second = new THREE.DirectionalLight(0xff9a5c, 0.9);
   second.position.copy(SECOND).multiplyScalar(300);
   group.add(sun, second);
@@ -371,7 +375,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     const x = Math.cos(angle) * reach,
       z = Math.sin(angle) * reach;
     const district = districtCoordinates(x,z);
-    if (district.v>18 && district.v<80 && Math.abs(district.u)<19) continue;
+    if (district.v>18 && district.v<83 && Math.abs(district.u)<31) continue;
     if (Math.abs(x)<9 && z<-19) continue;
     // Keep the view from the arrival spot through the gate to the suns clear, and the
     // arrival camera's line of sight too.
@@ -453,7 +457,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       x = Math.cos(angle) * reach,
       z = Math.sin(angle) * reach;
     const district = districtCoordinates(x,z);
-    if(district.v>18 && district.v<80 && Math.abs(district.u)<19)continue;
+    if(district.v>18 && district.v<83 && Math.abs(district.u)<31)continue;
     if (taken.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.r + 2)) continue;
     taken.push({ x, z, r: 1 });
     vaporator(x, z);
@@ -525,10 +529,16 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     return radius>16.3 && radius<19 && Math.abs(turn)>GATE-.065;
   };
   const routeTo=createSurfaceNavigator(76,(x,z)=>{
-    if(Math.hypot(x,z)>75.8 || blockedByWall(x,z))return false;
+    if(Math.hypot(x,z)>75.8 || blockedByWall(x,z) || district.isBlocked(x,z))return false;
     if(circles.some(c=>Math.hypot(x-c.x,z-c.z)<c.r+.349))return false;
     const b=parking.footprint;
     return !(x>b.minX-.05 && x<b.maxX+.05 && z>b.minZ-.05 && z<b.maxZ+.05);
+  });
+  group.traverse(object=>{
+    if(!(object instanceof THREE.Mesh))return;
+    const materials=Array.isArray(object.material)?object.material:[object.material];
+    object.receiveShadow=true;
+    object.castShadow=materials.every(m=>m instanceof THREE.MeshStandardMaterial&&!m.transparent)&&object.geometry.type!=="PlaneGeometry";
   });
 
   return {
@@ -537,8 +547,10 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     exposure: 1,
     walkRadius: 76,
     explorePoint:district.explorePoint,
+    interior:district.interior,
     routeTo,
     constrainWalk:(walker)=>{
+      district.constrain(walker);
       if(!blockedByWall(walker.x,walker.z))return;
       const reach=Math.hypot(walker.x,walker.z),edge=reach<17.65?16.29:19.01;
       walker.x*=edge/reach;walker.z*=edge/reach;
@@ -557,6 +569,9 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     tick: (dt, elapsed, reduced, walker) => {
       life.tick(dt, elapsed, reduced, walker);
       district.tick(dt,reduced,walker);
+      const indoors=district.interior.contains(walker.x,walker.z),blend=1-Math.exp(-dt*4);
+      ambient.intensity+=((indoors?.32:1.35)-ambient.intensity)*blend;
+      second.intensity+=((indoors?.1:.9)-second.intensity)*blend;
       stations.tick(elapsed, reduced);
     },
   };

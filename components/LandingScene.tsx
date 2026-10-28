@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, Rocket } from "lucide-react";
 import { createCoruscantZone } from "./coruscantZone";
@@ -14,7 +15,7 @@ const zones = {
   Tatooine: createTatooineZone,
 } as const;
 
-export type SurfaceCue = "terminal" | "takeoff" | "step" | PadEvent;
+export type SurfaceCue = "terminal" | "takeoff" | "step" | "cantina-enter" | "cantina-leave" | PadEvent;
 type Props = {
   planet: string;
   landing: Landing;
@@ -57,6 +58,7 @@ export default function LandingScene({
   const [hint, setHint] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const [inDistrict,setInDistrict] = useState(false);
+  const [inCantina,setInCantina] = useState(false);
   const [fallback, setFallback] = useState(false);
   const [coarse] = useState(
     () => window.matchMedia("(pointer: coarse)").matches,
@@ -72,6 +74,7 @@ export default function LandingScene({
     skip: () => void;
     takeoff: () => void;
     district: () => void;
+    cantina: () => void;
   } | null>(null);
 
   useEffect(() => {
@@ -93,6 +96,13 @@ export default function LandingScene({
     renderer.domElement.className = "surface-canvas";
     el.prepend(renderer.domElement);
     const scene = new THREE.Scene();
+    let environment:THREE.WebGLRenderTarget|undefined;
+    if(planet==="Tatooine"){
+      renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+      const generator=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment();
+      environment=generator.fromScene(room,.02);scene.environment=environment.texture;scene.environmentIntensity=.45;
+      generator.dispose();room.dispose();
+    }
     const build = zones[planet as keyof typeof zones] ?? createCoruscantZone;
     const zone = build(landing, (event) => cue.current(event));
     renderer.toneMappingExposure = zone.exposure;
@@ -176,7 +186,7 @@ export default function LandingScene({
       placeEye();
     }
 
-    let wasInDistrict=false;
+    let wasInDistrict=false,wasInCantina=false;
     const collide = () => {
       const reach = Math.hypot(walker.x, walker.z),
         limit = zone.walkRadius;
@@ -215,6 +225,7 @@ export default function LandingScene({
       }
       zone.constrainWalk?.(walker);
       if(zone.explorePoint){const next=Math.hypot(walker.x,walker.z)>20;if(next!==wasInDistrict){wasInDistrict=next;setInDistrict(next);}}
+      if(zone.interior){const next=zone.interior.contains(walker.x,walker.z);if(next!==wasInCantina){wasInCantina=next;setInCantina(next);cue.current(next?"cantina-enter":"cantina-leave");}}
     };
     // Walk out to the ring around the ship, follow it, then step up to the terminal.
     const walkTo = (index: number) => {
@@ -283,7 +294,15 @@ export default function LandingScene({
       else route=zone.routeTo(new THREE.Vector3(walker.x,0,walker.z),destination);
       facing=null;walked=true;setHint(false);
     };
-    controls.current = { walkTo, skip, takeoff, district };
+    const cantina=()=>{
+      if(current!=="explore"||!zone.interior||!zone.routeTo)return;
+      const entering=!zone.interior.contains(walker.x,walker.z);
+      const destination=entering?zone.interior.entry:zone.interior.exit;
+      if(live.current.reduced){walker.x=destination.x;walker.z=destination.z;const look=zone.interior.entry.clone().sub(zone.interior.exit).multiplyScalar(entering?1:-1);walker.yaw=Math.atan2(-look.x,-look.z);}
+      else route=zone.routeTo(new THREE.Vector3(walker.x,0,walker.z),destination);
+      facing=null;walked=true;setHint(false);
+    };
+    controls.current = { walkTo, skip, takeoff, district, cantina };
 
     const outsideControls = (target: EventTarget | null) =>
       !(target as HTMLElement | null)?.closest?.(
@@ -616,6 +635,7 @@ export default function LandingScene({
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", blur);
       controls.current = null;
+      if(zone.interior)cue.current("cantina-leave");
       scene.traverse((object) => {
         if (
           object instanceof THREE.Mesh ||
@@ -635,6 +655,7 @@ export default function LandingScene({
         }
       });
       renderer.dispose();
+      environment?.dispose();
       renderer.domElement.remove();
     };
   }, [landing, planet]);
@@ -760,9 +781,10 @@ export default function LandingScene({
       {phase !== "arrival" && (
         <nav className={`surface-bar ${planet==="Tatooine"?"with-district":""}`} aria-label="Navigation et terminaux">
           <span className="surface-place mono">
-            {planet.toUpperCase()} · {inDistrict?"MOS EISLEY":landing.pad}
+            {planet.toUpperCase()} · {inCantina?"CANTINA":inDistrict?"MOS EISLEY":landing.pad}
           </span>
           {planet==="Tatooine"&&<button className="surface-district mono" onClick={()=>controls.current?.district()} disabled={phase==="takeoff"}>{inDistrict?"← X-WING":"MOS EISLEY ↗"}</button>}
+          {planet==="Tatooine"&&<button className="surface-district surface-cantina mono" onClick={()=>controls.current?.cantina()} disabled={phase==="takeoff"}>{inCantina?"← SORTIR":"CANTINA ↗"}</button>}
           <div className="surface-terminals">
             {landing.terminals.map((item, index) => (
               <button

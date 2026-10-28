@@ -408,6 +408,27 @@ export function createFlightAudio() {
       panner.disconnect();
     };
   };
+  // An original, quiet swung phrase for the cantina; the master sound switch still owns it.
+  const cantinaGain=context.createGain();cantinaGain.gain.value=0;cantinaGain.connect(master);
+  let cantinaSource:AudioBufferSourceNode|null=null;
+  const cantina=(inside:boolean)=>{
+    if(closed)return;
+    if(inside&&!cantinaSource){
+      const length=6.4,rate=context.sampleRate,buffer=context.createBuffer(1,Math.ceil(rate*length),rate),data=buffer.getChannelData(0);
+      const notes=[69,72,76,74,69,67,64,67,71,74,77,76,72,71,67,64];
+      const note=(midi:number,start:number,duration:number,level:number)=>{
+        const frequency=440*Math.pow(2,(midi-69)/12),offset=Math.floor(start*rate);
+        for(let i=0;i<duration*rate&&offset+i<data.length;i++){
+          const t=i/rate,envelope=Math.min(1,t/.01)*Math.exp(-t*11)*(1-t/duration);
+          data[offset+i]+=(Math.sin(2*Math.PI*frequency*t)+.18*Math.sin(6*Math.PI*frequency*t))*envelope*level;
+        }
+      };
+      notes.forEach((pitch,i)=>note(pitch,i*.4+(i%2?.045:0),.29,.34));
+      [48,55,53,55,50,57,55,52].forEach((pitch,i)=>note(pitch,i*.8,.38,.3));
+      cantinaSource=context.createBufferSource();cantinaSource.buffer=buffer;cantinaSource.loop=true;cantinaSource.connect(cantinaGain);cantinaSource.start();
+    }
+    cantinaGain.gain.setTargetAtTime(inside?.045:0,context.currentTime,.3);
+  };
   const dispose = () => {
     if (closed) return;
     city?.stop();
@@ -415,6 +436,7 @@ export function createFlightAudio() {
     closed = true;
     oscillators.forEach((oscillator) => oscillator.stop());
     noise.stop();
+    cantinaSource?.stop();
     voices.forEach((voice) => {
       try {
         voice.stop();
@@ -433,6 +455,7 @@ export function createFlightAudio() {
     step,
     speeder,
     ambience,
+    cantina,
     dispose,
   };
 }

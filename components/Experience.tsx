@@ -126,6 +126,7 @@ export default function Experience() {
     else if (cue === "takeoff") voice?.jump();
     else if (cue === "step") voice?.step();
     else if (cue === "droid") voice?.droid();
+    else if (cue === "cantina-enter" || cue === "cantina-leave") voice?.cantina(cue==="cantina-enter");
     else voice?.speeder(cue === "speeder-arrive" ? "arrive" : "leave");
   }, []);
   const soundscape = groundLanding?.soundscape ?? null;
