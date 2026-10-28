@@ -21,7 +21,7 @@ import type { SurfaceCue } from "./LandingScene";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
 const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
 const CockpitMap = dynamic(() => import("./CockpitMap"), { ssr: false });
-import { destinations, landings } from "./universe";
+import { destinations, landings, planetReferenceStyle } from "./universe";
 
 function OrbitalLogo() {
   return (
@@ -416,7 +416,20 @@ export default function Experience() {
                 <X size={15} />
               </button>
             </div>
-            <h2 id="orbit-title">{current.name}</h2>
+            <div className="transmission-identity">
+              <div
+                className="transmission-portrait"
+                style={planetReferenceStyle(current)}
+                role="img"
+                aria-label={current.name}
+              />
+              <div>
+                <span className="transmission-channel mono">
+                  TRANSMISSION REÇUE
+                </span>
+                <h2 id="orbit-title">{current.name}</h2>
+              </div>
+            </div>
             <p>{current.description}</p>
             <span className="orbit-note mono">
               {landing

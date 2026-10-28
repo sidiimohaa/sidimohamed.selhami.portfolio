@@ -1,0 +1,326 @@
+/* Shared transmission language: translucent blue glass, cut corners and cyan telemetry. */
+.experience {
+  --signal-blue: #83dcfa;
+  --signal-text: #d7edf5;
+  --signal-muted: #99bdcd;
+  --signal-line: #7bd6f044;
+  --signal-shape: polygon(
+    0 18px,
+    18px 0,
+    calc(100% - 12px) 0,
+    100% 12px,
+    100% calc(100% - 19px),
+    calc(100% - 19px) 100%,
+    19px 100%,
+    0 calc(100% - 19px)
+  );
+}
+.experience
+  :is(
+    .orbit-card,
+    .terminal-panel,
+    .help.modal,
+    .cockpit-readout,
+    .course-badge,
+    .surface-status,
+    .surface-bar
+  ) {
+  isolation: isolate;
+  border-color: transparent;
+  background: transparent;
+  color: var(--signal-text);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 12px 45px #0005,
+    0 0 28px #209ec00c;
+}
+.experience
+  :is(
+    .orbit-card,
+    .terminal-panel,
+    .help.modal,
+    .cockpit-readout,
+    .course-badge,
+    .surface-status,
+    .surface-bar
+  )::before,
+.experience
+  :is(
+    .orbit-card,
+    .terminal-panel,
+    .help.modal,
+    .cockpit-readout,
+    .course-badge,
+    .surface-status,
+    .surface-bar
+  )::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  height: auto;
+  pointer-events: none;
+  clip-path: var(--signal-shape);
+}
+.experience
+  :is(
+    .orbit-card,
+    .terminal-panel,
+    .help.modal,
+    .cockpit-readout,
+    .course-badge,
+    .surface-status,
+    .surface-bar
+  )::before {
+  z-index: -2;
+  background: linear-gradient(125deg, #98e6ffb3, #59b9df4d 52%, #8bd8f394);
+}
+.experience
+  :is(
+    .orbit-card,
+    .terminal-panel,
+    .help.modal,
+    .cockpit-readout,
+    .course-badge,
+    .surface-status,
+    .surface-bar
+  )::after {
+  inset: 1px;
+  z-index: -1;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, #9addf903 3px 4px),
+    linear-gradient(118deg, #103f56ed, #071e32ed 75%, #0a3045ed);
+}
+.experience :is(.course-badge, .surface-status, .surface-bar) {
+  --signal-shape: polygon(
+    0 9px,
+    9px 0,
+    calc(100% - 7px) 0,
+    100% 7px,
+    100% calc(100% - 9px),
+    calc(100% - 9px) 100%,
+    0 100%
+  );
+}
+.experience
+  :is(.orbit-card, .terminal-panel, .help.modal, .cockpit-readout)
+  :is(h2, h3) {
+  color: #edfaff;
+  text-shadow: 0 0 18px #5ecbf12b;
+  font-weight: 400;
+}
+.experience :is(.orbit-card, .terminal-panel) > p,
+.experience .help > p,
+.experience .cockpit-description {
+  color: #c3dce7;
+}
+.experience
+  :is(
+    .orbit-card-top,
+    .modal-top,
+    .orbit-note,
+    .terminal-meta,
+    .surface-place,
+    .cockpit-eyebrow,
+    .cockpit-access,
+    .transmission-channel
+  ) {
+  color: var(--signal-muted);
+}
+.experience :is(.orbit-card-top, .modal-top) {
+  letter-spacing: 1.2px;
+}
+.experience .live-dot {
+  background: #89e0fb;
+  box-shadow: 0 0 8px #59cfff77;
+}
+.experience
+  :is(.orbit-actions, .terminal-links, .modal-top, .help-controls > div) {
+  border-color: var(--signal-line);
+}
+.experience
+  :is(.land-button, .surface-takeoff, .cockpit-launch, .help .text-button) {
+  border: 1px solid #7bd6f066;
+  color: #d4f3ff;
+  background: linear-gradient(120deg, #22799c38, #0c425938);
+  border-radius: 0;
+}
+.experience
+  :is(
+    .land-button,
+    .surface-takeoff,
+    .cockpit-launch,
+    .help .text-button
+  ):hover {
+  color: #fff;
+  border-color: #9ee6ff;
+  background: #21799c57;
+  box-shadow: 0 0 18px #32c1f019;
+}
+.experience :is(.orbit-actions, .terminal-links) .text-button {
+  color: #9cdcf4;
+}
+.experience :is(.orbit-actions, .terminal-links) .text-button:hover {
+  color: #effcff;
+}
+.experience :is(.course-badge, .surface-status) {
+  color: #b9e8f8;
+}
+.experience .course-progress {
+  background: #8cdef7;
+  box-shadow: 0 0 8px #74cfff66;
+}
+.experience .course-badge > button,
+.experience .close-button {
+  color: #9dd4e8;
+  border-radius: 50%;
+}
+.experience .close-button:hover {
+  color: #fff;
+  background: #6ac7ee16;
+}
+.experience .surface-terminals button {
+  color: #afd3e1;
+}
+.experience .surface-terminals button.is-near {
+  color: #effbff;
+  border-color: #78d5f28c;
+  background: #319ac51a;
+}
+.experience .help-controls dt {
+  color: #c8efff;
+}
+.experience .help-controls dd,
+.experience .help .help-audio-note,
+.experience .surface-hint span {
+  color: #a7c4d3;
+}
+.experience .help .help-audio-note {
+  border-color: var(--signal-line);
+}
+.experience .modal-backdrop {
+  background: #020b15ab;
+  backdrop-filter: blur(8px);
+}
+.experience .help.modal {
+  padding-top: 28px;
+}
+.experience .help .modal-top {
+  padding-bottom: 16px;
+  margin-bottom: 26px;
+}
+.experience .help .text-button {
+  padding: 10px 12px;
+}
+.experience .surface-hint {
+  color: #d0e9f3;
+}
+.experience .cockpit-preview,
+.experience .transmission-portrait {
+  position: relative;
+  overflow: visible;
+  border-radius: 50%;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 0 0 1px #99e4ff99,
+    0 0 18px #3cb8e52b;
+}
+.experience .cockpit-preview::before,
+.experience .transmission-portrait::before,
+.experience .cockpit-preview::after,
+.experience .transmission-portrait::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  border: 1px solid transparent;
+}
+.experience .cockpit-preview::before,
+.experience .transmission-portrait::before {
+  inset: -7px;
+  border-top-color: #6bcdec;
+  border-left-color: #6bcdec;
+  transform: rotate(-22deg);
+}
+.experience .cockpit-preview::after,
+.experience .transmission-portrait::after {
+  inset: -12px;
+  border-right-color: #64bddb88;
+  border-bottom-color: #64bddb88;
+  transform: rotate(22deg);
+}
+.experience .transmission-identity {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 19px 0 20px;
+  padding-left: 8px;
+  min-height: 66px;
+}
+.experience .transmission-portrait {
+  width: 60px;
+  height: 60px;
+  flex: 0 0 60px;
+}
+.experience .transmission-channel {
+  display: block;
+  font-size: 5px;
+  letter-spacing: 1.1px;
+  margin-bottom: 7px;
+}
+.experience .transmission-identity h2 {
+  margin: 0;
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+.experience .orbit-card {
+  padding-top: 18px;
+  padding-bottom: 10px;
+}
+.experience .terminal-panel .orbit-card-top::before {
+  content: "";
+  display: block;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #78d9f199;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #9de5ff 0 2px,
+    transparent 3px 6px,
+    #5ec4e555 7px 8px,
+    transparent 9px
+  );
+  box-shadow: 0 0 0 4px #69d5ed0d;
+  margin-right: 10px;
+}
+.experience .terminal-panel .orbit-card-top > span {
+  flex: 1;
+}
+@media (max-width: 600px) {
+  .experience .transmission-identity {
+    gap: 18px;
+    margin: 17px 0 18px;
+  }
+  .experience .transmission-portrait {
+    width: 52px;
+    height: 52px;
+    flex-basis: 52px;
+  }
+  .experience .transmission-identity h2 {
+    font-size: 22px;
+  }
+  .experience .help.modal {
+    padding-top: 20px;
+  }
+  .experience .cockpit-preview::after {
+    inset: -8px;
+  }
+  .experience .cockpit-preview::before {
+    inset: -4px;
+  }
+}
