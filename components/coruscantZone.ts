@@ -1,6 +1,11 @@
 import * as THREE from "three";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import {
+  createCoruscantSkyline,
+  CORUSCANT_LANDMARKS,
+} from "./coruscantSkyline";
+import { createCoruscantCargo } from "./coruscantCargo";
+import {
   createTerminals,
   glowTexture,
   parkShip,
@@ -11,8 +16,8 @@ import {
 import type { Landing } from "./universe";
 
 const PAD_RADIUS = 16;
-const HAZE_LOW = new THREE.Color(0.4, 0.22, 0.12),
-  HAZE_HIGH = new THREE.Color(0.2, 0.15, 0.15);
+const HAZE_LOW = new THREE.Color(0.44, 0.2, 0.105),
+  HAZE_HIGH = new THREE.Color(0.135, 0.12, 0.22);
 const FOG_DENSITY = 0.0021;
 
 // Facades light their own windows from world position, so towers of any height stay crisp.
@@ -34,26 +39,32 @@ const buildingFragment = `
  uniform vec3 hazeLow;uniform vec3 hazeHigh;uniform float fogDensity;
  varying vec3 vWorld;varying vec3 vNormal;varying float vSeed;
  float hash(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453);}
+ vec3 windows(vec2 cell){
+  vec2 id=floor(cell),f=fract(cell);
+  float pane=step(.29,f.x)*step(f.x,.71)*step(.34,f.y)*step(f.y,.65);
+  float lit=step(.64-vSeed*.24,hash(id+vSeed*91.0));
+  vec3 tint=mix(vec3(.58,.72,1.0),vec3(1.0,.66,.34),step(.78,hash(id.yx+vSeed*13.0)));
+  vec3 near=pane*lit*tint*(.5+hash(id*1.7)*.65);
+  float detail=1.0-smoothstep(.35,1.0,max(fwidth(cell.x),fwidth(cell.y)));
+  return mix(vec3(.39,.43,.61)*(.06+vSeed*.08),near,detail);
+ }
  void main(){
   vec3 n=normalize(vNormal);
   vec3 color=vec3(.032,.037,.05)*(.7+vSeed*.6)*(.85+.3*n.y);
   if(abs(n.y)<.5){
-   float along=vWorld.x*n.z-vWorld.z*n.x;
-   vec2 cell=vec2(along/1.5,vWorld.y/2.4);
-   vec2 id=floor(cell),f=fract(cell);
-   float pane=step(.18,f.x)*step(f.x,.82)*step(.28,f.y)*step(f.y,.78);
-   float lit=step(.6-vSeed*.28,hash(id+vSeed*91.0));
-   vec3 tint=mix(vec3(1.0,.62,.3),vec3(.55,.78,1.0),step(.84,hash(id.yx+vSeed*13.0)));
-   vec3 near=pane*lit*tint*(.5+hash(id*1.7)*.65);
-   // Far away, windows blend into their average glow instead of shimmering.
-   float detail=1.0-smoothstep(.35,1.0,max(fwidth(cell.x),fwidth(cell.y)));
-   vec3 far=vec3(.62,.4,.24)*(.12+vSeed*.14);
-   color+=mix(far,near,detail);
+   // Blend two world projections so windows remain legible on curved shoulders.
+   vec2 weight=pow(abs(n.xz),vec2(6.0));
+   weight/=max(.0001,weight.x+weight.y);
+   color+=windows(vWorld.zy/vec2(1.0,1.4))*weight.x
+         +windows(vWorld.xy/vec2(1.0,1.4))*weight.y;
    color+=vec3(.9,.5,.25)*.06*step(.96,fract(vWorld.y/36.0));
   }
   float distance=length(vWorld-cameraPosition);
   float fog=1.0-exp(-fogDensity*fogDensity*distance*distance);
-  vec3 haze=mix(hazeLow,hazeHigh,smoothstep(-160.0,140.0,vWorld.y));
+  vec3 direction=normalize(vWorld-cameraPosition);
+  float sunset=pow(max(0.0,dot(normalize(direction.xz+vec2(.0001)),normalize(vec2(-.85,-.5)))),4.0);
+  vec3 haze=mix(hazeHigh,hazeLow,sunset*.78);
+  haze=mix(haze,hazeHigh,smoothstep(-160.0,140.0,vWorld.y)*.35);
   gl_FragColor=vec4(mix(color,haze,fog),1.0);
  }`;
 function buildingMaterial() {
@@ -75,11 +86,17 @@ function skyDome() {
       vertexShader: `varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
       fragmentShader: `uniform vec3 hazeHigh;varying vec3 vDirection;
        void main(){
-        float h=normalize(vDirection).y;
-        vec3 zenith=vec3(.018,.03,.07),dusk=vec3(.42,.24,.15),glow=vec3(.34,.17,.09);
-        vec3 c=h>0.0?mix(dusk,zenith,pow(h,.42)):mix(dusk,glow,pow(-h,.5));
-        c+=vec3(.3,.13,.05)*exp(-pow(h*10.0,2.0))*.6;
-        gl_FragColor=vec4(mix(c,hazeHigh,exp(-pow(h*5.0,2.0))*.35),1.0);
+        vec3 direction=normalize(vDirection);
+        float h=direction.y;
+        float sunset=pow(max(0.0,dot(normalize(direction.xz+vec2(.0001)),normalize(vec2(-.85,-.5)))),4.0);
+        vec3 zenith=vec3(.025,.038,.115);
+        vec3 horizon=mix(vec3(.21,.15,.32),vec3(.62,.265,.12),sunset);
+        vec3 c=h>0.0?mix(horizon,zenith,pow(h,.48)):mix(horizon,hazeHigh,pow(-h,.45));
+        float violetBand=exp(-pow((h-.16)*9.0,2.0));
+        float cloud=.5+.5*sin(direction.x*18.0+direction.z*13.0+sin(direction.z*27.0)*.7);
+        c+=vec3(.055,.025,.095)*violetBand*cloud;
+        c+=vec3(.16,.055,.018)*sunset*exp(-pow(h*9.0,2.0));
+        gl_FragColor=vec4(c,1.0);
        }`,
       side: THREE.BackSide,
       depthWrite: false,
@@ -100,7 +117,12 @@ function padTexture(label: string) {
   for (let i = 0; i < 900; i++) {
     const tone = 44 + Math.floor(rand() * 24);
     ctx.fillStyle = `rgba(${tone},${tone + 4},${tone + 8},.55)`;
-    ctx.fillRect(rand() * size, rand() * size, 6 + rand() * 40, 6 + rand() * 40);
+    ctx.fillRect(
+      rand() * size,
+      rand() * size,
+      6 + rand() * 40,
+      6 + rand() * 40,
+    );
   }
   ctx.translate(centre, centre);
   ctx.strokeStyle = "#11151880";
@@ -120,8 +142,21 @@ function padTexture(label: string) {
   for (let i = 0; i < 64; i++) {
     ctx.fillStyle = i % 2 ? "#d68a3c" : "#1b1f22";
     ctx.beginPath();
-    ctx.arc(0, 0, edge * 0.97, (i / 64) * Math.PI * 2, ((i + 1) / 64) * Math.PI * 2);
-    ctx.arc(0, 0, edge * 0.9, ((i + 1) / 64) * Math.PI * 2, (i / 64) * Math.PI * 2, true);
+    ctx.arc(
+      0,
+      0,
+      edge * 0.97,
+      (i / 64) * Math.PI * 2,
+      ((i + 1) / 64) * Math.PI * 2,
+    );
+    ctx.arc(
+      0,
+      0,
+      edge * 0.9,
+      ((i + 1) / 64) * Math.PI * 2,
+      (i / 64) * Math.PI * 2,
+      true,
+    );
     ctx.fill();
   }
   ctx.strokeStyle = "#d8d2c0cc";
@@ -163,13 +198,21 @@ export function createCoruscantZone(
   group.add(padLight);
 
   // The city: thousands of towers falling away into haze below the platform.
-  const towers: { x: number; z: number; w: number; d: number; top: number }[] = [];
+  const towers: { x: number; z: number; w: number; d: number; top: number }[] =
+    [];
   for (let gx = -620; gx <= 620; gx += 19)
     for (let gz = -620; gz <= 620; gz += 19) {
       const x = gx + (rand() - 0.5) * 9,
         z = gz + (rand() - 0.5) * 9,
         reach = Math.hypot(x, z);
-      if (reach < 46 || reach > 640) continue;
+      if (reach < 56 || reach > 640) continue;
+      if (
+        CORUSCANT_LANDMARKS.some(
+          (landmark) =>
+            Math.hypot(x - landmark.x, z - landmark.z) < landmark.r + 12,
+        )
+      )
+        continue;
       const megatower = reach > 220 && rand() < 0.008;
       towers.push({
         x,
@@ -188,18 +231,6 @@ export function createCoruscantZone(
           top: towers[towers.length - 1].top + 12 + rand() * 30,
         });
     }
-  // A few slender spires close enough to frame the platform.
-  for (let i = 0; i < 8; i++) {
-    const angle = rand() * Math.PI * 2,
-      reach = 70 + rand() * 110;
-    towers.push({
-      x: Math.cos(angle) * reach,
-      z: Math.sin(angle) * reach,
-      w: 6 + rand() * 6,
-      d: 6 + rand() * 6,
-      top: 20 + rand() * 110,
-    });
-  }
   const base = -420;
   const city = new THREE.InstancedMesh(
     new THREE.BoxGeometry(1, 1, 1),
@@ -215,6 +246,7 @@ export function createCoruscantZone(
   });
   city.frustumCulled = false;
   group.add(city);
+  group.add(createCoruscantSkyline(buildingMaterial()));
   const plinth = new THREE.Mesh(
     new THREE.CylinderGeometry(12.5, 15, -base, 48, 1, true),
     buildingMaterial(),
@@ -254,7 +286,10 @@ export function createCoruscantZone(
     "position",
     new THREE.BufferAttribute(trafficPositions, 3),
   );
-  trafficGeometry.setAttribute("color", new THREE.BufferAttribute(trafficColors, 3));
+  trafficGeometry.setAttribute(
+    "color",
+    new THREE.BufferAttribute(trafficColors, 3),
+  );
   const traffic = new THREE.Points(
     trafficGeometry,
     new THREE.PointsMaterial({
@@ -275,15 +310,18 @@ export function createCoruscantZone(
     roughness: 0.6,
     metalness: 0.55,
   });
-  const pad = new THREE.Mesh(new THREE.CylinderGeometry(PAD_RADIUS, PAD_RADIUS + 0.5, 0.8, 96), [
-    metal,
-    new THREE.MeshStandardMaterial({
-      map: padTexture(landing.pad),
-      roughness: 0.72,
-      metalness: 0.35,
-    }),
-    metal,
-  ]);
+  const pad = new THREE.Mesh(
+    new THREE.CylinderGeometry(PAD_RADIUS, PAD_RADIUS + 0.5, 0.8, 96),
+    [
+      metal,
+      new THREE.MeshStandardMaterial({
+        map: padTexture(landing.pad),
+        roughness: 0.72,
+        metalness: 0.35,
+      }),
+      metal,
+    ],
+  );
   pad.position.y = -0.4;
   group.add(pad);
   const rim = new THREE.Mesh(
@@ -338,7 +376,10 @@ export function createCoruscantZone(
   [1.25, 1.9, 4.45, 4.97].forEach((angle) => {
     const pole = new THREE.Group();
     pole.position.set(Math.cos(angle) * 14.6, 0, Math.sin(angle) * 14.6);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 6, 10), metal);
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.12, 6, 10),
+      metal,
+    );
     stem.position.y = 3;
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.4), metal);
     lamp.position.y = 6.1;
@@ -359,39 +400,9 @@ export function createCoruscantZone(
   });
 
   // Cargo and fuel, kept off the walking ring between the terminals.
-  const crateMaterial = new THREE.MeshStandardMaterial({
-    color: 0x4c5446,
-    roughness: 0.8,
-    metalness: 0.2,
-  });
-  const accent = new THREE.MeshStandardMaterial({
-    color: 0xb4632f,
-    roughness: 0.7,
-    metalness: 0.25,
-  });
-  const circles: Spot[] = [];
-  [
-    [0, 13.3],
-    [Math.PI, 13.3],
-  ].forEach(([angle, reach], cluster) => {
-    const x = Math.cos(angle) * reach,
-      z = Math.sin(angle) * reach;
-    for (let i = 0; i < 4; i++) {
-      const size = 0.9 + rand() * 0.6;
-      const crate = new THREE.Mesh(
-        new THREE.BoxGeometry(size, size, size),
-        i % 3 === cluster ? accent : crateMaterial,
-      );
-      crate.position.set(
-        x + (rand() - 0.5) * 2,
-        size / 2 + (i === 3 ? 1.1 : 0),
-        z + (rand() - 0.5) * 2,
-      );
-      crate.rotation.y = rand() * Math.PI;
-      group.add(crate);
-    }
-    circles.push({ x, z, r: 2.2 });
-  });
+  const cargo = createCoruscantCargo();
+  const circles: Spot[] = cargo.colliders;
+  group.add(cargo.group);
 
   const stations = createTerminals(landing, metal, circles);
   group.add(stations.group);
@@ -427,13 +438,21 @@ export function createCoruscantZone(
       const motion = reduced ? 0 : 1;
       lights.forEach((light, i) => {
         const lane = lanes[light.lane];
-        light.offset = (light.offset + light.track * light.speed * dt * motion + lane.length) % lane.length;
+        light.offset =
+          (light.offset +
+            light.track * light.speed * dt * motion +
+            lane.length) %
+          lane.length;
         const along = light.offset - lane.length / 2;
         trafficPositions[i * 3] =
-          lane.origin.x + lane.direction.x * along - lane.direction.z * light.track * 2.5;
+          lane.origin.x +
+          lane.direction.x * along -
+          lane.direction.z * light.track * 2.5;
         trafficPositions[i * 3 + 1] = lane.origin.y;
         trafficPositions[i * 3 + 2] =
-          lane.origin.z + lane.direction.z * along + lane.direction.x * light.track * 2.5;
+          lane.origin.z +
+          lane.direction.z * along +
+          lane.direction.x * light.track * 2.5;
       });
       trafficGeometry.getAttribute("position").needsUpdate = true;
       // Landing lights chase around the circle.

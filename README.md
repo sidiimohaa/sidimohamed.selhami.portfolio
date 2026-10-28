@@ -53,6 +53,8 @@ L'approche automatique suit une courbe avec accélération progressive puis frei
 
 ## Atterrissage sur Coruscant
 
+La skyline s'inspire de la référence conservée dans `references/coruscant/skyline-reference.png` : tours aux épaules galbées, aiguilles, gradins, coupoles et passerelles suspendues, dans un crépuscule orange-violet. Les fenêtres blanc bleuté suivent les façades courbes et les tours de fond réservent les emprises des bâtiments repères. Le fret de la plateforme reprend les deux références de caisses : modèles gris et ocre ventilés, coffres de transport avec poignées et loquets, fûts ivoire, renforts et peinture usée. Les objets restent regroupés en deux amas hors des passages piétons. Les éléments statiques sont fusionnés par matériau.
+
 - En orbite de Coruscant, le bouton « Atterrir » (ou E) fait descendre le vaisseau sur la plateforme 3-7 : un plan large suit le X-wing qui freine et se pose, puis la caméra passe à hauteur d'yeux. « Passer » saute la cinématique.
 - La ville est générée sur place : des milliers de tours dont les fenêtres sont dessinées par le shader, une brume de crépuscule et des couloirs de trafic aérien. La scène spatiale cesse de se dessiner tant qu'on est au sol.
 - Exploration libre : flèches, ZQSD ou WASD pour marcher (Maj pour courir). Glisser à la souris fait tourner le regard dans toutes les directions, pour lever les yeux vers les tours ou les baisser vers le pont. Au doigt, la moitié gauche de l'écran sert de joystick de marche et la moitié droite de regard, les deux en même temps si besoin. Le vaisseau, les caisses, les terminaux, l'équipe et les droids bloquent le passage.
