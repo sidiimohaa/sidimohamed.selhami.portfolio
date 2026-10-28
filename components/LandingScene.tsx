@@ -764,6 +764,7 @@ export default function LandingScene({
     <div
       ref={mount}
       className="surface"
+      data-planet={planet}
       inert={hidden}
       role="region"
       aria-label={`Zone d’atterrissage de ${planet}. ${landing.welcome}`}

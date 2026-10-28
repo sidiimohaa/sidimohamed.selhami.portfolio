@@ -425,7 +425,7 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
     exposure: 0.95,
     walkRadius: 50,
     // The wide view reveals the wall's scale before following the craft through its opening.
-    arrival: { from: new THREE.Vector3(110,65,440), to: new THREE.Vector3(11,7,65), shipFrom:new THREE.Vector3(0,12,160),shipYaw:0,reveal:1.4 },
+    arrival: { from: new THREE.Vector3(110,65,440), to: new THREE.Vector3(11,7,65), shipFrom:new THREE.Vector3(0,12,160),shipYaw:0,reveal:2.1 },
     constrainWalk: (walker) => {
       walker.x = THREE.MathUtils.clamp(walker.x, -SIDE + 3.5, SIDE - 3.5);
       walker.z = THREE.MathUtils.clamp(walker.z, BACK + 4, MOUTH + 12);

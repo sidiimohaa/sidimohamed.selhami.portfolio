@@ -1362,6 +1362,11 @@ button svg {
 .surface-fade.is-leaving {
   animation: surface-leave 0.9s ease forwards;
 }
+.surface[data-planet="Hoth"] .surface-fade {
+  background: radial-gradient(circle at 50% 45%, #e1eff8, #92aebe 55%, #354f65);
+  animation-duration: .45s;
+}
+.surface[data-planet="Hoth"] .surface-fade.is-leaving { animation-duration: .9s; }
 @keyframes surface-enter {
   from {
     opacity: 1;
