@@ -1,52 +1,12 @@
 import * as THREE from "three";
 import { glowTexture } from "./landingKit";
 import { bakePart, part, rounded } from "./tatooineCharacters";
+import { ATAT_SCALE, ATAT_SPEED, createATAT } from "./atatModel";
 
 // The battle out on the plain, seen through the hangar mouth: giant walkers advance through
 // the storm, trench guns and snowspeeders answer, and bolts burst in plumes of snow.
 type Height = (x: number, z: number) => number;
-const SHOT = { empire: 0x6dff8a, rebels: 0xff5a3c };
-
-function walkerModel() {
-  const hull = new THREE.MeshStandardMaterial({ color: 0x8b939a, roughness: 0.75, metalness: 0.35 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x3c4248, roughness: 0.8, metalness: 0.4 });
-  const root = new THREE.Group();
-  const body = new THREE.Group();
-  root.add(body);
-  part(body, rounded(6, 4.4, 12.5, 0.5), hull, [0, 17, 0]);
-  part(body, rounded(5.2, 1.2, 10.5, 0.3), dark, [0, 14.6, 0]);
-  for (const side of [-1, 1]) part(body, rounded(0.4, 2.6, 9, 0.15), dark, [side * 3.05, 17.2, 0]);
-  part(body, new THREE.CylinderGeometry(1, 1.2, 2.4, 12), dark, [0, 16.4, 6.9], [Math.PI / 2, 0, 0]);
-  bakePart(body);
-  const head = new THREE.Group();
-  head.position.set(0, 16.2, 8);
-  body.add(head);
-  part(head, rounded(2.7, 2.3, 4.4, 0.35), hull, [0, 0, 2.2]);
-  for (const side of [-1, 1]) part(head, new THREE.CylinderGeometry(0.16, 0.16, 1.6, 8), dark, [side * 0.8, -1.25, 4.2], [Math.PI / 2, 0, 0]);
-  part(head, rounded(2.2, 0.35, 0.2, 0.05), dark, [0, 0.45, 4.42]);
-  bakePart(head);
-  const legs = [
-    [-2.3, 4.6],
-    [2.3, 4.6],
-    [-2.3, -4.6],
-    [2.3, -4.6],
-  ].map(([x, z]) => {
-    const hip = new THREE.Group();
-    hip.position.set(x, 15, z);
-    body.add(hip);
-    part(hip, rounded(1.4, 1.4, 1.4, 0.3), dark);
-    part(hip, rounded(0.9, 6.2, 1.2, 0.2), hull, [0, -3.1, 0]);
-    const knee = new THREE.Group();
-    knee.position.y = -6.2;
-    hip.add(knee);
-    part(knee, rounded(1.2, 1.2, 1.4, 0.3), dark);
-    part(knee, rounded(0.8, 7.6, 1, 0.2), hull, [0, -3.8, 0]);
-    part(knee, new THREE.CylinderGeometry(1.25, 1.45, 0.8, 14), dark, [0, -7.9, 0]);
-    bakePart(knee);
-    return { hip, knee };
-  });
-  return { root, body, head, legs, materials: [hull, dark] };
-}
+const SHOT = { empire: 0xff4b43, rebels: 0xff5a3c };
 
 // A two-seat airspeeder, also parked in the hangar.
 export function createSnowspeeder() {
@@ -123,11 +83,11 @@ export function createHothBattle(heightAt: Height) {
     { x: 15, start: 360, phase: 1.7 },
     { x: 120, start: 330, phase: 3.1 },
   ].map((spec) => {
-    const model = walkerModel();
+    const model = createATAT();
     model.root.rotation.y = Math.PI;
-    model.root.scale.setScalar(1.35);
+    model.root.scale.setScalar(ATAT_SCALE);
     group.add(model.root);
-    return { ...model, ...spec, z: spec.start, stride: spec.phase, next: 2 + spec.phase };
+    return { ...model, ...spec, z: spec.start, next: 2 + spec.phase };
   });
   const NEAR = 205,
     FAR = 400;
@@ -181,8 +141,7 @@ export function createHothBattle(heightAt: Height) {
       clock += dt;
       walkers.forEach((walker) => {
         if (dt) {
-          walker.z -= dt * 0.55;
-          walker.stride += dt * 0.55;
+          walker.z -= dt * ATAT_SPEED;
         }
         if (walker.z < NEAR) walker.z = FAR;
         const fade = THREE.MathUtils.smoothstep(walker.z, NEAR, NEAR + 25) * (1 - THREE.MathUtils.smoothstep(walker.z, FAR - 30, FAR));
@@ -192,19 +151,14 @@ export function createHothBattle(heightAt: Height) {
           material.depthWrite = fade > 0.5;
         });
         const x = walker.x + Math.sin(walker.z * 0.01) * 6;
-        walker.root.position.set(x, heightAt(x, walker.z) - 0.4, walker.z);
-        walker.legs.forEach(({ hip, knee }, i) => {
-          const step = walker.stride + (i === 0 || i === 3 ? 0 : Math.PI);
-          hip.rotation.x = Math.sin(step) * 0.22;
-          knee.rotation.x = Math.max(0, Math.sin(step + Math.PI / 2)) * 0.3;
-        });
-        walker.body.position.y = Math.abs(Math.sin(walker.stride)) * 0.35;
+        walker.root.position.set(x, heightAt(x, walker.z), walker.z);
+        walker.pose(clock + walker.phase * 1.5, heightAt);
         walker.head.rotation.y = Math.sin(clock * 0.2 + walker.phase) * 0.25;
         // Fire from the chin guns at the trench line.
         if (dt && fade > 0.6 && (walker.next -= dt) <= 0) {
           walker.next = 2.5 + Math.random() * 3;
           walker.head.updateWorldMatrix(true, false);
-          muzzle.set(0, -1.25, 5).applyMatrix4(walker.head.matrixWorld);
+          muzzle.copy(walker.muzzle).applyMatrix4(walker.head.matrixWorld);
           const tx = THREE.MathUtils.clamp(x + (Math.random() - 0.5) * 120, -130, 130);
           pointA.set(tx, heightAt(tx, 140) + 0.5, 135 + Math.random() * 30);
           fire(muzzle, pointA, SHOT.empire);
