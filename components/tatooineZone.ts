@@ -9,13 +9,15 @@ import {
   type Zone,
 } from "./landingKit";
 import type { Landing } from "./universe";
+import { createSurfaceNavigator } from "./surfaceNavigation";
+import { createTatooineDistrict, districtCoordinates, TATOOINE_GATE } from "./tatooineDistrict";
 
 const BAY_RADIUS = 16.6,
   WALL_RADIUS = 17,
   WALL_HEIGHT = 3.2,
   // The gate opens where the arrival view is clear of the ship: its centre and half-width,
   // as angles around the bay (cylinder convention, 0 towards +Z).
-  GATE_AT = 2.58,
+  GATE_AT = TATOOINE_GATE,
   GATE = 0.32;
 const SPAWN = new THREE.Vector3(7, 0, 11.5);
 // Twin suns setting through the gate as seen from the arrival spot, the larger one higher.
@@ -329,6 +331,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     group.add(mesh(new THREE.BoxGeometry(0.3, 0.2, 0.3), metal, at), lamp);
   });
   const circles: Spot[] = [];
+  for (const angle of [GATE_AT-GATE,GATE_AT+GATE]) circles.push({x:Math.sin(angle)*17.5,z:Math.cos(angle)*17.5,r:.95});
   const generator = mesh(new THREE.BoxGeometry(1.4, 1.2, 0.9), metal, [
     Math.sin(4.55) * 15.6,
     0.6,
@@ -367,6 +370,9 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       reach = 24 + Math.pow(rand(), 0.8) * 48;
     const x = Math.cos(angle) * reach,
       z = Math.sin(angle) * reach;
+    const district = districtCoordinates(x,z);
+    if (district.v>18 && district.v<80 && Math.abs(district.u)<19) continue;
+    if (Math.abs(x)<9 && z<-19) continue;
     // Keep the view from the arrival spot through the gate to the suns clear, and the
     // arrival camera's line of sight too.
     const along = (x - SPAWN.x) * sightline.x + (z - SPAWN.z) * sightline.y,
@@ -376,7 +382,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     const roll = rand(),
       size = roll < 0.6 ? 2.5 + rand() * 3 : roll < 0.9 ? 2.5 + rand() * 2 : 1.4 + rand();
     if (taken.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.r + size + 1.5)) continue;
-    taken.push({ x, z, r: size });
+    taken.push({ x, z, r: size * (roll < .6 ? 1.04 : roll < .9 ? 1.5 : 1.15) });
     const facing = Math.atan2(-x, -z),
       doorAt = (depth: number): [number, number, number] => [
         x - (x / reach) * depth,
@@ -446,6 +452,8 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       reach = 28 + rand() * 120,
       x = Math.cos(angle) * reach,
       z = Math.sin(angle) * reach;
+    const district = districtCoordinates(x,z);
+    if(district.v>18 && district.v<80 && Math.abs(district.u)<19)continue;
     if (taken.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.r + 2)) continue;
     taken.push({ x, z, r: 1 });
     vaporator(x, z);
@@ -508,15 +516,37 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
   });
   group.add(life.group);
 
+  const district = createTatooineDistrict(adobe,groundHeight);
+  group.add(district.group);
+  circles.push(...taken.slice(1),...district.colliders);
+  const blockedByWall=(x:number,z:number)=>{
+    const radius=Math.hypot(x,z),angle=Math.atan2(x,z)-GATE_AT;
+    const turn=Math.atan2(Math.sin(angle),Math.cos(angle));
+    return radius>16.3 && radius<19 && Math.abs(turn)>GATE-.065;
+  };
+  const routeTo=createSurfaceNavigator(76,(x,z)=>{
+    if(Math.hypot(x,z)>75.8 || blockedByWall(x,z))return false;
+    if(circles.some(c=>Math.hypot(x-c.x,z-c.z)<c.r+.349))return false;
+    const b=parking.footprint;
+    return !(x>b.minX-.05 && x<b.maxX+.05 && z>b.minZ-.05 && z<b.maxZ+.05);
+  });
+
   return {
     group,
     fog: new THREE.FogExp2(HAZE, 0.0016),
     exposure: 1,
-    walkRadius: BAY_RADIUS - 0.9,
+    walkRadius: 76,
+    explorePoint:district.explorePoint,
+    routeTo,
+    constrainWalk:(walker)=>{
+      if(!blockedByWall(walker.x,walker.z))return;
+      const reach=Math.hypot(walker.x,walker.z),edge=reach<17.65?16.29:19.01;
+      walker.x*=edge/reach;walker.z*=edge/reach;
+    },
     terminals: stations.terminals,
     ship: parking.ship,
     shipRest: parking.shipRest,
-    colliders: { circles, footprint: parking.footprint, movers: life.movers },
+    colliders: { circles, footprint: parking.footprint, movers: [...life.movers,...district.movers] },
     setViewport: life.setViewport,
     // Beside the ship's nose, the gate and its twin suns on the right of the view.
     spawn: { position: SPAWN.clone(), yaw: 0.25 },
@@ -526,6 +556,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     },
     tick: (dt, elapsed, reduced, walker) => {
       life.tick(dt, elapsed, reduced, walker);
+      district.tick(dt,reduced,walker);
       stations.tick(elapsed, reduced);
     },
   };

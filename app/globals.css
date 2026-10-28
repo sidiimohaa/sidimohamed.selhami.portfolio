@@ -1485,6 +1485,26 @@ button svg {
   color: #a8bc90;
   white-space: nowrap;
 }
+.surface-district {
+  padding: 8px 10px;
+  border: 1px solid #7bcde642;
+  background: #12374680;
+  color: #b9e8f7;
+  font-size: 7px;
+  letter-spacing: .7px;
+  white-space: nowrap;
+  transition: background .2s, border-color .2s;
+}
+.surface-district:hover { background: #1a5068a6; border-color: #9be3f1a8; }
+.surface-district:focus-visible { outline: 2px solid #a7e6f7; outline-offset: 3px; }
+.surface-district:disabled { opacity: .45; cursor: default; }
+@media(max-width:700px) {
+  .surface-bar.with-district { display:grid; grid-template-columns:1fr 1fr; width:calc(100% - 28px); gap:7px; padding:10px; }
+  .with-district .surface-place { grid-column:1 / -1; order:0; text-align:center; }
+  .with-district .surface-terminals { grid-column:1 / -1; order:1; justify-content:center; }
+  .with-district .surface-district { order:2; }
+  .with-district .surface-takeoff { order:3; justify-content:center; }
+}
 .surface-terminals {
   display: flex;
   gap: 2px;

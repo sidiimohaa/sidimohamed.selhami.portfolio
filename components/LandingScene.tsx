@@ -56,6 +56,7 @@ export default function LandingScene({
   const [active, setActive] = useState<number | null>(null);
   const [hint, setHint] = useState(true);
   const [leaving, setLeaving] = useState(false);
+  const [inDistrict,setInDistrict] = useState(false);
   const [fallback, setFallback] = useState(false);
   const [coarse] = useState(
     () => window.matchMedia("(pointer: coarse)").matches,
@@ -70,6 +71,7 @@ export default function LandingScene({
     walkTo: (index: number) => void;
     skip: () => void;
     takeoff: () => void;
+    district: () => void;
   } | null>(null);
 
   useEffect(() => {
@@ -174,6 +176,7 @@ export default function LandingScene({
       placeEye();
     }
 
+    let wasInDistrict=false;
     const collide = () => {
       const reach = Math.hypot(walker.x, walker.z),
         limit = zone.walkRadius;
@@ -210,6 +213,8 @@ export default function LandingScene({
         else if (side === 2) walker.z = box.minZ;
         else walker.z = box.maxZ;
       }
+      zone.constrainWalk?.(walker);
+      if(zone.explorePoint){const next=Math.hypot(walker.x,walker.z)>20;if(next!==wasInDistrict){wasInDistrict=next;setInDistrict(next);}}
     };
     // Walk out to the ring around the ship, follow it, then step up to the terminal.
     const walkTo = (index: number) => {
@@ -231,6 +236,10 @@ export default function LandingScene({
         to = Math.atan2(stand.z, stand.x),
         turn = shortest(to - from);
       route = [];
+      if(zone.routeTo){
+        route=zone.routeTo(new THREE.Vector3(walker.x,0,walker.z),stand);
+        facing=index;walked=true;setHint(false);return;
+      }
       if (Math.hypot(walker.x, walker.z) < RING - 0.3)
         route.push(
           new THREE.Vector3(Math.cos(from) * RING, 0, Math.sin(from) * RING),
@@ -266,7 +275,15 @@ export default function LandingScene({
       fromQuaternion.copy(camera.quaternion);
       begin("takeoff");
     };
-    controls.current = { walkTo, skip, takeoff };
+    const district=()=>{
+      if(current!=="explore"||!zone.explorePoint||!zone.routeTo)return;
+      const outside=Math.hypot(walker.x,walker.z)>20;
+      const destination=outside?zone.spawn.position:zone.explorePoint;
+      if(live.current.reduced){walker.x=destination.x;walker.z=destination.z;walker.yaw=outside?zone.spawn.yaw:Math.atan2(-destination.x,-destination.z);}
+      else route=zone.routeTo(new THREE.Vector3(walker.x,0,walker.z),destination);
+      facing=null;walked=true;setHint(false);
+    };
+    controls.current = { walkTo, skip, takeoff, district };
 
     const outsideControls = (target: EventTarget | null) =>
       !(target as HTMLElement | null)?.closest?.(
@@ -741,10 +758,11 @@ export default function LandingScene({
         )}
       </AnimatePresence>
       {phase !== "arrival" && (
-        <nav className="surface-bar" aria-label="Terminaux de la plateforme">
+        <nav className={`surface-bar ${planet==="Tatooine"?"with-district":""}`} aria-label="Navigation et terminaux">
           <span className="surface-place mono">
-            {planet.toUpperCase()} · {landing.pad}
+            {planet.toUpperCase()} · {inDistrict?"MOS EISLEY":landing.pad}
           </span>
+          {planet==="Tatooine"&&<button className="surface-district mono" onClick={()=>controls.current?.district()} disabled={phase==="takeoff"}>{inDistrict?"← X-WING":"MOS EISLEY ↗"}</button>}
           <div className="surface-terminals">
             {landing.terminals.map((item, index) => (
               <button

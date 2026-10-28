@@ -102,6 +102,9 @@ export type Zone = {
   fog: THREE.FogExp2;
   exposure: number;
   walkRadius: number;
+  explorePoint?: THREE.Vector3;
+  constrainWalk?: (walker: { x: number; z: number }) => void;
+  routeTo?: (from: THREE.Vector3, to: THREE.Vector3) => THREE.Vector3[];
   terminals: ZoneTerminal[];
   ship: THREE.Group;
   shipRest: THREE.Vector3;

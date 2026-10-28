@@ -1,0 +1,338 @@
+import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { createCoruscantCargo } from "./coruscantCargo";
+import { glowTexture, type Spot } from "./landingKit";
+export const TATOOINE_GATE = 2.58;
+export function districtPoint(u: number, v: number) { return new THREE.Vector3(Math.cos(TATOOINE_GATE) * u + Math.sin(TATOOINE_GATE) * v, 0, -Math.sin(TATOOINE_GATE) * u + Math.cos(TATOOINE_GATE) * v); }
+export function districtCoordinates(x: number, z: number) { return { u: Math.cos(TATOOINE_GATE) * x - Math.sin(TATOOINE_GATE) * z, v: Math.sin(TATOOINE_GATE) * x + Math.cos(TATOOINE_GATE) * z }; }
+export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: number, z: number) => number) {
+    const group = new THREE.Group();
+    group.rotation.y = TATOOINE_GATE;
+    group.name = "mos-eisley-district";
+    const colliders: Spot[] = [], movers: Spot[] = [];
+    const dark = new THREE.MeshStandardMaterial({ color: 0x3b3026, roughness: .9 });
+    const rust = new THREE.MeshStandardMaterial({ color: 0x9c6238, metalness: .25, roughness: .85 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x727b78, metalness: .55, roughness: .7 });
+    const cloth = new THREE.MeshStandardMaterial({ color: 0xa56e42, roughness: 1, side: THREE.DoubleSide });
+    const pale = new THREE.MeshStandardMaterial({ color: 0xc5b28d, roughness: .95, side: THREE.DoubleSide });
+    const amber = new THREE.MeshBasicMaterial({ color: 0xf4bd58 });
+    const glow = glowTexture();
+    const shadowMaterial = new THREE.MeshBasicMaterial({ map: glow, color: 0x2b1b0c, transparent: true, opacity: .32, depthWrite: false });
+    const shadow = (parent: THREE.Object3D, w: number, d: number, y: number) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), shadowMaterial);
+        m.rotation.x = -Math.PI / 2;
+        m.position.y = y;
+        parent.add(m);
+    };
+    const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    const matrix = new THREE.Matrix4();
+    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
+        matrix.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(1, 1, 1));
+        const g = geo.index ? geo.toNonIndexed() : geo.clone();
+        geo.dispose();
+        g.applyMatrix4(matrix);
+        const parts = batches.get(mat) ?? [];
+        parts.push(g);
+        batches.set(mat, parts);
+    };
+    const box = (mat: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number, ry = 0) => add(new RoundedBoxGeometry(w, h, d, 1, Math.min(w, h, d) * .12), mat, x, y, z, 0, ry);
+    const block = (u: number, v: number, r: number) => { const p = districtPoint(u, v); colliders.push({ x: p.x, z: p.z, r }); };
+    function sign(text: string, u: number, y: number, v: number, width = 2.5) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 128;
+        const c = canvas.getContext("2d")!;
+        c.fillStyle = "#574732";
+        c.fillRect(0, 0, 512, 128);
+        c.strokeStyle = "#ac976a";
+        c.lineWidth = 5;
+        c.strokeRect(6, 6, 500, 116);
+        c.fillStyle = "#e2cea5";
+        c.textAlign = "center";
+        c.font = "bold 35px monospace";
+        c.fillText(text, 256, 63);
+        c.font = "13px monospace";
+        c.fillText("MOS EISLEY / PORT FRANC", 256, 99);
+        const map = new THREE.CanvasTexture(canvas);
+        map.colorSpace = THREE.SRGBColorSpace;
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), new THREE.MeshStandardMaterial({ map, roughness: .9, side: THREE.DoubleSide }));
+        m.position.set(u, y, v);
+        group.add(m);
+    }
+    // An open street: every shop sits outside a pedestrian and speeder corridor.
+    const shops = [[-9, 28, 4.1], [9, 38, 4.1], [-10, 42, 4.3], [10, 55, 4.3], [-10, 63, 4.1], [9, 69, 3.3]];
+    for (let index = 0; index < shops.length; index++) {
+        const [u, v, r] = shops[index], height = 3.2 + (index % 3) * .55, side = Math.sign(u);
+        add(new THREE.CylinderGeometry(r, r * 1.03, height, 28), adobe, u, height / 2, v);
+        add(new THREE.SphereGeometry(r, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), adobe, u, height, v);
+        block(u, v, r * 1.06);
+        // A dark arched doorway opens toward the street, between battered plaster jambs.
+        box(dark, .1, 2.1, 1.35, u - side * r, 1.05, v);
+        add(new THREE.CylinderGeometry(.12, .12, 2.5, 8), rust, u - side * (r + .08), 1.25, v - .9);
+        add(new THREE.CylinderGeometry(.12, .12, 2.5, 8), rust, u - side * (r + .08), 1.25, v + .9);
+        const awning = new THREE.PlaneGeometry(3.2, 5.8, 3, 8);
+        awning.rotateX(-Math.PI / 2);
+        const positions = awning.getAttribute("position");
+        for (let i = 0; i < positions.count; i++)
+            positions.setY(i, Math.sin((positions.getZ(i) + 2.9) / 5.8 * Math.PI) * -.23);
+        awning.computeVertexNormals();
+        add(awning, index % 2 ? cloth : pale, u - side * (r + 1.1), 2.65, v);
+        for (const dz of [-2.85, 2.85]) {
+            const postU = u - side * (r + 2.6);
+            add(new THREE.CylinderGeometry(.045, .065, 2.7, 8), metal, postU, 1.35, v + dz);
+            block(postU, v + dz, .07);
+        }
+        box(rust, .8, .8, 2.5, u - side * (r + .6), .4, v + .2);
+        block(u - side * (r + .6), v + .2, 1.2);
+        for (let item = 0; item < 6; item++)
+            add(new THREE.SphereGeometry(.13, 8, 6), index % 2 ? metal : rust, u - side * (r + .6), .92, v - .8 + item * .32);
+        for (let rib = 0; rib < 4; rib++)
+            box(metal, .12, .12, .9, u - side * r, 2.3 + rib * .2, v + 1.2);
+    }
+    sign("PIÈCES / RÉPARATIONS", -8.6, 2.35, 23.8, 3.2);
+    sign("RÉCUPÉRATION", 9, 2.4, 33.8, 2.8);
+    sign("BAIE 94  ←", 0, 2.2, 20.7, 2.6);
+    box(metal, .09, 2.3, .09, -1.4, 1.15, 20.8);
+    block(-1.4, 20.8, .07);
+    // A few pieces of salvage and a workbench frame the Jawa trading area.
+    const cargo = createCoruscantCargo();
+    cargo.group.scale.setScalar(.65);
+    cargo.group.position.z = 49;
+    group.add(cargo.group);
+    cargo.colliders.forEach(c => block(c.x * .65, 49 + c.z * .65, c.r * .65));
+    box(metal, 2.1, .12, .8, -8.5, 1.02, 45.8);
+    for (const u of [-9.3, -7.7])
+        box(dark, .1, 1, .55, u, .5, 45.8);
+    block(-8.5, 45.8, 1.1);
+    for (let part = 0; part < 4; part++)
+        add(new THREE.TorusGeometry(.12 + part * .035, .045, 6, 16), metal, -9 + part * .35, 1.15, 45.8, Math.PI / 2);
+    // An unmistakable sandcrawler silhouette rests farther out in the desert.
+    box(rust, 7.5, 5.8, 12, -21, 4.1, 100);
+    box(rust, 6.9, 1.9, 9.5, -21, 7.3, 100);
+    box(dark, 7.55, .45, 3.4, -21, 6.5, 94.1);
+    for (const side of [-1, 1]) {
+        box(dark, 1.45, 2.3, 13, -21 + side * 3.6, 1.25, 100);
+        for (let wheel = 0; wheel < 7; wheel++)
+            add(new THREE.CylinderGeometry(.78, .78, .2, 12), rust, -21 + side * 4.36, 1.2, 94.8 + wheel * 1.7, 0, 0, Math.PI / 2);
+        for (let seam = 0; seam < 8; seam++)
+            box(dark, .035, 4.8, .045, -21 + side * 3.77, 4.1, 95.3 + seam * 1.3);
+        box(amber, .25, .18, .05, -21 + side * 2.4, 4.8, 94.08);
+    }
+    const actors: {
+        group: THREE.Group;
+        arms: THREE.Group[];
+        legs: THREE.Group[];
+        u: number;
+        v: number;
+        range: number;
+        phase: number;
+        jawa: boolean;
+        collider: Spot;
+    }[] = [];
+    function character(jawa: boolean, u: number, v: number, range: number, phase: number) {
+        const g = new THREE.Group();
+        const body = new THREE.MeshStandardMaterial({ color: jawa ? 0x62432c : [0xa99471, 0x7c7056, 0xb59c79][Math.floor(phase) % 3], roughness: 1 });
+        const headMat = new THREE.MeshStandardMaterial({ color: jawa ? 0x141411 : 0xa57e5b, roughness: .95 });
+        const piece = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D = g) => { const m = new THREE.Mesh(geometry, material); m.position.set(x, y, z); parent.add(m); return m; };
+        const h = jawa ? .72 : 1.32;
+        piece(new THREE.CylinderGeometry(jawa ? .21 : .23, jawa ? .37 : .34, h, 12), body, 0, h / 2 + .08, 0);
+        piece(new THREE.SphereGeometry(jawa ? .24 : .19, 12, 8), body, 0, h + .17, 0);
+        piece(new THREE.SphereGeometry(jawa ? .17 : .145, 10, 8), headMat, 0, h + .16, .13);
+        if (jawa)
+            for (const x of [-.055, .055])
+                piece(new THREE.SphereGeometry(.022, 6, 4), amber, x, h + .18, .28);
+        const arms: THREE.Group[] = [], legs: THREE.Group[] = [];
+        for (const side of [-1, 1]) {
+            const a = new THREE.Group();
+            a.position.set(side * .25, h * .8, 0);
+            g.add(a);
+            arms.push(a);
+            piece(new THREE.CylinderGeometry(.09, .12, jawa ? .32 : .52, 8), body, side * .04, -.17, 0, a);
+            piece(new THREE.SphereGeometry(.065, 8, 6), headMat, side * .04, jawa ? -.31 : -.42, .02, a);
+            const leg = new THREE.Group();
+            leg.position.set(side * .13, .24, 0);
+            g.add(leg);
+            legs.push(leg);
+            piece(new THREE.BoxGeometry(.16, .15, .29), dark, 0, -.13, .04, leg);
+        }
+        const p = districtPoint(u, v), collider = { x: p.x, z: p.z, r: jawa ? .32 : .39 };
+        movers.push(collider);
+        shadow(g, jawa ? .9 : 1.1, .7, .012);
+        actors.push({ group: g, arms, legs, u, v, range, phase, jawa, collider });
+        group.add(g);
+        g.position.set(u, -.06, v);
+    }
+    character(true, -6.5, 46.7, 0, 0);
+    character(true, -6.4, 50.5, 0, 1.2);
+    character(true, -10.9, 46.4, .65, 2.4);
+    character(false, 2.7, 31, 4, 1);
+    character(false, -2.8, 38, 3, 3);
+    character(false, 2.8, 59, 4, 5);
+    character(false, -4.5, 26, 0, 2);
+    // Two landspeeders use a separate lane on the right and stop for a visitor in front.
+    const speeders: {
+        group: THREE.Group;
+        v: number;
+        direction: number;
+        delay: number;
+        collider: Spot;
+    }[] = [];
+    for (let i = 0; i < 2; i++) {
+        const s = new THREE.Group();
+        s.name = "mos-eisley-speeder";
+        const paint = new THREE.MeshStandardMaterial({ color: i ? 0x7f8273 : 0xa2633c, metalness: .35, roughness: .7 });
+        shadow(s, 3, 4.5, -.04);
+        const hull = new THREE.Mesh(new RoundedBoxGeometry(1.65, .42, 3.2, 2, .14), paint);
+        hull.position.y = .62;
+        s.add(hull);
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(1.1, .3, 1.1), dark);
+        seat.position.set(0, .88, -.2);
+        s.add(seat);
+        const screen = new THREE.Mesh(new THREE.BoxGeometry(1.35, .35, .04), new THREE.MeshStandardMaterial({ color: 0x56717a, metalness: .5, roughness: .25 }));
+        screen.position.set(0, 1.05, .4);
+        screen.rotation.x = -.3;
+        s.add(screen);
+        for (const side of [-1, 1]) {
+            const engine = new THREE.Mesh(new THREE.CylinderGeometry(.22, .22, 1.3, 12), metal);
+            engine.rotation.x = Math.PI / 2;
+            engine.position.set(side * .95, .63, -.8);
+            s.add(engine);
+        }
+        const p = districtPoint(0, 75 + i * 12), collider = { x: p.x, z: p.z, r: 1.45 };
+        movers.push(collider);
+        speeders.push({ group: s, v: 75 + i * 12, direction: -1, delay: i * 17, collider });
+        group.add(s);
+    }
+    const dust = Array.from({ length: 16 }, () => {
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xcfb38e, transparent: true, opacity: 0, depthWrite: false }));
+        sprite.visible = false;
+        group.add(sprite);
+        return { sprite, age: 2 };
+    });
+    // R2-D2 and C-3PO cross the distant dune thirty seconds after the visit begins.
+    const pair = new THREE.Group();
+    pair.name = "dune-droids";
+    pair.visible = false;
+    group.add(pair);
+    const white = new THREE.MeshStandardMaterial({ color: 0xd5d8ce, roughness: .65, metalness: .25 });
+    const blue = new THREE.MeshStandardMaterial({ color: 0x295caa, roughness: .48, metalness: .5 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xc49a44, roughness: .42, metalness: .65 });
+    const robotPart = (g: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+    const r2 = new THREE.Group();
+    r2.name = "r2-d2";
+    pair.add(r2);
+    shadow(r2, 1.1, .7, .012);
+    robotPart(r2, new THREE.CylinderGeometry(.29, .29, .62, 20), white, 0, .53, 0);
+    robotPart(r2, new THREE.SphereGeometry(.3, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), metal, 0, .84, 0);
+    robotPart(r2, new THREE.CylinderGeometry(.302, .302, .07, 20), blue, 0, .85, 0);
+    for (let panel = 0; panel < 4; panel++)
+        robotPart(r2, new THREE.CylinderGeometry(.283, .283, .08, 8, 1, true, panel * Math.PI / 2, .38), blue, 0, .95, 0);
+    robotPart(r2, new THREE.CylinderGeometry(.11, .11, .025, 12), blue, 0, 1.13, 0);
+    for (const side of [-1, 1]) {
+        robotPart(r2, new THREE.BoxGeometry(.13, .54, .16), white, side * .37, .4, 0);
+        robotPart(r2, new THREE.BoxGeometry(.19, .13, .3), white, side * .37, .09, .04);
+        robotPart(r2, new THREE.BoxGeometry(.08, .36, .02), blue, side * .11, .54, .283);
+    }
+    robotPart(r2, new THREE.SphereGeometry(.045, 8, 6), dark, -.09, .98, .26);
+    const c3 = new THREE.Group();
+    c3.name = "c-3po";
+    c3.position.set(1.3, 0, -.45);
+    pair.add(c3);
+    shadow(c3, .9, .7, .012);
+    robotPart(c3, new THREE.SphereGeometry(.14, 12, 10), gold, 0, 1.57, 0).scale.set(1, 1.22, .82);
+    robotPart(c3, new RoundedBoxGeometry(.37, .48, .2, 1, .05), gold, 0, 1.17, 0);
+    robotPart(c3, new THREE.CylinderGeometry(.13, .15, .21, 10), dark, 0, .84, 0);
+    for (const x of [-.05, .05])
+        robotPart(c3, new THREE.SphereGeometry(.028, 8, 6), amber, x, 1.6, .11);
+    const c3legs: THREE.Group[] = [], c3arms: THREE.Group[] = [];
+    for (const side of [-1, 1]) {
+        const leg = new THREE.Group();
+        leg.position.set(side * .11, .75, 0);
+        c3.add(leg);
+        c3legs.push(leg);
+        robotPart(leg, new THREE.CylinderGeometry(.065, .05, .63, 8), side === 1 ? metal : gold, 0, -.32, 0);
+        robotPart(leg, new THREE.BoxGeometry(.13, .08, .22), side === 1 ? metal : gold, 0, -.68, .04);
+        const arm = new THREE.Group();
+        arm.position.set(side * .25, 1.34, 0);
+        c3.add(arm);
+        c3arms.push(arm);
+        robotPart(arm, new THREE.CylinderGeometry(.045, .035, .55, 8), gold, 0, -.28, 0);
+        robotPart(arm, new THREE.SphereGeometry(.06, 8, 6), gold, 0, -.58, 0);
+    }
+    // Static decorations are baked into a handful of material batches.
+    batches.forEach((parts, material) => { const geometry = mergeGeometries(parts, false); parts.forEach(p => p.dispose()); if (geometry)
+        group.add(new THREE.Mesh(geometry, material)); });
+    let clock = 0;
+    return { group, colliders, movers, explorePoint: districtPoint(0, 34),
+        tick(dt: number, reduced: boolean, walker: {
+            x: number;
+            z: number;
+        }) {
+            if (!dt)
+                return;
+            clock += dt;
+            const move = reduced ? 0 : dt;
+            const local = districtCoordinates(walker.x, walker.z);
+            actors.forEach((a, index) => {
+                const targetV = a.v + Math.sin(clock * .22 + a.phase) * a.range;
+                const near = Math.hypot(local.u - a.group.position.x, local.v - a.group.position.z) < 1.35;
+                if (!reduced && !near)
+                    a.group.position.z = targetV;
+                const facing = near || !a.range ? Math.atan2(local.u - a.group.position.x, local.v - a.group.position.z) : (Math.cos(clock * .22 + a.phase) > 0 ? 0 : Math.PI);
+                const gap = Math.atan2(Math.sin(facing - a.group.rotation.y), Math.cos(facing - a.group.rotation.y));
+                if (!reduced)
+                    a.group.rotation.y += gap * (1 - Math.exp(-dt * 3));
+                a.arms.forEach((arm, i) => arm.rotation.x = reduced ? 0 : Math.sin(clock * (near ? 1.5 : 3.2) + index + i * Math.PI) * (a.range && !near ? .22 : .09));
+                a.legs.forEach((leg, i) => leg.rotation.x = reduced || near || !a.range ? 0 : Math.sin(clock * 3.2 + i * Math.PI) * .16);
+                const p = districtPoint(a.group.position.x, a.group.position.z);
+                a.collider.x = p.x;
+                a.collider.z = p.z;
+            });
+            speeders.forEach((s, index) => {
+                const ahead = (local.v - s.v) * s.direction;
+                const stopped = Math.abs(local.u) < 2 && ahead > 0 && ahead < 6;
+                if (move && clock > s.delay && !stopped) {
+                    s.v += s.direction * move * 2.5;
+                    if (Math.floor(clock * 6) !== Math.floor((clock - dt) * 6)) {
+                        const mote = dust.find(p => p.age >= 1.7);
+                        if (mote) {
+                            mote.age = 0;
+                            mote.sprite.position.set(Math.sin(clock * 31) * .5, .18, s.v - s.direction * 1.7);
+                        }
+                    }
+                }
+                if (s.v < 23) {
+                    s.v = 88;
+                    s.delay = clock + 16 + index * 8;
+                }
+                s.group.position.set(0, .025 * Math.sin(clock * 2 + index), s.v);
+                s.group.rotation.y = s.direction < 0 ? Math.PI : 0;
+                const p = districtPoint(0, s.v);
+                s.collider.x = p.x;
+                s.collider.z = p.z;
+            });
+            dust.forEach(p => {
+                p.age += move;
+                p.sprite.visible = !reduced && p.age < 1.7;
+                if (!p.sprite.visible)
+                    return;
+                p.sprite.material.opacity = .11 * (1 - p.age / 1.7);
+                p.sprite.scale.setScalar(.6 + p.age * .65);
+                p.sprite.position.x += move * .3;
+                p.sprite.position.y += move * .12;
+            });
+            const age = clock - 30;
+            pair.visible = !reduced && age >= 0 && age < 34;
+            if (pair.visible) {
+                const u = -7 + age * .7, v = 87;
+                const p = districtPoint(u, v);
+                pair.position.set(u, groundHeight(p.x, p.z), v);
+                pair.rotation.y = Math.PI / 2;
+                c3legs.forEach((leg, i) => leg.rotation.x = Math.sin(age * 3.4 + i * Math.PI) * .3);
+                c3arms.forEach((arm, i) => arm.rotation.x = Math.sin(age * 3.4 + i * Math.PI + Math.PI) * .18);
+                r2.rotation.z = Math.sin(age * 2.3) * .018;
+            }
+        }
+    };
+}
