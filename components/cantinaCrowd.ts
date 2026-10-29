@@ -3,6 +3,7 @@ import { glowTexture } from "./landingKit";
 import { bakePart, part, rounded } from "./tatooineCharacters";
 import { createSeatedMandalorian } from "./mandalorianModel";
 import { createSeatedGrogu } from "./groguModel";
+import { createCantinaTableActions } from "./cantinaTableActions";
 
 // The cantina's regulars, all placed in the district's (u, y, v) frame, facing +v by default.
 type Head = "dome" | "snout" | "hood" | "fins";
@@ -146,6 +147,7 @@ export function createCantinaCrowd() {
   mandalorian.group.position.set(-8.52,0,66.2);
   grogu.group.position.set(-7.94,0,66.2);
   duo.add(mandalorian.group,grogu.group);group.add(duo);
+  const tableActions=createCantinaTableActions(grogu);group.add(tableActions.group);
 
   // A few tall figures standing about, like the ones lingering by the bar.
   (
@@ -223,10 +225,12 @@ export function createCantinaCrowd() {
   let clock = 0;
   return {
     group,
+    actions: tableActions.actions,
     circles,
     bartenderSpot,
     tick: (time: number, reduced: boolean) => {
       mandalorian.tick(time,reduced);grogu.tick(time,reduced);
+      tableActions.tick(time,reduced);
       const dt = Math.min(0.05, Math.max(0, time - clock));
       clock = time;
       const beat = time * BEAT * Math.PI * 2;

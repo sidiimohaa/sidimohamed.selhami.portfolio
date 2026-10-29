@@ -80,8 +80,10 @@ export function createSeatedGrogu(seatHeight=.55) {
     const ear=new THREE.Group();ear.name=side<0?"grogu-ear-left":"grogu-ear-right";head.add(ear);ears.push(ear);
     part(ear,earGeometry(side),skin);part(ear,earGeometry(side,true),innerEar);bakePart(ear);
   }
+  const arms:THREE.Group[]=[];
   for(const side of[-1,1]){
     const arm=new THREE.Group();arm.position.set(side*.108,seatHeight+.216,.017);group.add(arm);
+    arms.push(arm);
     const from=new THREE.Vector3(0,0,0),to=new THREE.Vector3(-side*.026,-.09,.071),sleeve=part(arm,new THREE.CylinderGeometry(.042,.052,from.distanceTo(to),16),robe);
     sleeve.position.copy(to).multiplyScalar(.5);sleeve.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),from.sub(to).normalize());
     part(arm,new THREE.TorusGeometry(.043,.01,7,18),fur,[-side*.026,-.087,.071],[-.65,0,0]);
@@ -93,11 +95,17 @@ export function createSeatedGrogu(seatHeight=.55) {
     if(!(object instanceof THREE.Mesh))return;
     const original=object.geometry;object.geometry=mergeVertices(original,1e-5);original.dispose();
   });
-  return{group,head,tick:(time:number,reduced:boolean)=>{
+  const setForcePose=(amount:number)=>{
+    const reach=THREE.MathUtils.clamp(amount,0,1);
+    arms[0].rotation.set(-reach*1.08,0,-reach*.08);
+    arms[1].rotation.set(-reach*.18,0,0);
+  };
+  return{group,head,arms,setForcePose,tick:(time:number,reduced:boolean)=>{
     const t=reduced?0:time;
     head.rotation.y=reduced?0:Math.sin(t*.37)*.13;
     head.rotation.z=reduced?0:Math.sin(t*.26+.8)*.035;
     head.rotation.x=reduced?0:Math.sin(t*.41)*.022;
     ears.forEach((ear,i)=>ear.rotation.z=reduced?0:Math.sin(t*.52+i*1.6)*.014);
+    setForcePose(0);
   }};
 }

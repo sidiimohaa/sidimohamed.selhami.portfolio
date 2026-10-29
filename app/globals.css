@@ -1519,6 +1519,7 @@ button svg {
   .with-district .surface-district { order:2; }
   .with-district .surface-cantina { order:3; }
   .with-district .surface-takeoff { order:4; justify-content:center; }
+  .with-district .surface-action { order:5; }
 }
 .surface-terminals {
   display: flex;
@@ -1617,3 +1618,6 @@ button svg {
     animation-duration: 0.3s;
   }
 }
+/* Things to use in the cantina: the bounty puck and Grogu. */
+.surface-action { color:#ffcf8f; border-color:#ffb36b66; }
+.surface-action:hover, .surface-action:focus-visible { color:#ffe2b8; border-color:#ffb36bb3; }

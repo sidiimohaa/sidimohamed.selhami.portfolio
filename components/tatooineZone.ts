@@ -550,6 +550,8 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     exposure: 1,
     walkRadius: 76,
     explorePoint:district.explorePoint,
+    actions:district.actions,
+    actionApproach:district.actionApproach,
     interior:district.interior,
     routeTo,
     music: district.music,

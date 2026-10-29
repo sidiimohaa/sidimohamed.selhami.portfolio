@@ -97,12 +97,23 @@ export type ZoneTerminal = {
   focus: number;
 };
 // Every landing zone shares one layout: the ship on the centre circle, terminals on a ring.
+export type ZoneAction = {
+  id: string;
+  label: string;
+  position: THREE.Vector3;
+  objects: THREE.Object3D[];
+  // Actions that show one of the zone's projects get it before they activate.
+  present?: (project: Landing["terminals"][number], index: number, count: number) => void;
+  activate: (reduced: boolean) => void;
+};
 export type Zone = {
   group: THREE.Group;
   fog: THREE.FogExp2;
   exposure: number;
   walkRadius: number;
   explorePoint?: THREE.Vector3;
+  actions?: ZoneAction[];
+  actionApproach?: { position: THREE.Vector3; lookAt: THREE.Vector3 };
   // Where the arrival is watched from, then the closer view it settles to (also used at takeoff).
   arrival?: { from: THREE.Vector3; to: THREE.Vector3; shipFrom?:THREE.Vector3; shipYaw?:number; reveal?:number };
   interior?: {name:string;entry:THREE.Vector3;exit:THREE.Vector3;contains:(x:number,z:number)=>boolean};

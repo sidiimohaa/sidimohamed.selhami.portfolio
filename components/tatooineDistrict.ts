@@ -272,6 +272,8 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         group.add(new THREE.Mesh(geometry, material)); });
     let clock = 0;
     return { group, colliders, movers, explorePoint:districtPoint(0,34),
+        actions:cantina.actions.map(action=>({...action,position:districtPoint(action.position.x,action.position.z).setY(action.position.y)})),
+        actionApproach:{position:districtPoint(-6.4,67),lookAt:districtPoint(-8.25,66.8).setY(1.05)},
         interior:{name:"CANTINA",entry:districtPoint(cantina.entry.u,cantina.entry.v),exit:districtPoint(cantina.exit.u,cantina.exit.v),contains:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.contains(p.u,p.v);}},
         isBlocked:(x:number,z:number)=>{const p=districtCoordinates(x,z);return cantina.isBlocked(p.u,p.v,.45);},
         constrain:(walker:{x:number;z:number})=>{const p=districtCoordinates(walker.x,walker.z);cantina.constrain(p);const w=districtPoint(p.u,p.v);walker.x=w.x;walker.z=w.z;},

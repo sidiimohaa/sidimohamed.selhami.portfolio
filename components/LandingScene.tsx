@@ -8,7 +8,9 @@ import { createCoruscantZone } from "./coruscantZone";
 import { createHothZone } from "./hothZone";
 import { landingArrival } from "./landingFlight";
 import { createTatooineZone } from "./tatooineZone";
+import BountyProjectPanel from "./BountyProjectPanel";
 import type { PadEvent } from "./coruscantLife";
+import type { ZoneAction } from "./landingKit";
 import type { Landing } from "./universe";
 
 // Each world with a landing zone builds its own scene around the shared pad layout.
@@ -65,6 +67,9 @@ export default function LandingScene({
   const [leaving, setLeaving] = useState(false);
   const [inDistrict,setInDistrict] = useState(false);
   const [inCantina,setInCantina] = useState(false);
+  // Things to use in the scene (the bounty puck, Grogu), and the project a puck has opened.
+  const [actions, setActions] = useState<{ id: string; label: string }[]>([]);
+  const [bounty, setBounty] = useState<number | null>(null);
   const [fallback, setFallback] = useState(false);
   const [coarse] = useState(
     () => window.matchMedia("(pointer: coarse)").matches,
@@ -83,6 +88,7 @@ export default function LandingScene({
     takeoff: () => void;
     district: () => void;
     cantina: () => void;
+    act: (id: string) => void;
   } | null>(null);
 
   useEffect(() => {
@@ -128,6 +134,10 @@ export default function LandingScene({
     zone.group.traverse((object) => {
       if (object.userData.terminal !== undefined) pickable.push(object);
     });
+    const actionOf = new Map<THREE.Object3D, ZoneAction>();
+    zone.actions?.forEach((action) => action.objects.forEach((object) => actionOf.set(object, action)));
+    const actionObjects = [...actionOf.keys()];
+    setActions(zone.actions?.map(({ id, label }) => ({ id, label })) ?? []);
 
     const walker = {
       x: zone.spawn.position.x,
@@ -155,6 +165,10 @@ export default function LandingScene({
     const progress = { x: 0, z: 0, time: 0, detours: 0 };
     let route: THREE.Vector3[] = [],
       facing: number | null = null,
+      // An action waiting for the visitor to reach it and turn towards it.
+      pending: ZoneAction | null = null,
+      bountyNext = 0,
+      bountyTimer = 0,
       current: Phase = live.current.reduced ? "explore" : "arrival",
       clock = 0,
       nearest: number | null = null,
@@ -317,7 +331,39 @@ export default function LandingScene({
       else route=zone.routeTo(new THREE.Vector3(walker.x,0,walker.z),destination);
       facing=null;walked=true;setHint(false);
     };
-    controls.current = { walkTo, skip, takeoff, district, cantina };
+    // Use an action: walk to where it can be reached first if needed, then face it and trigger it.
+    const perform = (action: ZoneAction) => {
+      const still = live.current.reduced;
+      if (action.present) {
+        const index = bountyNext++ % landing.terminals.length;
+        action.present(landing.terminals[index], index, landing.terminals.length);
+        action.activate(still);
+        cue.current("terminal");
+        // Let the hologram flicker up over the table before the dossier opens.
+        window.clearTimeout(bountyTimer);
+        if (still) setBounty(index);
+        else bountyTimer = window.setTimeout(() => setBounty(index), 1500);
+      } else action.activate(still);
+    };
+    const act = (id: string) => {
+      const action = zone.actions?.find((item) => item.id === id);
+      if (current !== "explore" || !action) return;
+      const approach = zone.actionApproach;
+      const far = Math.hypot(action.position.x - walker.x, action.position.z - walker.z) > 3.2;
+      facing = null;
+      walked = true;
+      setHint(false);
+      if (far && approach && live.current.reduced) {
+        walker.x = approach.position.x;
+        walker.z = approach.position.z;
+        walker.yaw = Math.atan2(-(approach.lookAt.x - walker.x), -(approach.lookAt.z - walker.z));
+        perform(action);
+        return;
+      }
+      route = far && approach && zone.routeTo ? zone.routeTo(new THREE.Vector3(walker.x, 0, walker.z), approach.position) : [];
+      pending = action;
+    };
+    controls.current = { walkTo, skip, takeoff, district, cantina, act };
 
     const outsideControls = (target: EventTarget | null) =>
       !(target as HTMLElement | null)?.closest?.(
@@ -383,6 +429,7 @@ export default function LandingScene({
         if (grip.travelled > 8) {
           route = [];
           facing = null;
+          pending = null;
           explored();
         }
       } else {
@@ -421,9 +468,25 @@ export default function LandingScene({
         -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
       );
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(pickable, false)[0];
-      if (hit) walkTo(hit.object.userData.terminal);
+      const hit = raycaster.intersectObjects(pickable, false)[0],
+        used = actionObjects.length ? raycaster.intersectObjects(actionObjects, false)[0] : undefined;
+      if (used && (!hit || used.distance < hit.distance)) act(actionOf.get(used.object)!.id);
+      else if (hit) walkTo(hit.object.userData.terminal);
     };
+    // A pointer cursor over things that can be used.
+    let hoverAt = 0;
+    const hover = (event: PointerEvent) => {
+      if (!actionObjects.length || grips.size || event.timeStamp - hoverAt < 120) return;
+      hoverAt = event.timeStamp;
+      const bounds = el.getBoundingClientRect();
+      pointer.set(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(pointer, camera);
+      el.style.cursor = raycaster.intersectObjects(actionObjects, false).length ? "pointer" : "";
+    };
+    el.addEventListener("pointermove", hover);
     const keyDown = (event: KeyboardEvent) => {
       if (current !== "explore" || live.current.paused) return;
       if (
@@ -578,6 +641,7 @@ export default function LandingScene({
         if (Math.abs(turn) + Math.abs(push) > 0.05) {
           route = [];
           facing = null;
+          pending = null;
           explored();
         }
         if (route.length) {
@@ -602,6 +666,7 @@ export default function LandingScene({
                 // Still blocked after several sidesteps: stop rather than push forever.
                 route = [];
                 facing = null;
+                pending = null;
               } else {
                 // Step to the side away from the nearest obstacle, alternating if that fails.
                 const sideX = -dz / distance,
@@ -645,6 +710,18 @@ export default function LandingScene({
           walker.yaw += gap * (1 - Math.exp(-dt * 6));
           walker.pitch += tilt * (1 - Math.exp(-dt * 6));
           if (Math.abs(gap) < 0.01 && Math.abs(tilt) < 0.01) facing = null;
+        } else if (pending) {
+          // Face the object and lower the eyes to it, then use it.
+          const target = pending.position;
+          const goal = Math.atan2(-(target.x - walker.x), -(target.z - walker.z));
+          const gap = shortest(goal - walker.yaw),
+            tilt = THREE.MathUtils.clamp(Math.atan2(target.y - EYE, Math.hypot(target.x - walker.x, target.z - walker.z)), -0.6, 0.4) - walker.pitch;
+          walker.yaw += gap * (1 - Math.exp(-dt * 6));
+          walker.pitch += tilt * (1 - Math.exp(-dt * 6));
+          if (Math.abs(gap) < 0.03 && Math.abs(tilt) < 0.03) {
+            perform(pending);
+            pending = null;
+          }
         } else {
           walker.yaw -= turn * dt * 1.9;
           const speed = push * (fast ? RUN : WALK);
@@ -701,6 +778,8 @@ export default function LandingScene({
       observer.disconnect();
       window.removeEventListener("pointerdown", pointerDown);
       window.removeEventListener("pointermove", pointerMove);
+      el.removeEventListener("pointermove", hover);
+      window.clearTimeout(bountyTimer);
       window.removeEventListener("pointerup", pointerUp);
       window.removeEventListener("pointercancel", pointerCancel);
       window.removeEventListener("keydown", keyDown);
@@ -852,6 +931,9 @@ export default function LandingScene({
           </motion.aside>
         )}
       </AnimatePresence>
+      {bounty !== null && landing.terminals[bounty] && (
+        <BountyProjectPanel project={landing.terminals[bounty]} onClose={() => setBounty(null)} />
+      )}
       {phase !== "arrival" && (
         <nav className={`surface-bar ${planet==="Tatooine"?"with-district":""}`} aria-label="Navigation et terminaux">
           <span className="surface-place mono">
@@ -859,6 +941,7 @@ export default function LandingScene({
           </span>
           {planet==="Tatooine"&&<button className="surface-district mono" onClick={()=>controls.current?.district()} disabled={phase==="takeoff"}>{inDistrict?"← X-WING":"MOS EISLEY ↗"}</button>}
           {planet==="Tatooine"&&<button className="surface-district surface-cantina mono" onClick={()=>controls.current?.cantina()} disabled={phase==="takeoff"}>{inCantina?"← SORTIR":"CANTINA ↗"}</button>}
+          {inCantina&&actions.map((action)=><button key={action.id} className="surface-district surface-action mono" onClick={()=>controls.current?.act(action.id)} disabled={phase==="takeoff"}>{action.label.toUpperCase()}</button>)}
           <div className="surface-terminals">
             {landing.terminals.map((item, index) => (
               <button
