@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { glowTexture } from "./landingKit";
 import { bakePart, part, rounded } from "./tatooineCharacters";
+import { createSeatedMandalorian } from "./mandalorianModel";
+import { createSeatedGrogu } from "./groguModel";
 
 // The cantina's regulars, all placed in the district's (u, y, v) frame, facing +v by default.
 type Head = "dome" | "snout" | "hood" | "fins";
@@ -138,6 +140,13 @@ export function createCantinaCrowd() {
     regulars.push({ ...patron, phase: index * 2.3 + 1, lift: index % 2 });
   });
 
+  // The empty north banquette, opposite the green regular in the rust-colored robe.
+  const duo=new THREE.Group();duo.name="cantina-mandalorian-grogu";
+  const mandalorian=createSeatedMandalorian(.55),grogu=createSeatedGrogu(.55);
+  mandalorian.group.position.set(-8.52,0,66.2);
+  grogu.group.position.set(-7.94,0,66.2);
+  duo.add(mandalorian.group,grogu.group);group.add(duo);
+
   // A few tall figures standing about, like the ones lingering by the bar.
   (
     [
@@ -217,6 +226,7 @@ export function createCantinaCrowd() {
     circles,
     bartenderSpot,
     tick: (time: number, reduced: boolean) => {
+      mandalorian.tick(time,reduced);grogu.tick(time,reduced);
       const dt = Math.min(0.05, Math.max(0, time - clock));
       clock = time;
       const beat = time * BEAT * Math.PI * 2;
