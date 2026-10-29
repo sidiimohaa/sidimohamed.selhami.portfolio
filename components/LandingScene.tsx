@@ -8,6 +8,7 @@ import { createCoruscantZone } from "./coruscantZone";
 import { createHothZone } from "./hothZone";
 import { landingArrival } from "./landingFlight";
 import { createTatooineZone } from "./tatooineZone";
+import AtmosphereEntry, { ENTRY_SECONDS } from "./AtmosphereEntry";
 import BountyProjectPanel from "./BountyProjectPanel";
 import type { PadEvent } from "./coruscantLife";
 import type { ZoneAction } from "./landingKit";
@@ -65,6 +66,9 @@ export default function LandingScene({
   const [active, setActive] = useState<number | null>(null);
   const [hint, setHint] = useState(true);
   const [leaving, setLeaving] = useState(false);
+  // The descent through the atmosphere plays over the start of the arrival, unless motion is reduced.
+  const [entering, setEntering] = useState(!reduced);
+  const [quietFade] = useState(!reduced);
   const [inDistrict,setInDistrict] = useState(false);
   const [inCantina,setInCantina] = useState(false);
   // Things to use in the scene (the bounty puck, Grogu), and the project a puck has opened.
@@ -522,6 +526,8 @@ export default function LandingScene({
     observer.observe(el);
     resize();
 
+    // The ship's approach waits until the descent has broken through the clouds.
+    const entryHold = live.current.reduced ? 0 : ENTRY_SECONDS - 0.9;
     let frame = 0,
       last = performance.now(),
       elapsed = 0,
@@ -558,7 +564,7 @@ export default function LandingScene({
       elapsed += dt;
       adapt(dt);
       const { reduced: still, paused: frozen } = live.current;
-      if (!frozen) clock += dt;
+      if (!frozen && !(current === "arrival" && elapsed < entryHold)) clock += dt;
       zone.tick(frozen ? 0 : dt, elapsed, still, walker);
       if (zone.music) {
         const heard = zone.music(walker);
@@ -852,9 +858,10 @@ export default function LandingScene({
         <i ref={thumb} />
       </div>
       <div
-        className={`surface-fade ${leaving ? "is-leaving" : ""}`}
+        className={`surface-fade ${leaving ? "is-leaving" : quietFade ? "is-quiet" : ""}`}
         aria-hidden="true"
       />
+      {entering && phase === "arrival" && <AtmosphereEntry planet={planet} onDone={() => setEntering(false)} />}
       <AnimatePresence>
         {phase === "arrival" && (
           <motion.div

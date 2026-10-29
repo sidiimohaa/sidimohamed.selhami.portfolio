@@ -1381,6 +1381,20 @@ button svg {
 .surface-fade.is-leaving {
   animation: surface-leave 0.9s ease forwards;
 }
+/* With the atmospheric entry, the plain fade only plays on take-off. */
+.surface-fade.is-quiet {
+  animation: none;
+  opacity: 0;
+}
+.surface-entry {
+  position: absolute;
+  inset: 0;
+  /* Over the scene and the header, under the landing status and its skip button. */
+  z-index: 20;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 /* Hoth's white sky washes out the header: a soft scrim keeps it legible. */
 .surface[data-planet="Hoth"]::after {
   content: "";
