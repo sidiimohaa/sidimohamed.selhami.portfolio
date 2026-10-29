@@ -42,7 +42,7 @@ export const destinations = [
     summary:
       "Un monde vivant où mes passions et mes inspirations prennent racine.",
     description:
-      "Des forêts émeraude, des océans et des voiles de nuages : un monde vivant pour ce qui me passionne. Un jour, vous y découvrirez les inspirations qui nourrissent ma créativité.",
+      "Des forêts émeraude, des océans et des voiles de nuages : un monde vivant pour ce qui me passionne. Au coin du feu, un ancien y raconte l’espace, l’horlogerie, l’art et les livres.",
   },
   {
     name: "Coruscant",
@@ -121,11 +121,13 @@ export type LandingTerminal = {
   body: string;
   meta?: string;
   links?: { label: string; href: string }[];
+  // A step of the "Mes passions" presentation this terminal can open (Endor).
+  story?: number;
 };
 export type Landing = {
   pad: string;
   welcome: string;
-  soundscape: "city" | "desert" | "ice";
+  soundscape: "city" | "desert" | "ice" | "forest";
   terminals: LandingTerminal[];
 };
 
@@ -165,6 +167,48 @@ export const landings: Partial<Record<string, Landing>> = {
         label: "Disponibilité",
         heading: "Ouvert aux collaborations",
         body: "Stage, alternance, freelance ou projet personnel : parlons-en.",
+      },
+    ],
+  },
+  // Endor raconte les passions : chaque totem ouvre un chapitre de la présentation « Mes passions »
+  // (public/passions), à l'étape indiquée par story.
+  Endor: {
+    pad: "CLAIRIÈRE DU VILLAGE · LUNE FORESTIÈRE",
+    welcome:
+      "Bienvenue sur Endor. Autour du feu, l’ancien raconte mes passions : chaque totem ouvre un chapitre.",
+    soundscape: "forest",
+    terminals: [
+      {
+        id: "espace",
+        label: "Espace",
+        heading: "Vers l’infiniment grand",
+        body: "Le zoom cosmique en huit étapes, de la Terre jusqu’au fond diffus cosmologique.",
+        meta: "Chapitre · L’espace",
+        story: 6.6,
+      },
+      {
+        id: "horlogerie",
+        label: "Horlogerie",
+        heading: "Vers l’infiniment petit",
+        body: "L’Omega Speedmaster, son mouvement, et mes montres préférées.",
+        meta: "Chapitre · L’horlogerie",
+        story: 9.9,
+      },
+      {
+        id: "art",
+        label: "Art",
+        heading: "Paris et le Louvre",
+        body: "La Dame à la licorne, La Nuit étoilée de Van Gogh et les Nymphéas de Monet.",
+        meta: "Chapitre · L’art",
+        story: 16.6,
+      },
+      {
+        id: "livres",
+        label: "Livres",
+        heading: "La bibliothèque",
+        body: "Incendies, Le Trône de fer, Frankenstein et Le Petit Prince.",
+        meta: "Chapitre · Les livres",
+        story: 23.1,
       },
     ],
   },

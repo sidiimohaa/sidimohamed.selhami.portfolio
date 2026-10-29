@@ -10,6 +10,8 @@ import { landingArrival } from "./landingFlight";
 import { createTatooineZone } from "./tatooineZone";
 import AtmosphereEntry, { ENTRY_SECONDS } from "./AtmosphereEntry";
 import BountyProjectPanel from "./BountyProjectPanel";
+import PassionsViewer from "./PassionsViewer";
+import { createEndorZone } from "./endorZone";
 import type { PadEvent } from "./coruscantLife";
 import type { ZoneAction } from "./landingKit";
 import type { Landing } from "./universe";
@@ -19,6 +21,7 @@ const zones = {
   Coruscant: createCoruscantZone,
   Tatooine: createTatooineZone,
   Hoth: createHothZone,
+  Endor: createEndorZone,
 } as const;
 
 export type SurfaceCue = "terminal" | "takeoff" | "step" | "cantina-enter" | "cantina-leave" | PadEvent;
@@ -74,6 +77,10 @@ export default function LandingScene({
   // Things to use in the scene (the bounty puck, Grogu), and the project a puck has opened.
   const [actions, setActions] = useState<{ id: string; label: string }[]>([]);
   const [bounty, setBounty] = useState<number | null>(null);
+  // The passions presentation opened from Endor, and the way up to its village.
+  const [story, setStory] = useState<{ at?: number; title: string } | null>(null);
+  const [climb, setClimb] = useState<{ up: string; down: string } | null>(null);
+  const [aloft, setAloft] = useState(false);
   const [fallback, setFallback] = useState(false);
   const [coarse] = useState(
     () => window.matchMedia("(pointer: coarse)").matches,
@@ -93,6 +100,7 @@ export default function LandingScene({
     district: () => void;
     cantina: () => void;
     act: (id: string) => void;
+    climb: () => void;
   } | null>(null);
 
   useEffect(() => {
@@ -117,8 +125,8 @@ export default function LandingScene({
     el.prepend(renderer.domElement);
     const scene = new THREE.Scene();
     let environment:THREE.WebGLRenderTarget|undefined;
-    if(planet==="Tatooine"||planet==="Hoth"){
-      if(planet==="Tatooine"){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
+    if(planet==="Tatooine"||planet==="Hoth"||planet==="Endor"){
+      if(planet!=="Hoth"){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
       const generator=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment();
       environment=generator.fromScene(room,.02);scene.environment=environment.texture;scene.environmentIntensity=.45;
       generator.dispose();room.dispose();
@@ -186,7 +194,8 @@ export default function LandingScene({
           (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect),
       );
     const standFor = (index: number) => {
-      const { position } = zone.terminals[index];
+      const { position, stand } = zone.terminals[index];
+      if (stand) return stand.clone();
       return position
         .clone()
         .multiplyScalar(1 - standOff() / position.length());
@@ -205,8 +214,9 @@ export default function LandingScene({
       eyeRotation = new THREE.Euler(0, 0, 0, "YXZ");
     const eyeQuaternion = () =>
       look.setFromEuler(eyeRotation.set(walker.pitch, walker.yaw, 0, "YXZ"));
+    const floor = () => zone.floorAt?.() ?? 0;
     const placeEye = () => {
-      camera.position.set(walker.x, EYE, walker.z);
+      camera.position.set(walker.x, EYE + floor(), walker.z);
       camera.quaternion.copy(eyeQuaternion());
     };
     const settleShip = () => {
@@ -219,7 +229,8 @@ export default function LandingScene({
       placeEye();
     }
 
-    let wasInDistrict=false,wasInCantina=false;
+    let wasInDistrict=false,wasInCantina=false,wasAloft=false;
+    setClimb(zone.climb ? { up: zone.climb.up, down: zone.climb.down } : null);
     const collide = () => {
       const reach = Math.hypot(walker.x, walker.z),
         limit = zone.walkRadius;
@@ -338,7 +349,11 @@ export default function LandingScene({
     // Use an action: walk to where it can be reached first if needed, then face it and trigger it.
     const perform = (action: ZoneAction) => {
       const still = live.current.reduced;
-      if (action.present) {
+      if (action.story) {
+        action.activate(still);
+        cue.current("terminal");
+        setStory(action.story);
+      } else if (action.present) {
         const index = bountyNext++ % landing.terminals.length;
         action.present(landing.terminals[index], index, landing.terminals.length);
         action.activate(still);
@@ -367,7 +382,26 @@ export default function LandingScene({
       route = far && approach && zone.routeTo ? zone.routeTo(new THREE.Vector3(walker.x, 0, walker.z), approach.position) : [];
       pending = action;
     };
-    controls.current = { walkTo, skip, takeoff, district, cantina, act };
+    // Up the ramp to the village, or back down to the clearing.
+    const goClimb = () => {
+      const way = zone.climb;
+      if (current !== "explore" || !way || !zone.routeTo) return;
+      const up = !way.aloft(),
+        destination = up ? way.top : way.bottom;
+      facing = null;
+      pending = null;
+      walked = true;
+      setHint(false);
+      if (live.current.reduced) {
+        walker.x = destination.x;
+        walker.z = destination.z;
+        way.place(up);
+        route = [];
+        return;
+      }
+      route = zone.routeTo(new THREE.Vector3(walker.x, 0, walker.z), destination);
+    };
+    controls.current = { walkTo, skip, takeoff, district, cantina, act, climb: goClimb };
 
     const outsideControls = (target: EventTarget | null) =>
       !(target as HTMLElement | null)?.closest?.(
@@ -592,7 +626,7 @@ export default function LandingScene({
           const k = ease((clock - 4.6) / (ARRIVAL - 4.6));
           viewer.position.copy(wideEnd);
           viewer.lookAt(shipRest.x, shipRest.y + 1.5, shipRest.z);
-          eye.set(walker.x, EYE, walker.z);
+          eye.set(walker.x, EYE + floor(), walker.z);
           camera.position.lerpVectors(wideEnd, eye, k);
           camera.quaternion.slerpQuaternions(
             viewer.quaternion,
@@ -721,7 +755,7 @@ export default function LandingScene({
           const target = pending.position;
           const goal = Math.atan2(-(target.x - walker.x), -(target.z - walker.z));
           const gap = shortest(goal - walker.yaw),
-            tilt = THREE.MathUtils.clamp(Math.atan2(target.y - EYE, Math.hypot(target.x - walker.x, target.z - walker.z)), -0.6, 0.4) - walker.pitch;
+            tilt = THREE.MathUtils.clamp(Math.atan2(target.y - EYE - floor(), Math.hypot(target.x - walker.x, target.z - walker.z)), -0.6, 0.4) - walker.pitch;
           walker.yaw += gap * (1 - Math.exp(-dt * 6));
           walker.pitch += tilt * (1 - Math.exp(-dt * 6));
           if (Math.abs(gap) < 0.03 && Math.abs(tilt) < 0.03) {
@@ -764,9 +798,16 @@ export default function LandingScene({
         }
         camera.position.set(
           walker.x,
-          EYE + (moving && !still ? Math.sin(walker.stride) * 0.035 : 0),
+          EYE + floor() + (moving && !still ? Math.sin(walker.stride) * 0.035 : 0),
           walker.z,
         );
+        if (zone.climb) {
+          const up = zone.climb.aloft();
+          if (up !== wasAloft) {
+            wasAloft = up;
+            setAloft(up);
+          }
+        }
         camera.quaternion.copy(eyeQuaternion());
         if (!walked && (hintTimer += dt) > 12) explored();
       }
@@ -918,6 +959,15 @@ export default function LandingScene({
               <span className="terminal-meta mono">{terminal.meta}</span>
             )}
             <p>{terminal.body}</p>
+            {terminal.story !== undefined && (
+              <button
+                type="button"
+                className="terminal-story mono"
+                onClick={() => setStory({ at: terminal.story, title: terminal.heading })}
+              >
+                ▶ ÉCOUTER LE RÉCIT
+              </button>
+            )}
             {terminal.links && (
               <div className="terminal-links">
                 {terminal.links.map((link) => (
@@ -938,17 +988,19 @@ export default function LandingScene({
           </motion.aside>
         )}
       </AnimatePresence>
+      {story && <PassionsViewer at={story.at} title={story.title} onClose={() => setStory(null)} />}
       {bounty !== null && landing.terminals[bounty] && (
         <BountyProjectPanel project={landing.terminals[bounty]} onClose={() => setBounty(null)} />
       )}
       {phase !== "arrival" && (
-        <nav className={`surface-bar ${planet==="Tatooine"?"with-district":""}`} aria-label="Navigation et terminaux">
+        <nav className={`surface-bar ${planet==="Tatooine"||planet==="Endor"?"with-district":""}`} aria-label="Navigation et terminaux">
           <span className="surface-place mono">
             {planet.toUpperCase()} · {inCantina?"CANTINA":inDistrict?"MOS EISLEY":landing.pad}
           </span>
           {planet==="Tatooine"&&<button className="surface-district mono" onClick={()=>controls.current?.district()} disabled={phase==="takeoff"}>{inDistrict?"← X-WING":"MOS EISLEY ↗"}</button>}
           {planet==="Tatooine"&&<button className="surface-district surface-cantina mono" onClick={()=>controls.current?.cantina()} disabled={phase==="takeoff"}>{inCantina?"← SORTIR":"CANTINA ↗"}</button>}
-          {inCantina&&actions.map((action)=><button key={action.id} className="surface-district surface-action mono" onClick={()=>controls.current?.act(action.id)} disabled={phase==="takeoff"}>{action.label.toUpperCase()}</button>)}
+          {climb&&<button className="surface-district surface-climb mono" onClick={()=>controls.current?.climb()} disabled={phase==="takeoff"}>{aloft?climb.down:climb.up}</button>}
+          {(planet!=="Tatooine"||inCantina)&&actions.map((action)=><button key={action.id} className="surface-district surface-action mono" onClick={()=>controls.current?.act(action.id)} disabled={phase==="takeoff"}>{action.label.toUpperCase()}</button>)}
           <div className="surface-terminals">
             {landing.terminals.map((item, index) => (
               <button

@@ -70,7 +70,7 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 - Avec le son activé, la ville prend le relais du moteur spatial : rumeur lointaine, rafales de vent sur la plateforme et passages de trafic d'une oreille à l'autre. On entend aussi ses pas sur le pont métallique, un carillon quand un hologramme s'allume, et le taxi qui arrive puis repart.
 - Quatre terminaux holographiques (identité, transmission, réseaux, disponibilité) s'allument quand on s'en approche et ouvrent un panneau lisible avec de vrais liens. Cliquer un hologramme ou un bouton de la barre du bas y conduit automatiquement, en contournant le vaisseau.
 - « Décoller » ramène en orbite. En mouvement réduit, les cinématiques sont coupées, les déplacements automatiques deviennent instantanés, la vapeur et les étincelles disparaissent, l'équipe et les droids restent immobiles et le taxi attend à quai.
-- Les textes sont provisoires : ils se remplacent dans `landings` de `components/universe.ts`. Tatooine, Endor et l'Étoile de la Mort suivront le même modèle.
+- Les textes sont provisoires : ils se remplacent dans `landings` de `components/universe.ts`. L'Étoile de la Mort suivra le même modèle.
 
 ## Atterrissage sur Tatooine
 
@@ -99,3 +99,12 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 - Les AT-AT (`atatModel.ts`) ont une coque à panneaux patinés, un cou annelé, une tête à quatre canons, des articulations circulaires et des vérins. Leur démarche lève une patte à la fois ; une résolution géométrique des jambes maintient les pieds au sol pendant l'appui, même sur le relief. Les détails fixes sont regroupés par matériau (48 maillages par marcheur).
 - La tempête : neige qui tombe (plus rare sous le toit), rafales de poudreuse devant l'ouverture et brouillard qui respire. L'ambiance sonore mêle le vent, le ronronnement de la base et des explosions lointaines.
 - Les quatre diplômes sont provisoires (quatre au plus sur les plans) : ils se remplacent dans `landings.Hoth` de `components/universe.ts`.
+
+## Atterrissage sur Endor
+
+- Endor représente les passions (rubrique 02). Le X-wing se pose dans une clairière de séquoias géants, sous un village ewok : plateformes autour de quatre troncs, huttes, lanternes et ponts de cordes. La lumière dorée de fin d'après-midi passe par une trouée dans la canopée (`endorForest.ts`).
+- Autour du feu de camp, un ancien conte, deux Ewoks jouent du tambour et deux autres dansent ; des sentinelles patrouillent et des guetteurs veillent sur les plateformes (`endorVillage.ts`).
+- Quatre totems sculptés, un par chapitre de la présentation « Mes passions » (espace, horlogerie, art, livres), entourent le feu. Chaque totem ouvre son chapitre (« Écouter le récit »), et l'ancien ouvre la présentation entière depuis son intro (`PassionsViewer.tsx`). La présentation est copiée dans `public/passions/`, et les étapes visées se règlent avec `story` dans `landings.Endor` (`components/universe.ts`).
+- Dans cette copie en ligne, les couvertures d'Incendies, du Trône de fer et du Petit Prince sont redessinées en SVG (originales). La présentation de classe d'origine, dans `présentation passions`, n'est pas modifiée.
+- « Monter au village » fait gravir la rampe enroulée autour du premier tronc jusqu'à sa plateforme. On peut y marcher et traverser le pont jusqu'à la plateforme voisine, puis « Redescendre ».
+- Des speeder bikes filent entre les troncs de temps en temps. Des oiseaux tournent sous la canopée, et du pollen et des papillons flottent dans la lumière (`endorLife.ts`). L'ambiance sonore mêle le vent dans les feuilles et des chants d'oiseaux.

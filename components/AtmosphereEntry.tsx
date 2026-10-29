@@ -8,6 +8,7 @@ const PALETTES: Record<string, { cloud: [number, number, number]; haze: string }
   Tatooine: { cloud: [233, 210, 172], haze: "#e6cfa9" },
   Coruscant: { cloud: [132, 116, 158], haze: "#5f5379" },
   Hoth: { cloud: [241, 245, 249], haze: "#eaf0f5" },
+  Endor: { cloud: [208, 222, 206], haze: "#c3d1bf" },
 };
 const smoothstep = (from: number, to: number, value: number) => {
   const t = Math.min(1, Math.max(0, (value - from) / (to - from)));

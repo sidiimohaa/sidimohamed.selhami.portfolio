@@ -248,13 +248,47 @@ export function createFlightAudio() {
       panner.disconnect();
     };
   };
+  // A bird's call: a few quick whistled notes sweeping up and down.
+  const chirp = (pan: number) => {
+    const time = context.currentTime,
+      notes = 2 + Math.floor(Math.random() * 4),
+      base = 2200 + Math.random() * 1800;
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    const panner = context.createStereoPanner();
+    panner.pan.value = pan;
+    const oscillator = context.createOscillator();
+    oscillator.type = "sine";
+    for (let n = 0; n < notes; n++) {
+      const at = time + n * 0.13;
+      oscillator.frequency.setValueAtTime(base * (1 + (n % 2) * 0.18), at);
+      oscillator.frequency.exponentialRampToValueAtTime(base * (1.35 - (n % 2) * 0.3), at + 0.08);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.012, at + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+    }
+    oscillator.connect(gain);
+    gain.connect(panner);
+    panner.connect(master);
+    track(oscillator);
+    oscillator.start(time);
+    oscillator.stop(time + notes * 0.13 + 0.05);
+    oscillator.onended = () => {
+      voices.delete(oscillator);
+      oscillator.disconnect();
+      gain.disconnect();
+      panner.disconnect();
+    };
+  };
   // Surface ambience: the city has a low rumble and passing traffic, the desert mostly wind,
-  // the ice base a hum under a howling storm, with the battle thudding in the distance.
-  type Soundscape = "city" | "desert" | "ice";
+  // the ice base a hum under a howling storm, with the battle thudding in the distance, and
+  // the forest leaves stirring with birdsong.
+  type Soundscape = "city" | "desert" | "ice" | "forest";
   let city: { stop: () => void; kind: Soundscape } | null = null;
   const startCity = (kind: Soundscape) => {
     const desert = kind === "desert",
-      ice = kind === "ice";
+      ice = kind === "ice",
+      forest = kind === "forest";
     const time = context.currentTime;
     const bed = context.createGain();
     bed.gain.setValueAtTime(0.0001, time);
@@ -276,8 +310,8 @@ export function createFlightAudio() {
       source.start(time, offset);
       return { source, filter, gain };
     };
-    const rumble = layer("lowpass", desert ? 120 : ice ? 140 : 170, desert ? 0.035 : ice ? 0.045 : 0.07, 0),
-      wind = layer("bandpass", desert ? 820 : ice ? 520 : 620, desert ? 0.026 : ice ? 0.04 : 0.012, 0.7);
+    const rumble = layer("lowpass", desert ? 120 : ice ? 140 : forest ? 110 : 170, desert ? 0.035 : ice ? 0.045 : forest ? 0.018 : 0.07, 0),
+      wind = layer("bandpass", desert ? 820 : ice ? 520 : forest ? 1500 : 620, desert ? 0.026 : ice ? 0.04 : forest ? 0.014 : 0.012, 0.7);
     const wobble = (frequency: number, depth: number, target: AudioParam) => {
       const oscillator = context.createOscillator(),
         amount = context.createGain();
@@ -295,7 +329,8 @@ export function createFlightAudio() {
     ];
     let timer: ReturnType<typeof setTimeout>;
     const passBy = () => {
-      if (enabled && ice && Math.random() < 0.45) boom(0.035 + Math.random() * 0.04, (Math.random() - 0.5) * 1.2);
+      if (enabled && forest) chirp((Math.random() - 0.5) * 1.6);
+      else if (enabled && ice && Math.random() < 0.45) boom(0.035 + Math.random() * 0.04, (Math.random() - 0.5) * 1.2);
       else if (enabled) {
         const side = Math.random() < 0.5 ? -1 : 1;
         hiss({
@@ -305,7 +340,7 @@ export function createFlightAudio() {
           pan: [side * 0.9, -side * 0.9],
         });
       }
-      timer = setTimeout(passBy, desert ? 6000 + Math.random() * 9000 : ice ? 3000 + Math.random() * 5000 : 2500 + Math.random() * 5500);
+      timer = setTimeout(passBy, desert ? 6000 + Math.random() * 9000 : ice ? 3000 + Math.random() * 5000 : forest ? 1200 + Math.random() * 3800 : 2500 + Math.random() * 5500);
     };
     timer = setTimeout(passBy, 1500);
     return {

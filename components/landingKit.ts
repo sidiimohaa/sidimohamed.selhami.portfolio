@@ -95,6 +95,8 @@ export type ZoneTerminal = {
   hologram: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   beam: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
   focus: number;
+  // Where to stand to read it, when that is not simply in front of it towards the ship.
+  stand?: THREE.Vector3;
 };
 // Every landing zone shares one layout: the ship on the centre circle, terminals on a ring.
 export type ZoneAction = {
@@ -104,6 +106,8 @@ export type ZoneAction = {
   objects: THREE.Object3D[];
   // Actions that show one of the zone's projects get it before they activate.
   present?: (project: Landing["terminals"][number], index: number, count: number) => void;
+  // Actions that open the "Mes passions" presentation (at a step, or from its intro).
+  story?: { at?: number; title: string };
   activate: (reduced: boolean) => void;
 };
 export type Zone = {
@@ -119,6 +123,10 @@ export type Zone = {
   interior?: {name:string;entry:THREE.Vector3;exit:THREE.Vector3;contains:(x:number,z:number)=>boolean};
   constrainWalk?: (walker: { x: number; z: number }) => void;
   routeTo?: (from: THREE.Vector3, to: THREE.Vector3) => THREE.Vector3[];
+  // Height of the ground the visitor stands on, for zones with ramps and platforms.
+  floorAt?: () => number;
+  // A way up to a raised level (Endor's village): where to walk to go up or back down.
+  climb?: { up: string; down: string; top: THREE.Vector3; bottom: THREE.Vector3; aloft: () => boolean; place: (aloft: boolean) => void };
   // How loud a zone's music is where the visitor stands, and whether they are inside with it.
   music?: (walker: { x: number; z: number }) => { level: number; inside: boolean };
   // 2 is full detail; lower levels trade shadow quality for frame rate.

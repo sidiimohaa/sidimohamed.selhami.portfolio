@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 640">
+  <!-- Original cover drawn for the online version: embers rising over a dark ground. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b0d0a"/>
+      <stop offset=".55" stop-color="#7a1f10"/>
+      <stop offset="1" stop-color="#e2611f"/>
+    </linearGradient>
+    <radialGradient id="ember" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffd37a"/>
+      <stop offset="1" stop-color="#ff7a2a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="640" fill="url(#sky)"/>
+  <path d="M0 520 C70 470 120 500 170 455 C220 410 260 470 310 430 C350 400 380 430 400 410 V640 H0 Z" fill="#160807"/>
+  <path d="M0 560 C90 530 160 560 230 520 C300 485 350 520 400 500 V640 H0 Z" fill="#0b0405"/>
+  <g fill="url(#ember)">
+    <circle cx="96" cy="402" r="22"/><circle cx="148" cy="330" r="12"/><circle cx="226" cy="372" r="18"/>
+    <circle cx="292" cy="300" r="10"/><circle cx="318" cy="384" r="16"/><circle cx="182" cy="262" r="8"/>
+    <circle cx="250" cy="222" r="6"/><circle cx="120" cy="214" r="5"/><circle cx="338" cy="248" r="7"/>
+  </g>
+  <text x="200" y="118" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="25" letter-spacing="4" fill="#f6dcc4">WAJDI MOUAWAD</text>
+  <rect x="150" y="138" width="100" height="2" fill="#f6dcc4" opacity=".6"/>
+  <text x="200" y="208" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="50" font-weight="bold" letter-spacing="2" fill="#fff4e6">INCENDIES</text>
+  <text x="200" y="606" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="17" letter-spacing="6" fill="#f0b48a">THÉÂTRE</text>
+</svg>
