@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { createJawa } from "./jawaModels";
+import { createDewbackPatrol } from "./dewbackPatrol";
 import { createDroidKit } from "./droidModels";
 import { glowTexture } from "./landingKit";
 import { bakePart, createSandtrooper, part, rounded } from "./tatooineCharacters";
@@ -197,92 +198,6 @@ function checkpoint(group: THREE.Group, colliders: Spot[]) {
 }
 
 // A sandtrooper rides a big desert lizard on a slow loop beyond the end of the street.
-function mount(group: THREE.Group, heightAt: (u: number, v: number) => number) {
-  const root = new THREE.Group();
-  group.add(root);
-  const hide = new THREE.MeshStandardMaterial({ color: 0x8c7a5a, roughness: 0.95 });
-  const belly = new THREE.MeshStandardMaterial({ color: 0xb7a07a, roughness: 0.95 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x241c14, roughness: 0.8 });
-  const leather = new THREE.MeshStandardMaterial({ color: 0x6b3f28, roughness: 0.85 });
-  const blanket = new THREE.MeshStandardMaterial({ color: 0x8a3b26, roughness: 1 });
-  const torso = new THREE.Group();
-  root.add(torso);
-  part(torso, new THREE.SphereGeometry(1, 24, 16), hide, [0, 1.55, 0]).scale.set(0.95, 0.82, 2);
-  part(torso, new THREE.SphereGeometry(1, 20, 12), belly, [0, 1.25, 0.1]).scale.set(0.8, 0.55, 1.7);
-  for (let plate = 0; plate < 7; plate++)
-    part(torso, new THREE.ConeGeometry(0.12, 0.3, 6), dark, [0, 2.32 - Math.abs(plate - 2) * 0.05, 1.1 - plate * 0.45]);
-  part(torso, rounded(0.95, 0.18, 1.1, 0.06), leather, [0, 2.36, 0.3]);
-  for (const side of [-1, 1]) part(torso, rounded(0.04, 0.8, 0.95, 0.02), blanket, [side * 0.78, 1.95, 0.3], [0, 0, side * 0.35]);
-  bakePart(torso);
-  const neck = new THREE.Group();
-  neck.position.set(0, 1.85, 1.8);
-  root.add(neck);
-  part(neck, new THREE.CylinderGeometry(0.38, 0.5, 1, 14), hide, [0, 0.15, 0.35], [1.1, 0, 0]);
-  part(neck, new THREE.SphereGeometry(0.45, 18, 12), hide, [0, 0.3, 0.95]).scale.set(1, 0.75, 1.5);
-  part(neck, rounded(0.5, 0.22, 0.5, 0.1), belly, [0, 0.14, 1.45]);
-  for (const side of [-1, 1]) {
-    part(neck, new THREE.SphereGeometry(0.06, 8, 6), dark, [side * 0.33, 0.42, 1.1]);
-    part(neck, new THREE.ConeGeometry(0.07, 0.3, 6), dark, [side * 0.2, 0.62, 0.7], [-0.6, 0, side * 0.3]);
-  }
-  bakePart(neck);
-  // A tapering tail of four links that swings from side to side.
-  const tail: THREE.Group[] = [];
-  let parent: THREE.Object3D = root,
-    offset = new THREE.Vector3(0, 1.45, -1.8);
-  for (let link = 0; link < 4; link++) {
-    const segment = new THREE.Group();
-    segment.position.copy(offset);
-    parent.add(segment);
-    const radius = 0.48 - link * 0.1;
-    part(segment, new THREE.CylinderGeometry(radius * 0.75, radius, 1, 12), hide, [0, -0.08, -0.5], [-Math.PI / 2 - 0.15, 0, 0]);
-    tail.push(segment);
-    parent = segment;
-    offset = new THREE.Vector3(0, -0.14, -0.95);
-  }
-  const legs = [
-    [-0.75, 1.15],
-    [0.75, 1.15],
-    [-0.75, -1.1],
-    [0.75, -1.1],
-  ].map(([x, z]) => {
-    const leg = new THREE.Group();
-    leg.position.set(x, 1.25, z);
-    part(leg, new THREE.CylinderGeometry(0.28, 0.2, 1.1, 10), hide, [x * 0.15, -0.6, 0]);
-    part(leg, rounded(0.42, 0.18, 0.6, 0.06), dark, [x * 0.15, -1.18, 0.12]);
-    root.add(leg);
-    return leg;
-  });
-  const rider = createSandtrooper();
-  rider.group.position.set(0, 1.62, 0.25);
-  root.add(rider.group);
-  let angle = 1.2,
-    stride = 0;
-  return (time: number, dt: number, reduced: boolean) => {
-    // An oval loop, 44 m by 12 m, walked at a steady 1.1 m/s, clear of the sandcrawler.
-    const radiusU = 22,
-      radiusV = 6;
-    const pace = Math.hypot(radiusU * Math.cos(angle), radiusV * Math.sin(angle));
-    if (!reduced) {
-      angle += (dt * 1.1) / pace;
-      stride += dt * 3.2;
-    }
-    const u = 8 + radiusU * Math.sin(angle),
-      v = 95 + radiusV * Math.cos(angle);
-    root.position.set(u, heightAt(u, v), v);
-    root.rotation.y = Math.atan2(radiusU * Math.cos(angle), -radiusV * Math.sin(angle));
-    legs.forEach((leg, i) => (leg.rotation.x = Math.sin(stride + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.4));
-    torso.position.y = Math.abs(Math.sin(stride)) * 0.06;
-    torso.rotation.z = Math.sin(stride) * 0.03;
-    neck.rotation.x = Math.sin(stride * 2) * 0.05;
-    neck.rotation.y = Math.sin(time * 0.3) * 0.2;
-    tail.forEach((segment, i) => (segment.rotation.y = Math.sin(stride - i * 0.7) * 0.18));
-    rider.tick(time, false, reduced);
-    rider.group.position.y = 1.62 + torso.position.y;
-    rider.legs.forEach((leg, i) => leg.rotation.set(-0.9, 0, i ? 0.75 : -0.75));
-    rider.arms.forEach((arm) => (arm.rotation.x = -0.6));
-  };
-}
-
 // A herd of shaggy, horned grazers crossing a dune far out, with their herder at the tail.
 function herd(group: THREE.Group, heightAt: (u: number, v: number) => number) {
   const fur = new THREE.MeshStandardMaterial({ color: 0x5e4836, roughness: 1 });
@@ -344,7 +259,7 @@ export function createStreetLife(heightAt: (u: number, v: number) => number) {
   const scenes: ((time: number, dt: number, reduced: boolean) => void)[] = [
     haggling(group, colliders),
     checkpoint(group, colliders),
-    mount(group, heightAt),
+    createDewbackPatrol(group, heightAt),
     herd(group, heightAt),
   ];
   return {

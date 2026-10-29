@@ -1,34 +1,7 @@
 import * as THREE from "three";
 import { bakePart, createSandtrooper, part, pipe, rounded } from "./tatooineCharacters";
-export function createLandspeeder(color = 0x9e5b43) {
-    const group = new THREE.Group();
-    group.name = "x34-landspeeder";
-    const paint = new THREE.MeshStandardMaterial({ color, roughness: .72, metalness: .36 });
-    const cream = new THREE.MeshStandardMaterial({ color: 0xbab29a, roughness: .66, metalness: .38 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x252c29, roughness: .8 });
-    const steel = new THREE.MeshStandardMaterial({ color: 0x71766e, roughness: .48, metalness: .75 });
-    part(group, rounded(1.8, .42, 3.5, .2), paint, [0, .57, 0]);
-    part(group, rounded(1.87, .12, 3.37, .06), cream, [0, .49, .04]);
-    part(group, rounded(1.3, .12, 1.4, .05), dark, [0, .83, -.44]);
-    for (const x of [-.38, .38]) {
-        part(group, rounded(.6, .14, .65, .05), dark, [x, .85, -.4]);
-        part(group, rounded(.58, .4, .12, .04), cream, [x, 1, -.74]);
-    }
-    for (let stripe = 0; stripe < 6; stripe++)
-        part(group, new THREE.BoxGeometry(1.35, .014, .035), steel, [0, .49 + stripe * .029, 1.75]);
-    for (const x of [-1.02, 1.02]) {
-        part(group, new THREE.CylinderGeometry(.23, .24, 1.2, 20), steel, [x, .66, -.92], [Math.PI / 2, 0, 0]);
-        part(group, new THREE.CylinderGeometry(.18, .18, .03, 20), dark, [x, .66, -1.54], [Math.PI / 2, 0, 0]);
-        for (const z of [-1.35, -.6])
-            part(group, new THREE.TorusGeometry(.238, .02, 6, 20), cream, [x, .66, z]);
-    }
-    part(group, new THREE.CylinderGeometry(.19, .19, .9, 16), steel, [0, 1.12, -1.19], [Math.PI / 2, 0, 0]);
-    for (const x of [-.74, .74])
-        pipe(group, [[x, .78, .34], [x, .98, .55], [x, 1.14, .32]], .018, steel);
-    bakePart(group);
-    part(group, rounded(1.35, .29, .035, .015), new THREE.MeshStandardMaterial({ color: 0x718e90, transparent: true, opacity: .45, metalness: .1, roughness: .18 }), [0, 1.02, .38], [-.35, 0, 0]);
-    return group;
-}
+import { createLandspeeder } from "./tatooineVehicleModels";
+export { createLandspeeder } from "./tatooineVehicleModels";
 export function createTatooineScenery(adobe: THREE.Material) {
     const group = new THREE.Group();
     group.name = "tatooine-street-details";

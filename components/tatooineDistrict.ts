@@ -9,6 +9,9 @@ import { createTatooineCantina } from "./tatooineCantina";
 import { createDistrictMap } from "./tatooineMap";
 import { createLandspeeder, createTatooineScenery } from "./tatooineScenery";
 import { createStreetLife } from "./tatooineStreetLife";
+import { createTatooineResidents } from "./tatooineResidents";
+import { createDesertSpeeder } from "./tatooineVehicleModels";
+import { createTatooineMarket } from "./tatooineMarket";
 export const TATOOINE_GATE = 2.58;
 export function districtPoint(u: number, v: number) { return new THREE.Vector3(Math.cos(TATOOINE_GATE) * u + Math.sin(TATOOINE_GATE) * v, 0, -Math.sin(TATOOINE_GATE) * u + Math.cos(TATOOINE_GATE) * v); }
 export function districtCoordinates(x: number, z: number) { return { u: Math.cos(TATOOINE_GATE) * x - Math.sin(TATOOINE_GATE) * z, v: Math.sin(TATOOINE_GATE) * x + Math.cos(TATOOINE_GATE) * z }; }
@@ -123,12 +126,14 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
             add(new THREE.CylinderGeometry(.045, .065, 2.7, 8), metal, postU, 1.35, v + dz);
             block(postU, v + dz, .07);
         }
-        box(rust, .8, .8, 2.5, u - side * (r + .6), .4, v + .2);
-        block(u - side * (r + .6), v + .2, 1.2);
-        for(let item=0;item<8;item++){
-          const atV=v-1+item*.28,atU=u-side*(r+.6);
-          if(index%2)add(new THREE.CylinderGeometry(.08,.12,.28+(item%3)*.07,12),item%2?rust:pale,atU,1.03,atV);
-          else {add(new THREE.TorusGeometry(.12,.055,6,16),rust,atU,.97,atV,Math.PI/2);}
+        if(![0,1,3].includes(index)){
+          box(rust, .8, .8, 2.5, u - side * (r + .6), .4, v + .2);
+          block(u - side * (r + .6), v + .2, 1.2);
+          for(let item=0;item<8;item++){
+            const atV=v-1+item*.28,atU=u-side*(r+.6);
+            if(index%2)add(new THREE.CylinderGeometry(.08,.12,.28+(item%3)*.07,12),item%2?rust:pale,atU,1.03,atV);
+            else {add(new THREE.TorusGeometry(.12,.055,6,16),rust,atU,.97,atV,Math.PI/2);}
+          }
         }
         for(let shutter=0;shutter<4;shutter++)box(dark,.09,.75,.18,u-side*(r+.06),1.75,v+1.5+shutter*.2);
         pipeDetail(u,v,r,side);
@@ -210,12 +215,9 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         g.position.set(u, -.06, v);
     }
     character(true, -10.9, 46.4, .65, 2.4);
-    character(false, 2.7, 31, 4, 1);
     character(false, -2.8, 38, 3, 3);
     character(false, 2.8, 59, 4, 5);
     character(false, -4.5, 26, 0, 2);
-    character(false,-2.8,52,2,1.5);
-    character(false,3.2,66,2.2,3.5);
     character(false,-3.4,35,.6,5.5);
     // Two landspeeders use a separate lane on the right and stop for a visitor in front.
     const speeders: {
@@ -229,7 +231,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         const s = new THREE.Group();
         s.name = "mos-eisley-speeder";
         shadow(s,3,4.5,-.04);
-        s.add(createLandspeeder(i?0x7f8273:0xa2633c));
+        s.add(i ? createDesertSpeeder(0xc59937) : createLandspeeder(0xa2633c));
         // Two circles along the hull keep the visitor out of its nose and tail, not just its middle.
         const colliders = [-1, 1].map(() => ({ x: 0, z: 0, r: 1.3 }));
         movers.push(...colliders);
@@ -255,6 +257,10 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     // Haggling Jawas, the checkpoint, a lizard patrol and a herd out on the dunes.
     const life=createStreetLife((u,v)=>{const p=districtPoint(u,v);return groundHeight(p.x,p.z);});group.add(life.group);
     life.colliders.forEach(c=>block(c.u,c.v,c.r));
+    const residents=createTatooineResidents((u,v)=>{const p=districtPoint(u,v);return groundHeight(p.x,p.z);});group.add(residents.group);
+    residents.colliders.forEach(c=>block(c.u,c.v,c.r));
+    const market=createTatooineMarket();group.add(market.group);
+    market.colliders.forEach(c=>block(c.u,c.v,c.r));
     const map=createDistrictMap(shops.filter((_,i)=>i!==4),{u:-3.3,v:21.8,facing:Math.PI-.5});group.add(map.group);
     block(map.collider.u,map.collider.v,map.collider.r);
     const scenery=createTatooineScenery(adobe);group.add(scenery.group);
@@ -286,6 +292,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
             const local = districtCoordinates(walker.x, walker.z);
             cantina.tick(clock,reduced);scenery.tick(dt,clock,reduced,local);
             life.tick(clock,dt,reduced);map.tick(clock,reduced,local);
+            residents.tick(dt,clock,reduced,local);
             const bar=districtPoint(cantina.bartender.u,cantina.bartender.v);bartender.x=bar.x;bartender.z=bar.z;
             scenery.movers.forEach((c,i)=>{const p=districtPoint(c.u,c.v);troopSpots[i].x=p.x;troopSpots[i].z=p.z;});
             actors.forEach((a, index) => {
