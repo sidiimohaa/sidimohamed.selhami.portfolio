@@ -29,7 +29,7 @@ export const BIKE_PATH = new THREE.CatmullRomCurve3(
   0.5,
 );
 
-function speederBike() {
+export function speederBike(withRider = true) {
   const root = new THREE.Group();
   const hull = new THREE.MeshStandardMaterial({ color: 0x5f6458, roughness: 0.6, metalness: 0.45 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x24272a, roughness: 0.6, metalness: 0.5 });
@@ -51,7 +51,7 @@ function speederBike() {
   const rider = createSandtrooper();
   rider.group.position.set(0, -0.5, -0.35);
   rider.group.rotation.x = 0.28;
-  root.add(rider.group);
+  if (withRider) root.add(rider.group);
   return { root, rider };
 }
 

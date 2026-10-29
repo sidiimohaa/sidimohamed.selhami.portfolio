@@ -2,15 +2,17 @@ import * as THREE from "three";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import { createEndorForest } from "./endorForest";
 import { BIKE_PATH, createEndorLife } from "./endorLife";
+import { BUNKER, WRECKS, createEndorLandmarks } from "./endorLandmarks";
 import { BRIDGE, DECK, RAMP, VILLAGE, bridgeHeight, createEndorVillage, rampPoint } from "./endorVillage";
 import { glowTexture, parkShip, type Spot, type Zone, type ZoneAction } from "./landingKit";
 import { createSurfaceNavigator } from "./surfaceNavigation";
 import type { Landing } from "./universe";
 
 // Endor: the ship sets down in a forest clearing below an Ewok village. Around the campfire an
-// elder tells the visitor's passions, one carved totem per chapter of the "Mes passions"
-// presentation; a ramp coils up a trunk to the platforms and their rope bridge.
-const HAZE = new THREE.Color(0xa7b58f);
+// elder tells the visitor's passions, a salvaged holoprojector casting one hologram per chapter
+// of the "Mes passions" presentation; a ramp coils up a trunk to the platforms and their rope bridge.
+// A bright, sunlit haze between the trunks, as in the reference pictures.
+const HAZE = new THREE.Color(0xb2bf9c);
 // Far enough out to take in the whole ramp round the first village tree.
 const WALK = 40;
 
@@ -30,11 +32,15 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
 
   const circles: Spot[] = [];
   const village = createEndorVillage(landing, circles);
-  const keepClear = BIKE_PATH.getSpacedPoints(160);
+  // Keep trees and ferns off the bikes' run, the trail, the wrecks and the bunker.
+  const keepClear = [...BIKE_PATH.getSpacedPoints(160), ...WRECKS];
+  for (let z = -20; z > -46; z -= 1.5) keepClear.push(new THREE.Vector3(0, 0, z));
+  for (let x = -8; x <= 8; x += 2.5) for (let z = BUNKER.z - 6; z <= BUNKER.z + 7; z += 2.5) keepClear.push(new THREE.Vector3(x, 0, z));
   const forest = createEndorForest({ village: VILLAGE, keepClear });
   circles.push(...forest.colliders);
   const life = createEndorLife(notify);
-  group.add(forest.group, village.group, life.group);
+  const landmarks = createEndorLandmarks(circles);
+  group.add(forest.group, village.group, life.group, landmarks.group);
 
   const metal = new THREE.MeshStandardMaterial({ color: 0x6f6a60, roughness: 0.6, metalness: 0.6 });
   const parking = parkShip(metal);
@@ -161,7 +167,7 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   });
   return {
     group,
-    fog: new THREE.FogExp2(HAZE, 0.0105),
+    fog: new THREE.FogExp2(HAZE, 0.0118),
     exposure: 1.05,
     walkRadius: WALK,
     // The arrival is watched from the take-off corridor, looking back over the fire into the clearing.
@@ -192,7 +198,7 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
       crew.setViewport(height);
       life.setViewport(height);
     },
-    // In front of the ship's nose, looking past the fire and the totems to the village.
+    // In front of the ship's nose, looking past the fire and the holoprojector to the village.
     spawn: { position: new THREE.Vector3(5.5, 0, 9.5), yaw: Math.atan2(5.5, -10.5) },
     setQuality: (quality) => {
       const size = quality > 1 ? 2048 : 1024;

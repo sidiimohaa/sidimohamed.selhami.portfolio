@@ -5,7 +5,7 @@ import type { Landing } from "./universe";
 
 // The Ewok village round the clearing: platforms on four great trees, huts, rope bridges and a
 // ramp coiling up the first trunk; on the ground, the campfire where an elder tells the story,
-// drummers, dancers, and four carved totems, one per chapter of "Mes passions".
+// drummers and dancers, and a salvaged holoprojector showing one hologram per chapter of "Mes passions".
 export const FIRE = new THREE.Vector2(0, 20);
 export const DECK = 8.4;
 export const VILLAGE = [
@@ -52,50 +52,101 @@ function furTexture(tone: string) {
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
   return map;
 }
-// A small furry forest dweller in a leather hood, ears poking through, big dark eyes.
+// A small furry forest dweller, after the reference pictures: a big head with a cream face, glossy
+// black eyes and a dark nose; a leather hood open at the face, stitched across the forehead and
+// ending in a bib on the chest; fluffy ears poking through; dark fur with a pale belly.
+function leatherTexture(tone: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 128;
+  const c = canvas.getContext("2d")!,
+    rand = random(tone % 997);
+  c.fillStyle = `#${new THREE.Color(tone).getHexString()}`;
+  c.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 160; i++) {
+    const r = 3 + rand() * 10;
+    c.fillStyle = rand() < 0.5 ? "rgba(60,26,8,.09)" : "rgba(255,200,140,.07)";
+    c.beginPath();
+    c.ellipse(rand() * 128, rand() * 128, r, r * 0.6, rand() * 3, 0, Math.PI * 2);
+    c.fill();
+  }
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  return map;
+}
 function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"): Ewok {
   const root = new THREE.Group();
-  const coat = new THREE.MeshStandardMaterial({ map: furTexture(fur), roughness: 1 });
-  const muzzle = new THREE.MeshStandardMaterial({ color: new THREE.Color(fur).lerp(new THREE.Color(0xd9c3a0), 0.5), roughness: 1 });
-  const leather = new THREE.MeshStandardMaterial({ color: hood, roughness: 0.9 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x0a0806, roughness: 0.25, metalness: 0.2 });
-  const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2c, roughness: 0.9 });
+  // Fur gets a soft sheen at grazing angles, which reads as fuzz.
+  const coat = new THREE.MeshPhysicalMaterial({ map: furTexture(fur), roughness: 1, sheen: 1, sheenRoughness: 0.8, sheenColor: new THREE.Color(fur).lerp(new THREE.Color(0xe8dcc4), 0.6) });
+  const cream = new THREE.MeshPhysicalMaterial({ map: furTexture("#ebe2cc"), roughness: 1, sheen: 1, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xfff8ec) });
+  const leather = new THREE.MeshStandardMaterial({ map: leatherTexture(hood), roughness: 0.85, side: THREE.DoubleSide });
+  const stitch = new THREE.MeshStandardMaterial({ color: 0x3a2414, roughness: 0.9 });
+  const gloss = new THREE.MeshStandardMaterial({ color: 0x050403, roughness: 0.12, metalness: 0.3 });
+  const nose = new THREE.MeshStandardMaterial({ color: 0x2a1e18, roughness: 0.5 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6b5a34, roughness: 0.9 });
+  const flint = new THREE.MeshStandardMaterial({ color: 0x8c8e88, roughness: 0.5, metalness: 0.3 });
   const body = new THREE.Group();
   root.add(body);
-  part(body, new THREE.SphereGeometry(0.3, 16, 12), coat, [0, 0.48, 0]).scale.set(1, 1.2, 0.9);
-  part(body, new THREE.SphereGeometry(0.2, 12, 8), leather, [0, 0.62, -0.04]).scale.set(1.35, 0.5, 1.2);
+  part(body, new THREE.SphereGeometry(0.3, 18, 14), coat, [0, 0.5, 0]).scale.set(1.12, 1.35, 1);
+  part(body, new THREE.SphereGeometry(0.2, 14, 10), cream, [0, 0.46, 0.17]).scale.set(1, 1.25, 0.55);
+  // The hood's bib hangs over the chest.
+  part(body, new THREE.ConeGeometry(0.22, 0.36, 4), leather, [0, 0.6, 0.21], [Math.PI, Math.PI / 4, 0]).scale.set(1, 1, 0.35);
+  part(body, new THREE.CylinderGeometry(0.25, 0.34, 0.24, 18, 1, true), leather, [0, 0.79, -0.02]);
   bakePart(body);
   const head = new THREE.Group();
-  head.position.y = 0.92;
+  head.position.y = 1.03;
   body.add(head);
-  part(head, new THREE.SphereGeometry(0.24, 16, 12), coat);
-  part(head, new THREE.SphereGeometry(0.12, 12, 8), muzzle, [0, -0.06, 0.17]).scale.set(1.2, 0.8, 1);
-  part(head, new THREE.SphereGeometry(0.035, 8, 6), dark, [0, -0.02, 0.29]);
+  part(head, new THREE.SphereGeometry(0.27, 18, 14), coat);
+  part(head, new THREE.SphereGeometry(0.225, 18, 12), cream, [0, -0.01, 0.1]).scale.set(1, 1.05, 0.85);
+  part(head, new THREE.SphereGeometry(0.12, 14, 10), cream, [0, -0.08, 0.2]).scale.set(1.1, 0.75, 0.9);
   for (const side of [-1, 1]) {
-    part(head, new THREE.SphereGeometry(0.05, 10, 8), dark, [side * 0.1, 0.05, 0.19]);
-    part(head, new THREE.CylinderGeometry(0.05, 0.06, 0.12, 8), coat, [side * 0.15, 0.22, -0.02], [0, 0, side * -0.4]);
+    part(head, new THREE.SphereGeometry(0.075, 12, 10), coat, [side * 0.085, 0.03, 0.2]).scale.set(1, 0.9, 0.5);
+    part(head, new THREE.SphereGeometry(0.055, 14, 10), gloss, [side * 0.085, 0.035, 0.235]);
+    // Fluffy ears through the hood, their tips pale.
+    part(head, new THREE.SphereGeometry(0.075, 10, 8), coat, [side * 0.21, 0.21, -0.03]);
+    part(head, new THREE.SphereGeometry(0.05, 8, 6), cream, [side * 0.235, 0.24, -0.01]);
   }
-  part(head, new THREE.SphereGeometry(0.265, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), leather, [0, 0.02, -0.03], [-0.25, 0, 0]);
+  part(head, new THREE.SphereGeometry(0.045, 10, 8), nose, [0, -0.05, 0.305]).scale.set(1.25, 0.8, 0.8);
+  part(head, rounded(0.09, 0.015, 0.02, 0.005), nose, [0, -0.13, 0.28]);
+  // The hood: a cap over the crown and forehead, sides falling to the shoulders, open only at the
+  // face, and a stitched seam running across the forehead.
+  part(head, new THREE.SphereGeometry(0.305, 22, 10, 0, Math.PI * 2, 0, Math.PI * 0.33), leather, [0, 0.02, -0.01]);
+  part(head, new THREE.SphereGeometry(0.3, 22, 14, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, Math.PI * 0.28, Math.PI * 0.52), leather, [0, 0.02, -0.02]);
+  for (let k = -4; k <= 4; k++) {
+    const a = (k / 4) * 0.75;
+    part(head, new THREE.BoxGeometry(0.012, 0.04, 0.012), stitch, [Math.sin(a) * 0.255, 0.18, Math.cos(a) * 0.255 - 0.01], [0.5, a, 0]);
+  }
   bakePart(head);
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.27, 0.62, 0.02);
-    part(arm, new THREE.CylinderGeometry(0.065, 0.08, 0.32, 8), coat, [0, -0.15, 0]);
-    part(arm, new THREE.SphereGeometry(0.06, 8, 6), muzzle, [0, -0.32, 0.02]);
-    if (side > 0 && staff) {
-      part(arm, new THREE.CylinderGeometry(0.018, 0.022, staff === "spear" ? 1.5 : 1.2, 6), wood, [0, -0.15, 0.06]);
-      if (staff === "spear") part(arm, new THREE.ConeGeometry(0.04, 0.16, 6), new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 0.7 }), [0, 0.67, 0.06]);
-      else part(arm, new THREE.SphereGeometry(0.06, 8, 6), leather, [0, 0.47, 0.06]);
+    arm.position.set(side * 0.29, 0.66, 0.03);
+    part(arm, new THREE.CylinderGeometry(0.075, 0.09, 0.34, 10), coat, [0, -0.16, 0]);
+    part(arm, new THREE.SphereGeometry(0.068, 10, 8), coat, [0, -0.34, 0.02]);
+    if (side > 0 && staff === "staff") {
+      part(arm, new THREE.CylinderGeometry(0.02, 0.026, 1.25, 6), wood, [0, -0.2, 0.06]);
+      part(arm, new THREE.SphereGeometry(0.06, 8, 6), leather, [0, 0.44, 0.06]);
     }
     bakePart(arm);
     body.add(arm);
     return arm;
   });
+  // A spear held across the body in both paws, its flint tip bound with cord.
+  if (staff === "spear") {
+    const spear = new THREE.Group();
+    spear.position.set(0.02, 0.5, 0.3);
+    spear.rotation.set(0.2, 0, -0.55);
+    part(spear, new THREE.CylinderGeometry(0.02, 0.024, 1.75, 6), wood, [0, 0.2, 0]);
+    part(spear, new THREE.ConeGeometry(0.045, 0.2, 4), flint, [0, 1.17, 0]);
+    part(spear, new THREE.CylinderGeometry(0.03, 0.03, 0.09, 6), stitch, [0, 1.03, 0]);
+    bakePart(spear);
+    body.add(spear);
+    arms.forEach((arm, i) => arm.rotation.set(-0.95, 0, i ? -0.35 : 0.35));
+  }
   const legs = [-1, 1].map((side) => {
     const leg = new THREE.Group();
-    leg.position.set(side * 0.13, 0.22, 0);
-    part(leg, new THREE.CylinderGeometry(0.08, 0.09, 0.22, 8), coat, [0, -0.1, 0]);
-    part(leg, new THREE.SphereGeometry(0.08, 8, 6), muzzle, [0, -0.2, 0.05]).scale.set(1, 0.6, 1.4);
+    leg.position.set(side * 0.14, 0.22, 0);
+    part(leg, new THREE.CylinderGeometry(0.095, 0.1, 0.22, 10), coat, [0, -0.1, 0]);
+    part(leg, new THREE.SphereGeometry(0.09, 10, 8), cream, [0, -0.2, 0.05]).scale.set(1, 0.55, 1.4);
     bakePart(leg);
     root.add(leg);
     return leg;
@@ -104,87 +155,77 @@ function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"):
   return { root, body, head, arms, legs };
 }
 const FURS: [string, number][] = [
-  ["#6b4a2e", 0xb06a3a],
-  ["#4a3626", 0x8f5a36],
-  ["#8a6a48", 0xd09a5c],
-  ["#7a7068", 0x6d4f3b],
-  ["#5c4332", 0xc08048],
+  ["#4f3826", 0xb8642c],
+  ["#3e2c20", 0x9a5a30],
+  ["#6a4c34", 0xc77a3a],
+  ["#5a4a3e", 0x8a5634],
+  ["#463224", 0xa8603a],
 ];
 
-// A carved plaque for one chapter: its symbol and name, painted pale on dark wood.
-function plaque(label: string, index: number) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 384;
-  const c = canvas.getContext("2d")!,
-    rand = random(index * 31 + 5);
-  c.fillStyle = "#5a3b22";
-  c.fillRect(0, 0, 512, 384);
-  for (let i = 0; i < 60; i++) {
-    c.strokeStyle = rand() < 0.5 ? "rgba(30,18,8,.35)" : "rgba(150,104,60,.25)";
-    c.lineWidth = 1 + rand() * 2;
-    c.beginPath();
-    const y = rand() * 384;
-    c.moveTo(0, y);
-    c.bezierCurveTo(170, y + (rand() - 0.5) * 20, 340, y + (rand() - 0.5) * 20, 512, y + (rand() - 0.5) * 10);
-    c.stroke();
-  }
-  c.strokeStyle = "#f3dcae";
-  c.lineWidth = 7;
-  c.strokeRect(16, 16, 480, 352);
-  c.lineWidth = 6;
-  c.fillStyle = "#f3dcae";
-  const cx = 256,
-    cy = 150;
-  c.beginPath();
+// One chapter's hologram above the projector: a ringed planet, a watch, a painting, an open book.
+function chapterHologram(index: number, material: THREE.MeshBasicMaterial, lines: THREE.LineBasicMaterial) {
+  const g = new THREE.Group();
+  const line = (points: THREE.Vector3[]) => g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), lines));
+  const mesh = (geometry: THREE.BufferGeometry, x = 0, y = 0, z = 0, name = "") => {
+    const m = new THREE.Mesh(geometry, material);
+    m.position.set(x, y, z);
+    m.name = name;
+    g.add(m);
+    return m;
+  };
   if (index === 0) {
-    // A ringed planet among stars.
-    c.arc(cx, cy, 52, 0, Math.PI * 2);
-    c.stroke();
-    c.beginPath();
-    c.ellipse(cx, cy, 98, 26, -0.35, 0, Math.PI * 2);
-    c.stroke();
-    for (const [x, y] of [[120, 70], [390, 90], [150, 220], [380, 210]]) c.fillRect(x - 4, y - 4, 8, 8);
+    g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.26, 2), new THREE.MeshBasicMaterial({ color: 0x4fa8d8, wireframe: true, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending })));
+    mesh(new THREE.TorusGeometry(0.44, 0.012, 4, 64)).rotation.set(Math.PI / 2 - 0.4, 0, 0.2);
+    for (const [x, y, z] of [[0.6, 0.3, 0], [-0.5, -0.25, 0.2], [0.1, 0.5, -0.3]]) mesh(new THREE.SphereGeometry(0.03, 8, 6), x, y, z);
   } else if (index === 1) {
-    // A watch dial, its hands and lugs.
-    c.arc(cx, cy, 70, 0, Math.PI * 2);
-    c.stroke();
+    mesh(new THREE.TorusGeometry(0.3, 0.02, 6, 64));
+    mesh(new THREE.TorusGeometry(0.22, 0.008, 4, 48));
     for (let h = 0; h < 12; h++) {
       const a = (h / 12) * Math.PI * 2;
-      c.fillRect(cx + Math.cos(a) * 56 - 3, cy + Math.sin(a) * 56 - 3, 6, 6);
+      line([new THREE.Vector3(Math.cos(a) * 0.24, Math.sin(a) * 0.24, 0), new THREE.Vector3(Math.cos(a) * 0.28, Math.sin(a) * 0.28, 0)]);
     }
-    c.beginPath();
-    c.moveTo(cx, cy);
-    c.lineTo(cx, cy - 46);
-    c.moveTo(cx, cy);
-    c.lineTo(cx + 34, cy + 12);
-    c.stroke();
-    c.strokeRect(cx - 24, cy - 104, 48, 26);
-    c.strokeRect(cx - 24, cy + 78, 48, 26);
+    mesh(new THREE.BoxGeometry(0.018, 0.22, 0.01).translate(0, 0.11, 0), 0, 0, 0, "hand");
+    mesh(new THREE.BoxGeometry(0.018, 0.15, 0.01).translate(0, 0.075, 0)).rotation.z = -2.1;
+    for (const y of [0.42, -0.42]) mesh(new THREE.BoxGeometry(0.2, 0.2, 0.01), 0, y);
+    mesh(new THREE.BoxGeometry(0.06, 0.05, 0.03), 0.33);
   } else if (index === 2) {
-    // A framed painting with a swirl of stars.
-    c.strokeRect(cx - 96, cy - 72, 192, 144);
-    c.beginPath();
-    for (let a = 0; a < Math.PI * 4; a += 0.2) c.lineTo(cx + Math.cos(a) * a * 7, cy + Math.sin(a) * a * 5);
-    c.stroke();
+    line([new THREE.Vector3(-0.36, -0.27, 0), new THREE.Vector3(0.36, -0.27, 0), new THREE.Vector3(0.36, 0.27, 0), new THREE.Vector3(-0.36, 0.27, 0), new THREE.Vector3(-0.36, -0.27, 0)]);
+    const swirl: THREE.Vector3[] = [];
+    for (let a = 0; a < Math.PI * 5; a += 0.15) swirl.push(new THREE.Vector3(Math.cos(a) * a * 0.018, Math.sin(a) * a * 0.014, 0));
+    line(swirl);
+    for (const [x, y] of [[-0.22, 0.14], [0.2, 0.16], [0.24, -0.12]]) mesh(new THREE.CircleGeometry(0.03, 10), x, y);
   } else {
-    // An open book.
-    c.moveTo(cx, cy + 60);
-    c.quadraticCurveTo(cx - 60, cy + 30, cx - 110, cy + 50);
-    c.lineTo(cx - 110, cy - 50);
-    c.quadraticCurveTo(cx - 60, cy - 70, cx, cy - 40);
-    c.quadraticCurveTo(cx + 60, cy - 70, cx + 110, cy - 50);
-    c.lineTo(cx + 110, cy + 50);
-    c.quadraticCurveTo(cx + 60, cy + 30, cx, cy + 60);
-    c.lineTo(cx, cy - 40);
-    c.stroke();
+    for (const side of [-1, 1]) {
+      const turn = new THREE.Euler(0, side * 0.45, 0);
+      line([new THREE.Vector3(0, -0.22, 0), new THREE.Vector3(side * 0.34, -0.2, 0), new THREE.Vector3(side * 0.34, 0.22, 0), new THREE.Vector3(0, 0.2, 0)].map((p) => p.applyEuler(turn)));
+      for (let k = 0; k < 5; k++) {
+        const y = 0.12 - k * 0.06;
+        line([new THREE.Vector3(side * 0.05, y, 0), new THREE.Vector3(side * 0.29, y + 0.005, 0)].map((p) => p.applyEuler(turn)));
+      }
+    }
   }
-  c.font = "bold 54px Georgia, 'Times New Roman', serif";
+  return g;
+}
+// The label under a hologram: the chapter's name and the hint to listen.
+function holoLabel(label: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 160;
+  const c = canvas.getContext("2d")!;
+  c.fillStyle = "rgba(60,160,220,.14)";
+  c.fillRect(0, 0, 512, 160);
+  c.strokeStyle = "#9fe6ff";
+  c.lineWidth = 4;
+  c.strokeRect(6, 6, 500, 148);
+  c.fillStyle = "#e9f9ff";
   c.textAlign = "center";
-  c.fillText(label.toUpperCase(), cx, 300);
-  c.font = "22px SFMono-Regular, Consolas, monospace";
+  c.font = "bold 58px Arial, Helvetica, sans-serif";
+  c.fillText(label.toUpperCase(), 256, 78);
   c.fillStyle = "#ffc98a";
-  c.fillText("▶ ÉCOUTER LE RÉCIT", cx, 344);
+  c.font = "24px SFMono-Regular, Consolas, monospace";
+  c.fillText("▶ ÉCOUTER LE RÉCIT", 256, 128);
+  c.fillStyle = "rgba(0,0,0,.3)";
+  for (let y = 0; y < 160; y += 5) c.fillRect(0, y, 512, 2);
   const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 8;
@@ -220,7 +261,31 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
   const decking = new THREE.MeshStandardMaterial({ map: boardMap, roughness: 0.95, side: THREE.DoubleSide });
   const plank = new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.95 });
   const beam = new THREE.MeshStandardMaterial({ color: 0x5a4028, roughness: 0.95 });
-  const thatch = new THREE.MeshStandardMaterial({ color: 0x8a7444, roughness: 1 });
+  // Straw thatch: long strands in tans and browns, darker where they overlap.
+  const straw = document.createElement("canvas");
+  straw.width = straw.height = 256;
+  const st = straw.getContext("2d")!;
+  st.fillStyle = "#7d6a3e";
+  st.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1400; i++) {
+    const x = rand() * 256,
+      y = rand() * 256;
+    st.strokeStyle = rand() < 0.5 ? "rgba(170,146,92,.55)" : "rgba(60,46,24,.5)";
+    st.lineWidth = 1 + rand() * 1.5;
+    st.beginPath();
+    st.moveTo(x, y);
+    st.lineTo(x + (rand() - 0.5) * 6, y + 20 + rand() * 30);
+    st.stroke();
+  }
+  for (let y = 0; y < 256; y += 32) {
+    st.fillStyle = "rgba(40,30,14,.35)";
+    st.fillRect(0, y, 256, 3);
+  }
+  const strawMap = new THREE.CanvasTexture(straw);
+  strawMap.colorSpace = THREE.SRGBColorSpace;
+  strawMap.wrapS = strawMap.wrapT = THREE.RepeatWrapping;
+  strawMap.repeat.set(3, 2);
+  const thatch = new THREE.MeshStandardMaterial({ map: strawMap, roughness: 1 });
   const rope = new THREE.MeshStandardMaterial({ color: 0x9a8058, roughness: 1 });
   const hide = new THREE.MeshStandardMaterial({ color: 0x8a5a36, roughness: 1, side: THREE.DoubleSide });
   const structure = new THREE.Group();
@@ -273,6 +338,51 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
     }
   });
 
+  // Higher up, a second platform on each tree with a dome hut hugging the trunk, as in the
+  // reference pictures, reached by ladders; ladders also run up from the ground to the platforms
+  // the ramp does not serve.
+  const upper = VILLAGE.map((tree, index) => tree.deck + (index === 1 || index === 2 ? 7 : 9.5));
+  const ladder = (tree: (typeof VILLAGE)[number], angle: number, from: number, to: number) => {
+    const out = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)),
+      side = new THREE.Vector3(-out.z, 0, out.x),
+      base = new THREE.Vector3(tree.x, 0, tree.z).addScaledVector(out, tree.radius + 0.18);
+    for (const s of [-1, 1]) {
+      const rail = base.clone().addScaledVector(side, s * 0.28);
+      part(structure, new THREE.CylinderGeometry(0.04, 0.04, to - from, 6), beam, [rail.x, (from + to) / 2, rail.z]);
+    }
+    for (let y = from + 0.3; y < to; y += 0.38) part(structure, new THREE.CylinderGeometry(0.025, 0.025, 0.58, 5), beam, [base.x, y, base.z], [Math.PI / 2, 0, Math.atan2(side.z, side.x)]);
+  };
+  VILLAGE.forEach((tree, index) => {
+    const y = upper[index],
+      outer = tree.radius + 4.2,
+      toClearing = Math.atan2(-tree.z, -tree.x);
+    const deck = new THREE.Mesh(new THREE.RingGeometry(tree.radius * 0.9, outer, 32, 1).rotateX(-Math.PI / 2), decking);
+    deck.position.set(tree.x, y, tree.z);
+    structure.add(deck);
+    part(structure, new THREE.CylinderGeometry(outer, outer, 0.3, 32, 1, true), beam, [tree.x, y - 0.15, tree.z]);
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      pipe(structure, [[tree.x + Math.cos(a) * tree.radius, y - 2.6, tree.z + Math.sin(a) * tree.radius], [tree.x + Math.cos(a) * (outer - 0.3), y - 0.2, tree.z + Math.sin(a) * (outer - 0.3)]], 0.1, beam);
+    }
+    // The dome hut wraps right round the trunk.
+    // A tall thatched dome, its eaves curling out a little at the bottom.
+    part(structure, new THREE.SphereGeometry(tree.radius + 1.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), thatch, [tree.x, y + 0.2, tree.z]).scale.y = 1.25;
+    part(structure, new THREE.TorusGeometry(tree.radius + 1.95, 0.28, 6, 32), thatch, [tree.x, y + 0.3, tree.z], [Math.PI / 2, 0, 0]);
+    part(structure, new THREE.PlaneGeometry(1, 1.6), hide, [tree.x + Math.cos(toClearing) * (tree.radius + 1.95), y + 0.9, tree.z + Math.sin(toClearing) * (tree.radius + 1.95)], [0, Math.PI / 2 - toClearing, 0]);
+    ladder(tree, toClearing + 0.6, tree.deck, y);
+    if (index > 0) ladder(tree, toClearing - 0.4, 0, tree.deck);
+  });
+  // Two more dome huts on the ground at the clearing's edge.
+  for (const [x, z, r] of [
+    [-15, -13.5, 2.3],
+    [19.5, 10.5, 2],
+  ]) {
+    part(structure, new THREE.SphereGeometry(r, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), thatch, [x, 0, z]).scale.y = 1.2;
+    const facing = Math.atan2(-z, -x);
+    part(structure, new THREE.PlaneGeometry(0.9, 1.4), hide, [x + Math.cos(facing) * (r - 0.05), 0.7, z + Math.sin(facing) * (r - 0.05)], [0, Math.PI / 2 - facing, 0]);
+    circles.push({ x, z, r: r + 0.2 });
+  }
+
   // Rope bridges: planks hung on a sagging curve between two platforms, with hand ropes.
   const bridge = (from: THREE.Vector3, to: THREE.Vector3, sag: number) => {
     const length = from.distanceTo(to),
@@ -298,6 +408,22 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
   const farFrom = new THREE.Vector3(VILLAGE[2].x + across.x * DECK, VILLAGE[2].deck, VILLAGE[2].z + across.y * DECK),
     farTo = new THREE.Vector3(VILLAGE[3].x - across.x * DECK, VILLAGE[3].deck, VILLAGE[3].z - across.y * DECK);
   bridge(farFrom, farTo, 1.1);
+  // Long bridges between the upper platforms, high over the clearing and its back.
+  const highBridge = (a: number, b: number, sag: number) => {
+    const ta = VILLAGE[a],
+      tb = VILLAGE[b];
+    const dir = new THREE.Vector2(tb.x - ta.x, tb.z - ta.z).normalize();
+    const reachA = ta.radius + 4.2,
+      reachB = tb.radius + 4.2;
+    bridge(
+      new THREE.Vector3(ta.x + dir.x * reachA, upper[a], ta.z + dir.y * reachA),
+      new THREE.Vector3(tb.x - dir.x * reachB, upper[b], tb.z - dir.y * reachB),
+      sag,
+    );
+  };
+  highBridge(0, 3, 3);
+  highBridge(1, 2, 2.5);
+  highBridge(0, 1, 1.4);
 
   // The ramp: plank treads coiling up the first tree on stilts, with a rope rail outside.
   const treads = 70;
@@ -346,7 +472,7 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
   group.add(firelight);
 
   // Villagers: the elder by the fire, two drummers, two dancers, sentries and folk on the platforms.
-  type Villager = Ewok & { role: string; phase: number; base: THREE.Vector3; path?: [THREE.Vector3, THREE.Vector3]; spot?: Spot };
+  type Villager = Ewok & { role: string; phase: number; base: THREE.Vector3; path?: [THREE.Vector3, THREE.Vector3]; spot?: Spot; spear?: boolean };
   const villagers: Villager[] = [];
   const add = (role: string, at: THREE.Vector3, facing: number, look: number, height = 1, staff?: "spear" | "staff") => {
     const [fur, hood] = FURS[look % FURS.length];
@@ -354,7 +480,7 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
     villager.root.position.copy(at);
     villager.root.rotation.y = facing;
     group.add(villager.root);
-    const entry: Villager = { ...villager, role, phase: villagers.length * 1.37, base: at.clone() };
+    const entry: Villager = { ...villager, role, phase: villagers.length * 1.37, base: at.clone(), spear: staff === "spear" };
     villagers.push(entry);
     return entry;
   };
@@ -399,44 +525,76 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
   const crosser = add("crosser", farFrom.clone(), 0, 2);
   crosser.path = [farFrom, farTo];
 
-  // The four totems: one per chapter, round the far side of the fire, each facing it.
-  const totemWood = new THREE.MeshStandardMaterial({ color: 0x6e4a2c, roughness: 0.95 });
-  const paint = [0xb5442a, 0x2f6f8a, 0xd0a03c, 0x4f7a3a].map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.85 }));
+  // The salvaged holoprojector beyond the fire: an Imperial unit on a tripod of branches, dressed
+  // with feathers and cord, projecting one hologram per chapter.
+  const P = new THREE.Vector2(FIRE.x, FIRE.y + 5.4);
+  const steelDark = new THREE.MeshStandardMaterial({ color: 0x2c3136, roughness: 0.45, metalness: 0.7 });
+  const branch = new THREE.MeshStandardMaterial({ color: 0x5a4028, roughness: 0.95 });
+  const feather = new THREE.MeshStandardMaterial({ color: 0xe8dcc4, roughness: 0.9 });
+  const emitterGlow = new THREE.MeshBasicMaterial({ color: 0x8fdcff });
+  const projector = new THREE.Group();
+  projector.position.set(P.x, 0, P.y);
+  group.add(projector);
+  const rig = new THREE.Group();
+  projector.add(rig);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.3;
+    pipe(rig, [[Math.cos(a) * 0.75, 0, Math.sin(a) * 0.75], [Math.cos(a) * 0.3, 0.55, Math.sin(a) * 0.3], [Math.cos(a) * 0.12, 0.82, Math.sin(a) * 0.12]], 0.05, branch);
+    part(rig, new THREE.ConeGeometry(0.03, 0.34, 4), feather, [Math.cos(a + 0.5) * 0.55, 0.5, Math.sin(a + 0.5) * 0.55], [0, 0, Math.PI]);
+  }
+  part(rig, new THREE.CylinderGeometry(0.5, 0.42, 0.22, 24), steelDark, [0, 0.92, 0]);
+  part(rig, new THREE.CylinderGeometry(0.28, 0.3, 0.1, 20), steelDark, [0, 1.07, 0]);
+  part(rig, new THREE.TorusGeometry(0.47, 0.03, 6, 32), rope, [0, 0.88, 0], [Math.PI / 2, 0, 0]);
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    part(rig, rounded(0.08, 0.04, 0.03, 0.01), steelDark, [Math.cos(a) * 0.5, 0.98, Math.sin(a) * 0.5], [0, -a, 0]);
+  }
+  bakePart(rig);
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    part(projector, new THREE.SphereGeometry(0.025, 8, 6), emitterGlow, [Math.cos(a) * 0.2, 1.13, Math.sin(a) * 0.2]);
+  }
+  const cone = part(
+    projector,
+    new THREE.CylinderGeometry(1.5, 0.25, 0.9, 32, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x4fb8e8, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+    [0, 1.58, 0],
+  );
+  circles.push({ x: P.x, z: P.y, r: 1.05 });
+  const holograms: THREE.Group[] = [];
   const terminals: ZoneTerminal[] = landing.terminals.slice(0, 4).map((chapter, index) => {
-    const angle = [-66, -22, 22, 66][index] * (Math.PI / 180);
-    const position = new THREE.Vector3(FIRE.x + Math.sin(angle) * 5.4, 0, FIRE.y + Math.cos(angle) * 5.4);
-    const stand = new THREE.Vector3(FIRE.x + Math.sin(angle) * 2.55, 0, FIRE.y + Math.cos(angle) * 2.55);
-    const totem = new THREE.Group();
-    totem.position.copy(position);
-    totem.rotation.y = faceFire(position.x, position.z);
-    group.add(totem);
-    const pole = new THREE.Group();
-    totem.add(pole);
-    part(pole, new THREE.CylinderGeometry(0.3, 0.36, 2.9, 12), totemWood, [0, 1.45, 0]);
-    // Stacked carved faces, painted in the chapter's colour.
-    for (let f = 0; f < 3; f++) {
-      const y = 0.55 + f * 0.75;
-      part(pole, rounded(0.5, 0.42, 0.18, 0.06), f === 1 ? paint[index] : totemWood, [0, y, 0.3]);
-      for (const s of [-1, 1]) part(pole, new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshStandardMaterial({ color: 0x1a120a }), [s * 0.11, y + 0.06, 0.4]);
-    }
-    for (const s of [-1, 1]) part(pole, rounded(0.7, 0.12, 0.08, 0.03), paint[index], [s * 0.5, 2.7, 0.05], [0, 0, s * 0.5]);
-    part(pole, new THREE.ConeGeometry(0.34, 0.5, 10), paint[index], [0, 3.15, 0]);
-    bakePart(pole);
-    pole.children.forEach((child) => (child.userData.terminal = index));
+    // Four directions fanning out towards the fire and the clearing.
+    const angle = [-63, -21, 21, 63][index] * (Math.PI / 180);
+    const dir = new THREE.Vector2(Math.sin(angle), -Math.cos(angle));
+    const position = new THREE.Vector3(P.x + dir.x * 1.25, 0, P.y + dir.y * 1.25);
+    const stand = new THREE.Vector3(P.x + dir.x * 3.7, 0, P.y + dir.y * 3.7);
+    // A deeper blue than the other holograms, so it does not burn out to white against the sunlit haze.
+    const material = new THREE.MeshBasicMaterial({ color: 0x4fa8d8, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const lines = new THREE.LineBasicMaterial({ color: 0x4fa8d8, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending });
+    const holo = chapterHologram(index, material, lines);
+    holo.position.set(position.x, 2.05, position.z);
+    holo.rotation.y = Math.atan2(dir.x, dir.y);
+    holo.traverse((o) => (o.userData.terminal = index));
+    group.add(holo);
+    holograms.push(holo);
     const hologram = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.05, 0.79),
-      new THREE.MeshBasicMaterial({ map: plaque(chapter.label, index), color: 0xd8c8b0, transparent: true }),
+      new THREE.PlaneGeometry(0.78, 0.24),
+      new THREE.MeshBasicMaterial({ map: holoLabel(chapter.label), color: 0x9fdcff, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
     );
-    hologram.position.set(0, 1.95, 0.52);
+    hologram.position.set(position.x + dir.x * 0.1, 1.5, position.z + dir.y * 0.1);
+    hologram.rotation.y = Math.atan2(dir.x, dir.y);
     hologram.userData.terminal = index;
-    totem.add(hologram);
+    group.add(hologram);
+    // A thin beam from the emitter up to the hologram.
+    const from = new THREE.Vector3(P.x, 1.13, P.y),
+      to = new THREE.Vector3(position.x, 1.85, position.z);
     const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.9, 1.2, 0.5, 24, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xffa050, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+      new THREE.CylinderGeometry(0.22, 0.04, from.distanceTo(to), 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x4fb8e8, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
     );
-    beam.position.y = 0.25;
-    totem.add(beam);
-    circles.push({ x: position.x, z: position.z, r: 0.55 });
+    beam.position.copy(from).add(to).multiplyScalar(0.5);
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+    group.add(beam);
     return { position, angle, hologram, beam, focus: 0, stand };
   });
 
@@ -498,7 +656,8 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
           if (v.role === "crosser") v.root.position.y = THREE.MathUtils.lerp(a.y, b.y, f) - Math.sin(f * Math.PI) * 1.1;
           v.root.rotation.y = Math.atan2((b.x - a.x) * (forward ? 1 : -1), (b.z - a.z) * (forward ? 1 : -1));
           v.legs.forEach((leg, i) => (leg.rotation.x = Math.sin(k * 8 + i * Math.PI) * 0.45));
-          v.arms.forEach((arm, i) => (arm.rotation.x = Math.sin(k * 8 + i * Math.PI + Math.PI) * 0.3));
+          // Spear carriers keep both paws on the shaft; the others swing their arms.
+          if (!v.spear) v.arms.forEach((arm, i) => (arm.rotation.x = Math.sin(k * 8 + i * Math.PI + Math.PI) * 0.3));
           v.root.position.y += Math.abs(Math.sin(k * 8)) * 0.03;
           if (v.spot) {
             v.spot.x = v.root.position.x;
@@ -508,10 +667,21 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
           v.arms[1].rotation.x = -0.3 + Math.sin(k * 0.7) * 0.15;
         }
       });
+      // The holograms turn slowly and flicker; the one being read grows and brightens.
+      const flicker = reduced ? 1 : 0.92 + Math.sin(t * 7) * 0.04 + (Math.sin(t * 31) > 0.97 ? -0.2 : 0);
+      cone.material.opacity = 0.08 * flicker;
       terminals.forEach((terminal, i) => {
-        const flicker = reduced ? 1 : 0.9 + Math.sin(t * 9 + i) * 0.06;
-        terminal.beam.material.opacity = (0.06 + terminal.focus * 0.22) * flicker;
-        terminal.hologram.material.color.setScalar(0.8 + terminal.focus * 0.2);
+        const holo = holograms[i];
+        holo.rotation.y = Math.atan2(Math.sin(terminal.angle), -Math.cos(terminal.angle)) + (reduced ? 0 : Math.sin(t * 0.5 + i) * 0.5);
+        holo.position.y = 2.05 + (reduced ? 0 : Math.sin(t * 1.2 + i) * 0.04);
+        holo.scale.setScalar(0.85 * (1 + terminal.focus * 0.15));
+        holo.traverse((o) => {
+          const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+          if (m && "opacity" in m) m.opacity = (0.35 + terminal.focus * 0.35) * flicker;
+          if (o.name === "hand" && !reduced) o.rotation.z = -t * 1.2;
+        });
+        terminal.beam.material.opacity = (0.06 + terminal.focus * 0.14) * flicker;
+        terminal.hologram.material.opacity = (0.45 + terminal.focus * 0.5) * flicker;
       });
     },
   };

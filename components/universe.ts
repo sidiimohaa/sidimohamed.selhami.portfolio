@@ -170,12 +170,12 @@ export const landings: Partial<Record<string, Landing>> = {
       },
     ],
   },
-  // Endor raconte les passions : chaque totem ouvre un chapitre de la présentation « Mes passions »
+  // Endor raconte les passions : chaque hologramme ouvre un chapitre de la présentation « Mes passions »
   // (public/passions), à l'étape indiquée par story.
   Endor: {
     pad: "CLAIRIÈRE DU VILLAGE · LUNE FORESTIÈRE",
     welcome:
-      "Bienvenue sur Endor. Autour du feu, l’ancien raconte mes passions : chaque totem ouvre un chapitre.",
+      "Bienvenue sur Endor. Autour du feu, l’ancien raconte mes passions : chaque hologramme du projecteur ouvre un chapitre.",
     soundscape: "forest",
     terminals: [
       {

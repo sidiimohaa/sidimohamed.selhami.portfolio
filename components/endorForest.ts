@@ -20,28 +20,61 @@ function canvasTexture(width: number, height: number, paint: (c: CanvasRendering
   return texture;
 }
 // Deep, fibrous red-brown bark running up the trunk.
+// Deeply furrowed red-brown bark: long ridges with dark fissures between them. Moss is added by
+// the material, by height, so it does not repeat up the trunk with the texture.
 function bark() {
   const rand = random(83);
   return canvasTexture(256, 512, (c) => {
-    c.fillStyle = "#5a3424";
+    c.fillStyle = "#6a3e2a";
     c.fillRect(0, 0, 256, 512);
-    for (let i = 0; i < 260; i++) {
-      const x = rand() * 256,
-        w = 2 + rand() * 9;
-      c.fillStyle = rand() < 0.5 ? "rgba(30,16,10,.45)" : "rgba(140,86,58,.35)";
-      c.fillRect(x, 0, w, 512);
+    for (let i = 0; i < 70; i++) {
+      // A ridge that wanders slightly as it climbs.
+      let x = rand() * 256;
+      const w = 4 + rand() * 12;
+      c.fillStyle = rand() < 0.5 ? "rgba(150,92,62,.35)" : "rgba(110,66,44,.4)";
+      for (let y = 0; y < 512; y += 16) {
+        c.fillRect(x, y, w, 17);
+        x += (rand() - 0.5) * 3;
+      }
     }
-    for (let i = 0; i < 90; i++) {
-      c.fillStyle = "rgba(20,10,6,.5)";
-      c.fillRect(rand() * 256, rand() * 512, 1 + rand() * 3, 20 + rand() * 120);
+    for (let i = 0; i < 150; i++) {
+      let x = rand() * 256;
+      c.fillStyle = "rgba(18,9,5,.6)";
+      const top = rand() * 512,
+        length = 40 + rand() * 220;
+      for (let y = top; y < top + length; y += 12) {
+        c.fillRect(x, y % 512, 1.5 + rand() * 2.5, 13);
+        x += (rand() - 0.5) * 2;
+      }
     }
-    // Moss creeping up from the roots.
-    const moss = c.createLinearGradient(0, 380, 0, 512);
-    moss.addColorStop(0, "rgba(70,96,40,0)");
-    moss.addColorStop(1, "rgba(70,96,40,.55)");
-    c.fillStyle = moss;
-    c.fillRect(0, 380, 256, 132);
-  }, [2, 10]);
+  }, [2, 9]);
+}
+// Moss on trunks and roots, thick near the ground and in patches higher up.
+function mossy(material: THREE.MeshStandardMaterial) {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vMossWorld;")
+      .replace(
+        "#include <worldpos_vertex>",
+        `#include <worldpos_vertex>
+        vec4 mossAt = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          mossAt = instanceMatrix * mossAt;
+        #endif
+        vMossWorld = (modelMatrix * mossAt).xyz;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vMossWorld;")
+      .replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+        vec3 m = vMossWorld;
+        float patches = .5 + .25 * sin(m.x * 1.7 + sin(m.z * 1.3 + m.y * .35) * 2.0) + .25 * sin(m.z * 2.1 - m.y * .5 + sin(m.x * .9) * 1.5);
+        float moss = (1.0 - smoothstep(1.0, 24.0, m.y)) * smoothstep(.45, .8, patches + (1.0 - smoothstep(0.0, 5.0, m.y)) * .25);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.12, .2, .06), moss * .75);`,
+      );
+  };
+  return material;
 }
 function forestFloor() {
   const rand = random(19);
@@ -128,6 +161,57 @@ function fernGeometry() {
   return merged;
 }
 
+// A spray of conifer needles on a transparent card, ragged at the edges.
+function needles() {
+  const rand = random(29);
+  return canvasTexture(256, 256, (c) => {
+    c.clearRect(0, 0, 256, 256);
+    for (let i = 0; i < 1500; i++) {
+      // Points inside a ragged ellipse, each a short needle angled off the branch.
+      const a = rand() * Math.PI * 2,
+        r = Math.sqrt(rand()) * (0.8 + Math.sin(a * 5) * 0.12 + Math.sin(a * 11) * 0.06);
+      const x = 128 + Math.cos(a) * r * 120,
+        y = 128 + Math.sin(a) * r * 64;
+      const tone = rand();
+      c.strokeStyle = tone < 0.4 ? "#2f4d22" : tone < 0.75 ? "#44662c" : "#5d7f36";
+      c.lineWidth = 1.5 + rand() * 1.5;
+      c.beginPath();
+      c.moveTo(x, y);
+      c.lineTo(x + (rand() - 0.5) * 18, y + 6 + rand() * 10);
+      c.stroke();
+    }
+  });
+}
+// Two crossed vertical cards and a flat one: a spray that reads from any side.
+function sprayGeometry() {
+  const parts = [0, Math.PI / 2].map((turn) => new THREE.PlaneGeometry(1, 0.55).rotateY(turn));
+  parts.push(new THREE.PlaneGeometry(1, 0.55).rotateX(-Math.PI / 2));
+  const positions: number[] = [],
+    uvs: number[] = [],
+    index: number[] = [];
+  let offset = 0;
+  for (const part of parts) {
+    const p = part.getAttribute("position"),
+      uv = part.getAttribute("uv"),
+      ix = part.getIndex()!;
+    for (let v = 0; v < p.count; v++) {
+      positions.push(p.getX(v), p.getY(v), p.getZ(v));
+      uvs.push(uv.getX(v), uv.getY(v));
+    }
+    for (let k = 0; k < ix.count; k++) index.push(ix.getX(k) + offset);
+    offset += p.count;
+    part.dispose();
+  }
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  merged.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  merged.setIndex(index);
+  merged.computeVertexNormals();
+  return merged;
+}
+// The direction of the battle station in the sky, kept free of treetops so it shows through.
+export const SKY_WINDOW = { azimuth: Math.atan2(-60, 760), spread: 0.24 };
+
 export function createEndorForest(options: { village: Tree[]; keepClear: THREE.Vector3[] }) {
   const group = new THREE.Group();
   group.name = "endor-forest";
@@ -157,14 +241,32 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
     }
   // Trunks, root flares and canopy crowns are each one instanced mesh.
   const trunkGeometry = new THREE.CylinderGeometry(0.82, 1, 1, 18, 1, true).translate(0, 0.5, 0);
-  const flareGeometry = new THREE.CylinderGeometry(1, 1.9, 1, 18, 1, true).translate(0, 0.5, 0);
-  const crownGeometry = new THREE.IcosahedronGeometry(1, 1);
-  const barkMaterial = new THREE.MeshStandardMaterial({ map: bark(), color: 0xc49a82, roughness: 0.95 });
-  const crownMaterial = new THREE.MeshStandardMaterial({ color: 0x2e4a24, roughness: 1 });
+  // Root flares with buttresses: the base swells out in six lobes.
+  const flareGeometry = new THREE.CylinderGeometry(1, 2.1, 1, 36, 4, true).translate(0, 0.5, 0);
+  {
+    const p = flareGeometry.getAttribute("position");
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i),
+        y = p.getY(i),
+        z = p.getZ(i);
+      const lobe = 1 + Math.max(0, Math.cos(Math.atan2(z, x) * 6)) * 0.45 * (1 - y);
+      p.setXYZ(i, x * lobe, y, z * lobe);
+    }
+    flareGeometry.computeVertexNormals();
+  }
+  const crownGeometry = sprayGeometry();
+  const barkMaterial = mossy(new THREE.MeshStandardMaterial({ map: bark(), color: 0xd0a288, roughness: 0.95 }));
+  const crownMaterial = new THREE.MeshStandardMaterial({ map: needles(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
+  // The roots get their own copy of the bark, tiled to their short height so it is not squashed.
+  const rootBark = bark();
+  rootBark.repeat.set(3, 1);
+  const rootMaterial = mossy(new THREE.MeshStandardMaterial({ map: rootBark, color: 0xc89a80, roughness: 0.95 }));
   const trunks = new THREE.InstancedMesh(trunkGeometry, barkMaterial, trees.length),
-    flares = new THREE.InstancedMesh(flareGeometry, barkMaterial, trees.length);
-  const crownSpots = trees.filter((t) => Math.hypot(t.x, t.z) > CLEARING + 2);
-  const crowns = new THREE.InstancedMesh(crownGeometry, crownMaterial, crownSpots.length * 2);
+    flares = new THREE.InstancedMesh(flareGeometry, rootMaterial, trees.length);
+  // No treetops in the direction of the battle station, so it shows through a gap in the canopy.
+  const inWindow = (t: Tree) => Math.abs(Math.atan2(Math.sin(Math.atan2(t.x, t.z) - SKY_WINDOW.azimuth), Math.cos(Math.atan2(t.x, t.z) - SKY_WINDOW.azimuth))) < SKY_WINDOW.spread;
+  const crownSpots = trees.filter((t) => Math.hypot(t.x, t.z) > CLEARING + 2 && !inWindow(t));
+  const crowns = new THREE.InstancedMesh(crownGeometry, crownMaterial, crownSpots.length * 4);
   const dummy = new THREE.Object3D();
   trees.forEach((tree, i) => {
     dummy.position.set(tree.x, 0, tree.z);
@@ -178,17 +280,43 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
     // Village trees keep a tight collider so their platforms stay walkable round the trunk.
     if (Math.hypot(tree.x, tree.z) < 60) colliders.push({ x: tree.x, z: tree.z, r: tree.radius * (options.village.includes(tree) ? 1.08 : 1.25) });
   });
+  const tint = new THREE.Color();
   crownSpots.forEach((tree, i) => {
-    for (let k = 0; k < 2; k++) {
-      const spread = 9 + rand() * 9;
-      dummy.position.set(tree.x + (rand() - 0.5) * 8, tree.height * (0.6 + k * 0.12), tree.z + (rand() - 0.5) * 8);
-      dummy.rotation.set(rand(), rand() * Math.PI, rand());
-      dummy.scale.set(spread, 4 + rand() * 4, spread);
+    for (let k = 0; k < 4; k++) {
+      const spread = 8 + rand() * 9;
+      dummy.position.set(tree.x + (rand() - 0.5) * 9, tree.height * (0.58 + k * 0.08), tree.z + (rand() - 0.5) * 9);
+      dummy.rotation.set((rand() - 0.5) * 0.4, rand() * Math.PI, (rand() - 0.5) * 0.4);
+      dummy.scale.set(spread, spread * 0.6, spread);
       dummy.updateMatrix();
-      crowns.setMatrixAt(i * 2 + k, dummy.matrix);
+      crowns.setMatrixAt(i * 4 + k, dummy.matrix);
+      crowns.setColorAt(i * 4 + k, tint.setHSL(0.25 + rand() * 0.06, 0.25, 0.55 + rand() * 0.25));
     }
   });
-  group.add(trunks, flares, crowns);
+  // Branches laden with foliage at mid height, so the forest has layers receding into the haze.
+  const sprays = trees.filter((t) => Math.hypot(t.x, t.z) > CLEARING + 6 && !options.village.includes(t) && !inWindow(t));
+  const branchGeometry = new THREE.CylinderGeometry(0.12, 0.3, 1, 6).translate(0, 0.5, 0).rotateZ(-Math.PI / 2);
+  const branches = new THREE.InstancedMesh(branchGeometry, barkMaterial, sprays.length * 3),
+    leaves = new THREE.InstancedMesh(crownGeometry, crownMaterial, sprays.length * 3);
+  sprays.forEach((tree, i) => {
+    for (let k = 0; k < 3; k++) {
+      const angle = rand() * Math.PI * 2,
+        reach = 4 + rand() * 5,
+        y = 18 + rand() * 30;
+      dummy.position.set(tree.x + Math.cos(angle) * tree.radius * 0.8, y, tree.z + Math.sin(angle) * tree.radius * 0.8);
+      dummy.rotation.set(0, -angle, 0.25);
+      dummy.scale.set(reach, 1, 1);
+      dummy.updateMatrix();
+      branches.setMatrixAt(i * 3 + k, dummy.matrix);
+      dummy.position.set(tree.x + Math.cos(angle) * (tree.radius + reach * 0.85), y + reach * 0.3, tree.z + Math.sin(angle) * (tree.radius + reach * 0.85));
+      dummy.rotation.set((rand() - 0.5) * 0.3, -angle, (rand() - 0.5) * 0.3);
+      dummy.scale.set(reach * 1.6, reach * 0.9, reach * 1.6);
+      dummy.updateMatrix();
+      leaves.setMatrixAt(i * 3 + k, dummy.matrix);
+      leaves.setColorAt(i * 3 + k, tint.setHSL(0.24 + rand() * 0.07, 0.3, 0.5 + rand() * 0.3));
+    }
+  });
+  group.add(trunks, flares, crowns, branches, leaves);
+  leaves.castShadow = branches.castShadow = true;
 
   // The forest floor, the clearing's grass and the sky behind the canopy.
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: forestFloor(), roughness: 1 }));
@@ -266,6 +394,9 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
     [-14, 12, 2.2],
     [2, 22, 2.4],
     [-20, -14, 2],
+    [16, -18, 2.8],
+    [-2, -30, 3.2],
+    [24, 8, 2.2],
   ].map(([x, z, radius], i) => {
     const shaft = new THREE.Mesh(
       new THREE.CylinderGeometry(radius * 0.7, radius, 64, 24, 1, true),
