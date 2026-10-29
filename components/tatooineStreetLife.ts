@@ -150,7 +150,7 @@ function checkpoint(group: THREE.Group, colliders: Spot[]) {
   const scanner = createSandtrooper();
   scanner.group.position.set(4, -0.06, 20.6);
   group.add(scanner.group);
-  part(scanner.arms[0], rounded(0.08, 0.05, 0.16, 0.02), dark, [0, -0.44, 0.3]);
+  part(scanner.arms[0], rounded(0.08, 0.05, 0.16, 0.02), dark, [0.147, -0.373, 0.305]);
   const guard = createSandtrooper();
   guard.group.position.set(1.9, -0.06, 21.3);
   guard.group.rotation.y = -Math.PI / 2;
