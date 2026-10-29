@@ -123,18 +123,20 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
     const t = bridgeT(x, z);
     return Math.hypot(x - (BRIDGE.from.x + span.x * t), z - (BRIDGE.from.z + span.z * t)) < 1;
   };
-  // Round the second trunk to the bridge: inside the hut, then out past the ghosts by the landing.
-  const bridgeAngle = Math.atan2(towardBridge.y, towardBridge.x);
-  const roundSecond = (from: THREE.Vector3) => {
-    const a0 = Math.atan2(from.z - second.z, from.x - second.x);
-    const turn = Math.atan2(Math.sin(bridgeAngle - a0), Math.cos(bridgeAngle - a0));
-    if (Math.abs(turn) < 0.45) return [];
-    return Array.from({ length: 8 }, (_, k) => {
-      const a = a0 + (turn * (k + 1)) / 8,
-        r = Math.abs(turn * (1 - (k + 1) / 8)) < 0.45 ? 6.8 : 4.6;
-      return new THREE.Vector3(second.x + Math.cos(a) * r, second.deck, second.z + Math.sin(a) * r);
-    });
-  };
+  // Route around the trunk, hut and ghosts using the same obstacles as walking.
+  // Work in platform-local coordinates to keep the navigation grid small.
+  const secondRoute = createSurfaceNavigator(DECK + 1, (x, z) => {
+    const wx = second.x + x, wz = second.z + z;
+    const onDeck = Math.hypot(x, z) <= DECK - .35;
+    const t = bridgeT(wx, wz);
+    const atBridge = Math.hypot(wx - (BRIDGE.from.x + span.x * t), wz - (BRIDGE.from.z + span.z * t)) < .65 && Math.hypot(x, z) <= DECK + .1;
+    return (onDeck || atBridge) && Math.hypot(x, z) >= second.radius + .4 &&
+      !village.deckObstacles.some(o => o.deck === 1 && Math.hypot(wx - o.x, wz - o.z) < o.r);
+  });
+  const roundSecond = (from: THREE.Vector3) => secondRoute(
+    new THREE.Vector3(from.x - second.x, 0, from.z - second.z),
+    new THREE.Vector3(BRIDGE.to.x - second.x, 0, BRIDGE.to.z - second.z),
+  ).map(p => p.set(p.x + second.x, second.deck, p.z + second.z));
   // From anywhere on the platforms or the bridge back to the ramp's top, round the trunk inside the huts.
   const toLanding = (from: THREE.Vector3) => {
     const points: THREE.Vector3[] = [];

@@ -459,7 +459,7 @@ export default function SpaceScene({
             child.visible = false;
           });
           planets[index].add(...layered.layers);
-          planetLayers.push(layered);
+          planetLayers[index] = layered;
         },
         undefined,
         () => {
@@ -982,7 +982,11 @@ export default function SpaceScene({
           0.32,
         );
       });
-      if (!s.paused) planetLayers.forEach((layer) => layer.tick(dt, s.reduced));
+      planetLayers.forEach((layer, index) => {
+        projected.copy(camera.position).sub(planets[index].position);
+        layer.faceViewer(projected);
+        if (!s.paused) layer.tick(dt, s.reduced);
+      });
       const lively = s.paused || s.reduced ? 0 : dt;
       placeDebris(lively);
       placePatrols(lively);

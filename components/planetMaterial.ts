@@ -166,6 +166,14 @@ export function createPlanetLayers(
   }
   return {
     layers,
+    // The references are photographs of a disk, not equirectangular maps. Keep
+    // their projection aligned with the viewer so the photographed limb never
+    // runs through the middle of the globe when flying around it.
+    faceViewer: (direction: THREE.Vector3) => {
+      facing.copy(direction).normalize();
+      right.crossVectors(Math.abs(facing.y) > .999 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0), facing).normalize();
+      up.crossVectors(facing, right).normalize();
+    },
     tick: (dt: number, reduced: boolean) => {
       if (!reduced && cloudLayer)
         cloudLayer.rotation.y += dt * (index === 1 ? 0.018 : 0.008);
