@@ -13,7 +13,7 @@ function woolFinish() {
 }
 
 /** Rounded leaf volume with a raised inner ear, rather than a flat triangle. */
-function earGeometry(side:number,inset=false) {
+export function earGeometry(side:number,inset=false) {
   const outline:XYZ[]=[[.107,.02,-.005],[.151,.046,0],[.227,.071,-.008],[.312,.075,-.032],[.28,.023,-.006],[.22,-.023,.015],[.153,-.033,.031],[.112,-.011,.031]];
   const center=new THREE.Vector3(.192,.016,.034),positions:number[]=[],uvs:number[]=[],indices:number[]=[];
   const point=(p:THREE.Vector3)=>{positions.push(side*p.x,p.y,p.z);uvs.push((side*p.x+.32)/.64,(p.y+.13)/.26);};

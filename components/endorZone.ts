@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import { createEndorForest } from "./endorForest";
+import { createForceGhosts } from "./endorGhosts";
 import { BIKE_PATH, createEndorLife } from "./endorLife";
 import { BUNKER, WRECKS, createEndorLandmarks } from "./endorLandmarks";
 import { BRIDGE, DECK, RAMP, VILLAGE, bridgeHeight, createEndorVillage, rampPoint } from "./endorVillage";
@@ -41,6 +42,15 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   const life = createEndorLife(notify);
   const landmarks = createEndorLandmarks(circles);
   group.add(forest.group, village.group, life.group, landmarks.group);
+  // Where the bridge lands on the second platform, three old friends wait in front of the trunk.
+  const second = VILLAGE[1];
+  const towardBridge = new THREE.Vector2(BRIDGE.to.x - second.x, BRIDGE.to.z - second.z).normalize();
+  const ghosts = createForceGhosts();
+  ghosts.group.position.set(second.x + towardBridge.x * 5, second.deck, second.z + towardBridge.y * 5);
+  ghosts.group.rotation.y = Math.atan2(towardBridge.x, towardBridge.y);
+  village.deckObstacles.push({ x: ghosts.group.position.x, z: ghosts.group.position.z, r: 1.4, deck: 1 });
+  group.add(ghosts.group);
+  const viewer = new THREE.Vector3();
 
   const metal = new THREE.MeshStandardMaterial({ color: 0x6f6a60, roughness: 0.6, metalness: 0.6 });
   const parking = parkShip(metal);
@@ -113,11 +123,23 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
     const t = bridgeT(x, z);
     return Math.hypot(x - (BRIDGE.from.x + span.x * t), z - (BRIDGE.from.z + span.z * t)) < 1;
   };
+  // Round the second trunk to the bridge: inside the hut, then out past the ghosts by the landing.
+  const bridgeAngle = Math.atan2(towardBridge.y, towardBridge.x);
+  const roundSecond = (from: THREE.Vector3) => {
+    const a0 = Math.atan2(from.z - second.z, from.x - second.x);
+    const turn = Math.atan2(Math.sin(bridgeAngle - a0), Math.cos(bridgeAngle - a0));
+    if (Math.abs(turn) < 0.45) return [];
+    return Array.from({ length: 8 }, (_, k) => {
+      const a = a0 + (turn * (k + 1)) / 8,
+        r = Math.abs(turn * (1 - (k + 1) / 8)) < 0.45 ? 6.8 : 4.6;
+      return new THREE.Vector3(second.x + Math.cos(a) * r, second.deck, second.z + Math.sin(a) * r);
+    });
+  };
   // From anywhere on the platforms or the bridge back to the ramp's top, round the trunk inside the huts.
   const toLanding = (from: THREE.Vector3) => {
     const points: THREE.Vector3[] = [];
     const onSecond = Math.hypot(from.x - VILLAGE[1].x, from.z - VILLAGE[1].z) < DECK + 0.5;
-    if (onSecond) points.push(BRIDGE.to.clone(), BRIDGE.from.clone());
+    if (onSecond) points.push(...roundSecond(from), BRIDGE.to.clone(), BRIDGE.from.clone());
     else if (nearBridge(from.x, from.z) && bridgeT(from.x, from.z) > 0.02) points.push(BRIDGE.from.clone());
     const start = points.length ? BRIDGE.from : from;
     const a0 = Math.atan2(start.z - tree.z, start.x - tree.x),
@@ -218,6 +240,8 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
       village.tick(dt, reduced);
       forest.tick(elapsed, reduced);
       life.tick(dt, reduced);
+      // Seen at eye height from wherever the visitor stands, platforms included.
+      ghosts.tick(dt, reduced, viewer.set(walker.x, level + 1.7, walker.z));
     },
   };
 }
