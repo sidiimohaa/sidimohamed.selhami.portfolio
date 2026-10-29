@@ -13,7 +13,7 @@ Ouvrir http://localhost:3000. `npm run build` produit un export statique dans `o
 
 ## Stack
 
-Next.js App Router, React, TypeScript, Tailwind CSS 4, Motion, Three.js, Lottie React et Lucide.
+Next.js App Router, React, TypeScript, Tailwind CSS 4, Motion, Three.js et Lucide.
 
 ## Commandes
 
@@ -25,7 +25,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS 4, Motion, Three.js, Lottie 
 - Échap : fermer une interface. Le logo ORBITAL ou le bouton de retour réinitialise le voyage. Le bouton ? affiche les commandes.
 - Audio désactivé au départ ; le bouton sonore active une ambiance synthétisée localement.
 
-Les quatre visuels fournis par l’utilisateur sont conservés dans public/planets/, avec celui de Hoth (`hoth.png`), généré dans le même style, et projetés sur des sphères 3D sans étirement de leurs globes déjà éclairés. Ils servent aussi à la carte et aux aperçus de destination. Le filtrage anisotrope, les mipmaps et une résolution de rendu adaptée aux écrans Retina préservent les détails. La géométrie et les textures procédurales précédentes servent de repli si un visuel ne se charge pas. Le préloader attend la fin du chargement des images. La géométrie du vaisseau et l’animation Lottie sont générées localement. Aucun asset distant requis. Le mode mouvement réduit est respecté. Une vue simplifiée permet de naviguer sans WebGL.
+Les quatre visuels fournis par l’utilisateur sont conservés dans public/planets/, avec celui de Hoth (`hoth.png`), généré dans le même style, et projetés sur des sphères 3D sans étirement de leurs globes déjà éclairés. Ils servent aussi à la carte et aux aperçus de destination. Le filtrage anisotrope, les mipmaps et une résolution de rendu adaptée aux écrans Retina préservent les détails. La géométrie et les textures procédurales précédentes servent de repli si un visuel ne se charge pas. Le préloader attend la fin du chargement des images. La géométrie du vaisseau et la lueur de sortie d’hyperespace (en CSS) sont générées localement. Les textures procédurales de repli ne sont calculées que si une image échoue, et les shaders sont compilés avant la fin du chargement, pour que l’écran de chargement reste fluide. Aucun asset distant requis. Le mode mouvement réduit est respecté. Une vue simplifiée permet de naviguer sans WebGL.
 
 Les noms de planètes sont des références à Star Wars ; il s’agit d’un portfolio conceptuel indépendant.
 

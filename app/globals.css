@@ -698,8 +698,27 @@ button svg {
   right: 15%;
   top: 8%;
   bottom: 15%;
+  display: grid;
+  place-items: center;
   filter: blur(55px);
   pointer-events: none;
+}
+/* A single diffuse exit glow that swells and fades, rather than a repeating flash. */
+.hyperspace-bloom::before {
+  content: "";
+  width: 47.5%;
+  height: 32.5%;
+  border-radius: 50%;
+  background: rgb(153, 196, 255);
+  opacity: 0;
+  animation: hyperspace-bloom 1.8s cubic-bezier(0.33, 0.33, 0.67, 0.67) both;
+}
+@keyframes hyperspace-bloom {
+  0% { opacity: 0; transform: scale(0.2); }
+  22% { opacity: 0.14; }
+  44% { transform: scale(1.8); }
+  56% { opacity: 0.08; }
+  100% { opacity: 0; transform: scale(2.2); }
 }
 .hyperspace-caption {
   position: absolute;
@@ -1362,6 +1381,16 @@ button svg {
 .surface-fade.is-leaving {
   animation: surface-leave 0.9s ease forwards;
 }
+/* Hoth's white sky washes out the header: a soft scrim keeps it legible. */
+.surface[data-planet="Hoth"]::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 150px;
+  z-index: 2;
+  background: linear-gradient(#0a1622a6, #0a162200);
+  pointer-events: none;
+}
 .surface[data-planet="Hoth"] .surface-fade {
   background: radial-gradient(circle at 50% 45%, #e1eff8, #92aebe 55%, #354f65);
   animation-duration: .45s;
@@ -1421,6 +1450,11 @@ button svg {
   color: #dce1d1;
   text-shadow: 0 1px 12px #000;
   pointer-events: none;
+  /* Dark glass, so the hint reads on bright skies like Hoth's as well as on night cities. */
+  padding: 9px 14px 8px;
+  border: 1px solid #8fd2f02e;
+  background: #08131ab3;
+  backdrop-filter: blur(6px);
 }
 .surface-hint span {
   display: block;

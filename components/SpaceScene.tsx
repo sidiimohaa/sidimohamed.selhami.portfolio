@@ -367,6 +367,9 @@ export default function SpaceScene({
     const shootingStars = createShootingStars();
     scene.add(shootingStars.group);
     const planets: THREE.Group[] = [];
+    // The procedural surfaces only show if a reference image fails to load, so they are painted
+    // then: computing all of them up front stalled the loading screen for about half a second.
+    const fallbacks: (() => void)[] = [];
     const addPlanet = (
       kind: "sand" | "green" | "moon",
       radius: number,
@@ -375,17 +378,19 @@ export default function SpaceScene({
     ) => {
       const g = new THREE.Group();
       g.position.set(pos[0], pos[1], pos[2]);
-      const t = planetTexture(kind);
-      const surface = new THREE.Mesh(
-        new THREE.SphereGeometry(radius, 96, 64),
-        new THREE.MeshStandardMaterial({
-          map: t,
-          bumpMap: t,
-          bumpScale: kind === "sand" ? 0.095 : 0.06,
-          roughness: 1,
-          metalness: 0,
-        }),
-      );
+      const material = new THREE.MeshStandardMaterial({
+        color: kind === "sand" ? 0xb08a62 : kind === "green" ? 0x3a5a50 : 0x7d807a,
+        roughness: 1,
+        metalness: 0,
+      });
+      const surface = new THREE.Mesh(new THREE.SphereGeometry(radius, 96, 64), material);
+      fallbacks[planets.length] = () => {
+        const t = planetTexture(kind);
+        material.color.set(0xffffff);
+        material.map = material.bumpMap = t;
+        material.bumpScale = kind === "sand" ? 0.095 : 0.06;
+        material.needsUpdate = true;
+      };
       surface.rotation.z = -0.15;
       g.add(surface);
       const air = new THREE.Mesh(
@@ -417,8 +422,15 @@ export default function SpaceScene({
     const radii = [3.85, 2.1, 1.6, 3.3, 2.4];
     const planetLayers: ReturnType<typeof createPlanetLayers>[] = [];
     const loadingManager = new THREE.LoadingManager();
+    // Compile every shader before revealing the scene, without blocking the loading screen.
     loadingManager.onLoad = () => {
-      if (!disposed) onReady();
+      if (disposed) return;
+      renderer
+        .compileAsync(scene, camera)
+        .catch(() => undefined)
+        .then(() => {
+          if (!disposed) onReady();
+        });
     };
     const textureLoader = new THREE.TextureLoader(loadingManager);
     destinations.forEach((destination, index) => {
@@ -434,6 +446,8 @@ export default function SpaceScene({
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
           referenceTextures.add(texture);
+          // Upload each image as it arrives rather than all of them on the first frame.
+          renderer.initTexture(texture);
           const layered = createPlanetLayers(
             texture,
             destination.reference,
@@ -449,7 +463,8 @@ export default function SpaceScene({
         },
         undefined,
         () => {
-          // The existing geometric/procedural world remains visible if an asset cannot load.
+          // The geometric/procedural world remains visible if an asset cannot load.
+          if (!disposed) fallbacks[index]?.();
         },
       );
     });

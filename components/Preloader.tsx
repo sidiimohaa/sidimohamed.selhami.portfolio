@@ -1,85 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { motion, useMotionValue } from "motion/react";
 import { Volume2, VolumeX } from "lucide-react";
-const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
 
-// A single diffuse exit glow, rather than a repeating flash.
-const easing = { i: { x: 0.67, y: 0.67 }, o: { x: 0.33, y: 0.33 } };
-const exitLight = {
-  v: "5.7.4",
-  fr: 30,
-  ip: 0,
-  op: 54,
-  w: 400,
-  h: 400,
-  nm: "Hyperspace exit light",
-  ddd: 0,
-  assets: [],
-  layers: [
-    {
-      ddd: 0,
-      ind: 1,
-      ty: 4,
-      nm: "Arrival glow",
-      sr: 1,
-      ks: {
-        o: {
-          a: 1,
-          k: [
-            { t: 0, s: [0], ...easing },
-            { t: 12, s: [14], ...easing },
-            { t: 30, s: [8], ...easing },
-            { t: 54, s: [0] },
-          ],
-        },
-        r: { a: 0, k: 0 },
-        p: { a: 0, k: [200, 200, 0] },
-        a: { a: 0, k: [0, 0, 0] },
-        s: {
-          a: 1,
-          k: [
-            { t: 0, s: [20, 20, 100], ...easing },
-            { t: 24, s: [180, 180, 100], ...easing },
-            { t: 54, s: [220, 220, 100] },
-          ],
-        },
-      },
-      shapes: [
-        {
-          ty: "gr",
-          it: [
-            {
-              ty: "el",
-              p: { a: 0, k: [0, 0] },
-              s: { a: 0, k: [190, 130] },
-              d: 1,
-            },
-            {
-              ty: "fl",
-              c: { a: 0, k: [0.6, 0.77, 1, 1] },
-              o: { a: 0, k: 100 },
-              r: 1,
-            },
-            {
-              ty: "tr",
-              p: { a: 0, k: [0, 0] },
-              a: { a: 0, k: [0, 0] },
-              s: { a: 0, k: [100, 100] },
-              r: { a: 0, k: 0 },
-              o: { a: 0, k: 100 },
-            },
-          ],
-        },
-      ],
-      ip: 0,
-      op: 54,
-      st: 0,
-      bm: 0,
-    },
-  ],
-};
 function smoothstep(from: number, to: number, value: number) {
   const t = Math.min(1, Math.max(0, (value - from) / (to - from)));
   return t * t * (3 - 2 * t);
@@ -134,7 +57,13 @@ export default function Preloader({
         z: 35 + rand() * 1765,
         brightness: 0.35 + rand() * 0.65,
       }),
-    );
+    ).map((star) => ({
+      ...star,
+      // Colours are fixed per star, so they are built once rather than every frame.
+      dot: `rgba(208,225,241,${star.brightness * 0.78})`,
+      tail: `rgba(132,183,233,${star.brightness * 0.35})`,
+      head: `rgba(231,243,255,${star.brightness * 0.95})`,
+    }));
     const resize = () => {
       width = Math.max(1, overlay.clientWidth);
       height = Math.max(1, overlay.clientHeight);
@@ -207,26 +136,25 @@ export default function Preloader({
           const thickness =
             Math.min(1.9, 0.45 + 260 / star.z) * star.brightness;
           if (length < 1.7 || reduced) {
-            ctx.fillStyle = `rgba(208,225,241,${star.brightness * 0.78})`;
+            ctx.fillStyle = star.dot;
             ctx.beginPath();
             ctx.arc(x, y, Math.max(0.45, thickness * 0.7), 0, Math.PI * 2);
             ctx.fill();
           } else {
-            const gradient = ctx.createLinearGradient(tailX, tailY, x, y);
-            gradient.addColorStop(0, "rgba(76,133,196,0)");
-            gradient.addColorStop(
-              0.5,
-              `rgba(132,183,233,${star.brightness * 0.4})`,
-            );
-            gradient.addColorStop(
-              1,
-              `rgba(231,243,255,${star.brightness * 0.95})`,
-            );
-            ctx.strokeStyle = gradient;
+            // A dim tail and a bright head: two plain strokes instead of a gradient per star,
+            // which kept the streaks smooth only on fast machines.
+            const midX = (tailX + x) * 0.5,
+              midY = (tailY + y) * 0.5;
             ctx.lineWidth = thickness;
             ctx.lineCap = "round";
+            ctx.strokeStyle = star.tail;
             ctx.beginPath();
             ctx.moveTo(tailX, tailY);
+            ctx.lineTo(midX, midY);
+            ctx.stroke();
+            ctx.strokeStyle = star.head;
+            ctx.beginPath();
+            ctx.moveTo(midX, midY);
             ctx.lineTo(x, y);
             ctx.stroke();
           }
@@ -256,14 +184,7 @@ export default function Preloader({
       exit={{ opacity: 0, transition: { duration: 0.08 } }}
     >
       <canvas ref={canvas} className="hyperspace-canvas" aria-hidden="true" />
-      {exiting && !reduced && (
-        <Lottie
-          className="hyperspace-bloom"
-          animationData={exitLight}
-          loop={false}
-          aria-hidden="true"
-        />
-      )}
+      {exiting && !reduced && <div className="hyperspace-bloom" aria-hidden="true" />}
       <button
         className="hyperspace-sound sound-button"
         aria-label={
