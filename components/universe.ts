@@ -131,42 +131,41 @@ export type Landing = {
   terminals: LandingTerminal[];
 };
 
-// Textes provisoires : remplace-les par tes coordonnées (Coruscant), tes projets (Tatooine) et tes diplômes (Hoth).
+// Présentations des zones : contact et formation à Coruscant, projets à Tatooine, diplômes à Hoth.
 export const landings: Partial<Record<string, Landing>> = {
   Coruscant: {
     pad: "PLATEFORME 3-7 · NIVEAU 5127",
     soundscape: "city",
     welcome:
-      "Bienvenue sur Coruscant. Approchez un terminal pour lire sa transmission.",
+      "Bienvenue sur Coruscant. Identité, formation et contact : retrouvez mes transmissions sur les terminaux.",
     terminals: [
       {
         id: "identite",
         label: "Identité",
-        heading: "Prénom Nom",
-        body: "Métier · Ville, Pays",
+        heading: "Sidi-Mohamed Selhami",
+        body: "Étudiant en Bachelor 3 Marketing IA & Data.",
       },
       {
         id: "transmission",
         label: "Transmission",
-        heading: "bonjour@exemple.com",
-        body: "Écrivez-moi pour un projet, une question ou un simple bonjour.",
-        links: [{ label: "Envoyer un message", href: "mailto:bonjour@exemple.com" }],
+        heading: "Entrons en contact",
+        body: "sidimohamed.selhami1@gmail.com",
+        links: [{ label: "M’écrire", href: "mailto:sidimohamed.selhami1@gmail.com" }],
       },
       {
-        id: "reseaux",
-        label: "Réseaux",
-        heading: "Me retrouver en ligne",
-        body: "Mon parcours et mes travaux, ailleurs dans la galaxie.",
-        links: [
-          { label: "LinkedIn", href: "https://www.linkedin.com/" },
-          { label: "GitHub", href: "https://github.com/" },
-        ],
+        id: "formation",
+        label: "Formation",
+        heading: "Marketing IA & Data",
+        meta: "Bachelor · 3e année",
+        body: "Actuellement en troisième année de bachelor Marketing IA & Data.",
       },
       {
         id: "disponibilite",
-        label: "Disponibilité",
-        heading: "Ouvert aux collaborations",
-        body: "Stage, alternance, freelance ou projet personnel : parlons-en.",
+        label: "Alternance",
+        heading: "À la recherche d’une alternance",
+        meta: "Disponible dès maintenant",
+        body: "Je recherche une alternance en marketing, IA et data. Contactez-moi pour échanger sur votre opportunité.",
+        links: [{ label: "Proposer une alternance", href: "mailto:sidimohamed.selhami1@gmail.com?subject=Opportunit%C3%A9%20d%27alternance" }],
       },
     ],
   },
