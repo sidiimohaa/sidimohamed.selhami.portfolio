@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --webpack --hostname 0.0.0.0",
     "build": "next build --webpack",
-    "start": "next start"
+    "start": "next start",
+    "test:hoth": "node tests/hoth-defense.cjs && node tests/hoth-world.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

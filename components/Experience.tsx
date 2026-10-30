@@ -70,6 +70,7 @@ export default function Experience() {
     [boost, setBoost] = useState(false),
     [destination, setDestination] = useState(0),
     [mapOpen, setMapOpen] = useState(false),
+    [combat, setCombat] = useState(false),
     [helpOpen, setHelpOpen] = useState(false),
     [sound, setSound] = useState(false),
     [travel, setTravel] = useState(false),
@@ -209,10 +210,12 @@ export default function Experience() {
   }, []);
   const soundscape = groundLanding?.soundscape ?? null;
   useEffect(() => {
-    audio.current?.ambience(sound ? soundscape : null);
-  }, [soundscape, sound]);
+    audio.current?.setEnabled(sound && !combat);
+    audio.current?.ambience(sound && !combat ? soundscape : null);
+  }, [soundscape, sound, combat]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (document.querySelector(".hoth-defense")) { lastSix.current = 0; return; }
       // Escape is taken by an overlay or the mission journal first when one is open.
       if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(OVERLAYS)) {
         timers.current.forEach(clearTimeout);
@@ -308,7 +311,7 @@ export default function Experience() {
       audio.current.cantina(heard.current.level, heard.current.inside);
     }
     const enabled = !sound;
-    audio.current.setEnabled(enabled);
+    audio.current.setEnabled(enabled && !combat);
     setSound(enabled);
   };
   const openMap = (journal = false) => {
@@ -481,6 +484,7 @@ export default function Experience() {
       <AnimatePresence>
         {mapOpen && (
           <CockpitMap
+            onCombatChange={setCombat}
             initialSelection={destination}
             reduced={reduced}
             sound={sound}
@@ -663,11 +667,11 @@ export default function Experience() {
       </AnimatePresence>
       <div className="jedi-toasts">
         <AnimatePresence>
-          {toasts[0] && <SecretDiscoveryToast key={toasts[0].mission.id} mission={toasts[0].mission} total={toasts[0].total} reduced={reduced} onDone={dismissToast} />}
+          {toasts[0] && !combat && <SecretDiscoveryToast key={toasts[0].mission.id} mission={toasts[0].mission} total={toasts[0].total} reduced={reduced} onDone={dismissToast} />}
         </AnimatePresence>
       </div>
       <AnimatePresence>
-        {ceremonies[0] && !loading && <RankUpCinematic key={ceremonies[0].id} to={ceremonies[0]} reduced={reduced} onDone={finishCeremony} />}
+        {ceremonies[0] && !loading && !combat && <RankUpCinematic key={ceremonies[0].id} to={ceremonies[0]} reduced={reduced} onDone={finishCeremony} />}
       </AnimatePresence>
       {unsupported && (
         <div className="webgl-note mono">

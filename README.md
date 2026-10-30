@@ -112,3 +112,18 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 - Autour de la clairière (`endorLandmarks.ts`) : l'Étoile de la Mort pâle dans le ciel, visible par une trouée dans la canopée au-dessus du feu ; au bout d'un sentier, le bunker impérial envahi de mousse ; et, sur le sentier, des speeder bikes écrasés et des casques de scouts.
 - « Monter au village » fait gravir la rampe enroulée autour du premier tronc jusqu'à sa plateforme. On peut y marcher et traverser le pont jusqu'à la plateforme voisine, puis « Redescendre ».
 - Des speeder bikes filent entre les troncs de temps en temps. Des oiseaux tournent sous la canopée, et du pollen et des papillons flottent dans la lumière (`endorLife.ts`). L'ambiance sonore mêle le vent dans les feuilles et des chants d'oiseaux.
+
+
+## Defense of Hoth
+
+Depuis la carte stellaire, le bouton physique rouge **DEFENSE OF HOTH** ouvre un simulateur dans le cockpit existant. Le champ de bataille, les sondes, les véhicules et le boss AT-AT sont rendus dans la même scène Three.js, derrière la verrière. Trois vagues, des projectiles avec collisions, la chaleur des canons, les boucliers et la Base Echo déterminent la partie.
+
+- Souris : viser ; clic gauche maintenu : tirer ; clic droit maintenu ou bouton Zoom : zoom tactique.
+- Clavier : flèches pour viser, Entrée maintenue pour tirer, Espace pour l’impulsion ionique, R pour refroidir, Échap pour mettre en pause.
+- Tactile : glisser pour viser et maintenir TIR avec un second doigt ; actions dédiées en bas.
+- Le son et les messages vocaux sont synthétisés localement, activables depuis le bouton sonore. Le meilleur score et les badges restent dans le stockage local du navigateur.
+- Quitter restitue la carte et la destination sélectionnée ; les ressources, écouteurs et sons du combat sont libérés. Le changement d’onglet suspend la bataille.
+- Au lancement, l’éclairage du cockpit vire au rouge, une alarme retentit et les systèmes de ciblage s’allument. La Base Echo (générateur de bouclier, canon à ions, tranchées) est visible par la verrière gauche, et des AT-AT avancent à l’horizon dans le blizzard.
+- Le boss AT-AT, plus grand, émerge d’un blizzard qui s’épaissit puis se dissipe. Les explosions se reflètent sur la verrière ; les tirs reçus font jaillir des étincelles du tableau de bord, et des fissures apparaissent quand les boucliers faiblissent.
+
+`npm run test:hoth` vérifie les trois vagues avec de vrais tirs simulés, les points faibles protégés du boss, sa chute, la victoire parfaite, la défaite, les délais de recharge, la surchauffe, la pause, le redémarrage et le nettoyage des ressources 3D. `npm run build` produit l’export statique.

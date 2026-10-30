@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { createDefenseConsole } from "./hothDefense/console";
+import type { HothDefenseRuntime } from "./hothDefense/runtime";
+import type { DefenseView } from "./hothDefense/types";
+import defenseStyles from "./hothDefense/CockpitDefense.module.css";
+const HothDefenseHUD = dynamic(() => import("./hothDefense/HothDefenseHUD"), { ssr: false });
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpRight,
@@ -32,6 +38,7 @@ type Props = {
   onLaunch: (index: number) => void;
   // Open straight onto the mission journal (from the progression widget).
   initialJournal?: boolean;
+  onCombatChange?: (active: boolean) => void;
   onExperience: (experience: "temple" | "destiny") => void;
 };
 
@@ -45,12 +52,21 @@ export default function CockpitMap({
   onLaunch,
   initialJournal = false,
   onExperience,
+  onCombatChange,
 }: Props) {
   const [selected, setSelected] = useState(initialSelection);
   const [graphics, setGraphics] = useState(false);
   const { progress } = useJediProgression();
   const [journal, setJournal] = useState(initialJournal);
   const [coverOpen, setCoverOpen] = useState(false);
+  const [defense, setDefense] = useState(false), [defenseLoading, setDefenseLoading] = useState(false);
+  const [defenseError, setDefenseError] = useState<string | null>(null);
+  const [defenseView, setDefenseView] = useState<DefenseView | null>(null);
+  const [defenseVolume, setDefenseVolume] = useState(.55);
+  const defenseButton = useRef<HTMLButtonElement>(null);
+  const defenseRuntime = useRef<HothDefenseRuntime | null>(null);
+  const defenseRequest = useRef(0);
+  const defenseApi = useRef<{ load: () => Promise<void>; stop: () => void } | null>(null);
   // Narrow screens get the journal as a flat panel; wide ones get it as a hologram in the cockpit.
   const [compact, setCompact] = useState(false);
   const journalButton = useRef<HTMLButtonElement>(null);
@@ -61,8 +77,8 @@ export default function CockpitMap({
   const dialog = useRef<HTMLElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const markers = useRef<(HTMLButtonElement | null)[]>([]);
-  const live = useRef({ selected, reduced, onClose, journal, progress, coverOpen, compact });
-  live.current = { selected, reduced, onClose, journal, progress, coverOpen, compact };
+  const live = useRef({ selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange });
+  live.current = { selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange };
   const closeJournal = () => {
     setJournal(false);
     requestAnimationFrame(() => journalButton.current?.focus());
@@ -81,6 +97,9 @@ export default function CockpitMap({
     const previous = document.activeElement as HTMLElement | null;
     close.current?.focus();
     const keyboard = (event: KeyboardEvent) => {
+      if (live.current.defense) {
+        if (event.key !== "Tab") return;
+      }
       if (event.key === "Escape") {
         if (document.querySelector(OVERLAYS)) return;
         event.preventDefault();
@@ -89,12 +108,12 @@ export default function CockpitMap({
       }
       if (event.key !== "Tab") return;
       // While the journal is open, focus stays inside it.
-      const scope = live.current.journal && terminal.current ? terminal.current : dialog.current;
+      const scope = live.current.defense ? dialog.current?.querySelector<HTMLElement>(".hoth-defense") : live.current.journal && terminal.current ? terminal.current : dialog.current;
       const elements = Array.from(
         scope?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]):not([tabindex="-1"]),a[href],[tabindex="0"]',
+          'button:not([disabled]):not([tabindex="-1"]),a[href],input:not([disabled]),[tabindex="0"]',
         ) ?? [],
-      );
+      ).filter(element => element.getClientRects().length > 0 && !element.closest("[inert]"));
       const first = elements[0],
         last = elements[elements.length - 1];
       if (event.shiftKey && document.activeElement === first) {
@@ -147,6 +166,8 @@ export default function CockpitMap({
     cockpit.add(systems.group);
     const projection = createCockpitProjection();
     const stars = createStarfield(renderer.getPixelRatio());
+    const defenseConsole = createDefenseConsole();
+    scene.add(defenseConsole.group);
     const pilotEye = new THREE.Vector3(0, 1.55, 2.9);
     const controls = createMissionConsole(pilotEye);
     controlsApi.current = controls;
@@ -200,12 +221,33 @@ export default function CockpitMap({
     const fill = new THREE.PointLight(0x709cc6, 5, 7, 2);
     fill.position.set(1.6, 2.2, 1.4);
     scene.add(fill);
+    let generation = 0, removed = false;
+    const stopDefense = () => {
+      generation++;
+      defenseRuntime.current?.dispose(); defenseRuntime.current = null;
+      projection.group.visible = stars.points.visible = controls.group.visible = defenseConsole.group.visible = true;
+      beam.visible = true;
+      camera.fov = camera.aspect < .8 ? 58 : 52;
+      camera.updateProjectionMatrix();
+    };
+    defenseApi.current = {
+      load: async () => {
+        const token = ++generation;
+        const module = await import("./hothDefense/runtime");
+        if (removed || token !== generation) return;
+        projection.group.visible = stars.points.visible = controls.group.visible = defenseConsole.group.visible = false;
+        beam.visible = false;
+        defenseRuntime.current = module.createHothDefenseRuntime({ scene, camera, renderer, reduced: live.current.reduced, sound: live.current.sound, volume: live.current.defenseVolume, onView: setDefenseView });
+      },
+      stop: stopDefense,
+    };
     const look = new THREE.Vector3(0, 1.35, -3.4);
     const head = { x: 0, y: 0 },
       lean = { x: 0, y: 0 };
     const shell = dialog.current;
     const pointerMove = (event: PointerEvent) => {
       if (
+        live.current.defense ||
         event.pointerType !== "mouse" ||
         (event.target as HTMLElement).closest("button,a")
       )
@@ -338,6 +380,8 @@ export default function CockpitMap({
       controls.tick(dt, age, live.current.reduced);
       placeOver(journalButton.current, controls.journalAnchor, 150, 70);
       placeOver(guardButton.current, controls.guardAnchor, 76, 70);
+      placeOver(defenseButton.current, defenseConsole.anchor, 172, 52);
+      defenseConsole.tick(age, live.current.reduced, live.current.defense);
       // The hologram unfolds upward from the module, then holds, following the head's movement.
       if (journalOpen && !flat) {
         if (openedAt < 0) openedAt = age;
@@ -392,6 +436,7 @@ export default function CockpitMap({
         marker.style.height = `${diameter}px`;
         marker.style.transform = `translate(${(projected.x * 0.5 + 0.5) * width - diameter / 2}px,${(-projected.y * 0.5 + 0.5) * height - diameter / 2}px)`;
       });
+      defenseRuntime.current?.tick(document.hidden ? 0 : dt, live.current.reduced);
       renderer.render(scene, camera);
       if (!activated) {
         activated = true;
@@ -401,6 +446,9 @@ export default function CockpitMap({
     };
     frame = requestAnimationFrame(animate);
     return () => {
+      removed = true;
+      stopDefense(); defenseApi.current = null;
+      live.current.onCombatChange?.(false);
       cancelAnimationFrame(frame);
       observer.disconnect();
       shell?.removeEventListener("pointermove", pointerMove);
@@ -437,6 +485,64 @@ export default function CockpitMap({
     };
   }, []);
 
+  const loadDefense = async () => {
+    const request = ++defenseRequest.current;
+    setDefenseLoading(true); setDefenseError(null); setDefenseView(null);
+    try {
+      if (!graphics || !defenseApi.current) throw new Error("Le simulateur nécessite le rendu 3D du cockpit.");
+      await defenseApi.current.load();
+    } catch {
+      if (request === defenseRequest.current) setDefenseError("Le simulateur n’a pas pu se charger. Retournez au cockpit puis réessayez.");
+    } finally { if (request === defenseRequest.current) setDefenseLoading(false); }
+  };
+  const enterDefense = () => {
+    if (defense) return;
+    setDefense(true); onCombatChange?.(true); void loadDefense();
+  };
+  const restartDefense = () => {
+    if (defenseRuntime.current) defenseRuntime.current.restart();
+    else void loadDefense();
+  };
+  const leaveDefense = () => {
+    defenseRequest.current++;
+    defenseApi.current?.stop();
+    setDefense(false); setDefenseLoading(false); setDefenseError(null); setDefenseView(null);
+    onCombatChange?.(false);
+    requestAnimationFrame(() => defenseButton.current?.focus());
+  };
+  useEffect(() => { defenseRuntime.current?.setSound(sound); }, [sound]);
+  useEffect(() => { defenseRuntime.current?.setVolume(defenseVolume); }, [defenseVolume]);
+  useEffect(() => {
+    if (!defense) return;
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Tab") return;
+      if (event.key === "Escape") {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.type === "keydown" && !event.repeat) {
+          if (defenseRuntime.current) defenseRuntime.current.togglePause(); else leaveDefense();
+        }
+        return;
+      }
+      const element = event.target instanceof Element ? event.target : null;
+      if (element?.closest("input,select,textarea")) return;
+      if (element?.closest("button,a") && [" ", "Enter"].includes(event.key)) return;
+      const pressed = event.type === "keydown";
+      if ([" ", "Enter", "r", "R", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (event.key === "Enter") defenseRuntime.current?.setFiring(pressed);
+        if (!pressed || event.repeat) return;
+        if (event.key === " ") defenseRuntime.current?.special();
+        if (event.key.toLowerCase() === "r") defenseRuntime.current?.cool();
+        if (event.key === "ArrowLeft") defenseRuntime.current?.nudge(-.05, 0);
+        if (event.key === "ArrowRight") defenseRuntime.current?.nudge(.05, 0);
+        if (event.key === "ArrowUp") defenseRuntime.current?.nudge(0, .05);
+        if (event.key === "ArrowDown") defenseRuntime.current?.nudge(0, -.05);
+      }
+    };
+    window.addEventListener("keydown", key, true); window.addEventListener("keyup", key, true);
+    return () => { window.removeEventListener("keydown", key, true); window.removeEventListener("keyup", key, true); defenseRuntime.current?.setFiring(false); };
+  }, [defense]);
+
   const openJournal = () => {
     controlsApi.current?.press();
     onSelectionCue();
@@ -463,13 +569,14 @@ export default function CockpitMap({
   return (
     <motion.section
       ref={dialog}
-      className="cockpit-map"
+      className={`cockpit-map ${defense ? defenseStyles.combat : ""}`}
       data-graphics={graphics}
       data-journal={journal}
       data-sith={progress.sith}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="cockpit-title"
+      aria-labelledby={defense ? undefined : "cockpit-title"}
+      aria-label={defense ? "Défense de Hoth" : undefined}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -479,6 +586,14 @@ export default function CockpitMap({
       <div className="cockpit-fallback" aria-hidden="true" />
       <div ref={mount} className="cockpit-canvas" />
       <div className="cockpit-vignette" aria-hidden="true" />
+      {!defense && <button ref={defenseButton} className={defenseStyles.defenseButton} onClick={enterDefense} disabled={!graphics} aria-label="Lancer DEFENSE OF HOTH" aria-haspopup="dialog"><span>DEFENSE OF HOTH</span></button>}
+      {defense && <HothDefenseHUD view={defenseView} loading={defenseLoading} error={defenseError} sound={sound} volume={defenseVolume}
+        onStart={() => defenseRuntime.current?.start()} onPause={() => defenseRuntime.current?.pause()} onResume={() => defenseRuntime.current?.resume()}
+        onRestart={restartDefense} onExit={leaveDefense}
+        onSpecial={() => defenseRuntime.current?.special()} onCool={() => defenseRuntime.current?.cool()} onZoom={() => defenseRuntime.current?.toggleZoom()}
+        onToggleSound={() => { defenseRuntime.current?.setSound(!sound); onToggleSound(); }} onVolume={setDefenseVolume}
+        onAim={(x,y) => defenseRuntime.current?.setAim(x,y)} onFire={held => defenseRuntime.current?.setFiring(held)} />}
+
       <header className="cockpit-titlebar">
         <div>
           <p className="cockpit-eyebrow">X-WING / ASTRONAVIGATION</p>
