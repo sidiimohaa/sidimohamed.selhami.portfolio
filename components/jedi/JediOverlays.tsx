@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, X } from "lucide-react";
 import { XP_PER_MISSION, useJediProgression, type Mission, type Rank } from "../jediProgression";
 import { RankBadge } from "./RankBadge";
+import { OrderSixtySixScene } from "./OrderSixtySix";
 
 // Everything the progression shows outside the cockpit terminal: the "mission accomplie" toast,
 // the rank ceremonies, the discreet widget, and the screens a few missions open.
@@ -263,7 +264,7 @@ export function HyperspaceJump({ reduced, onDone }: { reduced: boolean; onDone: 
   );
 }
 
-function Transmission({ tone, eyebrow, title, onClose, children }: { tone: "empire" | "archive"; eyebrow: string; title: string; onClose: () => void; children: React.ReactNode }) {
+function Transmission({ tone, eyebrow, title, onClose, children, wide }: { tone: "empire" | "archive"; eyebrow: string; title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   const close = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -280,6 +281,7 @@ function Transmission({ tone, eyebrow, title, onClose, children }: { tone: "empi
   return (
     <motion.div className={`holo-transmission holo-${tone}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onPointerDown={(event) => event.stopPropagation()}>
       <motion.section
+        className={wide ? "wide" : undefined}
         role="dialog"
         aria-modal="true"
         aria-labelledby="holo-transmission-title"
@@ -301,13 +303,10 @@ function Transmission({ tone, eyebrow, title, onClose, children }: { tone: "empi
   );
 }
 
-export function ImperialTransmission({ onClose }: { onClose: () => void }) {
+export function ImperialTransmission({ onClose, reduced = false }: { onClose: () => void; reduced?: boolean }) {
   return (
-    <Transmission tone="empire" eyebrow="TRANSMISSION IMPÉRIALE · PRIORITÉ ABSOLUE" title="À tous les commandants" onClose={onClose}>
-      <svg className="holo-figure" viewBox="0 0 120 140" aria-hidden="true">
-        <path d="M60 10 C35 10 24 32 24 52 C24 62 28 70 30 78 C18 86 10 104 8 136 H112 C110 104 102 86 90 78 C92 70 96 62 96 52 C96 32 85 10 60 10 Z" />
-        <path d="M44 58 C48 66 72 66 76 58 C74 74 66 82 60 82 C54 82 46 74 44 58 Z" opacity="0.5" />
-      </svg>
+    <Transmission tone="empire" eyebrow="TRANSMISSION IMPÉRIALE · PRIORITÉ ABSOLUE" title="À tous les commandants" onClose={onClose} wide>
+      <OrderSixtySixScene reduced={reduced} />
       <p className="holo-quote">« Le moment est venu. Exécutez l’ordre 66. »</p>
       <p>Le code a été reconnu. Cette transmission n’aurait jamais dû vous parvenir, pilote : l’Empire écoute toujours.</p>
     </Transmission>

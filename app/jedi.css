@@ -1319,31 +1319,6 @@
   font-style: italic;
   color: #ffd2d6 !important;
 }
-.holo-figure {
-  display: block;
-  width: 110px;
-  margin: 0 auto 12px;
-  fill: #d9364544;
-  stroke: #ff7a84;
-  stroke-width: 1.2;
-  filter: drop-shadow(0 0 8px #d93645);
-  animation: holo-flicker 3s steps(1) infinite;
-}
-@keyframes holo-flicker {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  47% {
-    opacity: 0.6;
-  }
-  48% {
-    opacity: 1;
-  }
-  72% {
-    opacity: 0.8;
-  }
-}
 .holo-transmission-scan {
   position: absolute;
   inset: 0;
@@ -1604,8 +1579,7 @@
   .holo-transmission-scan,
   .holocron[data-lit="true"] .holocron-cube,
   .jedi-alert-dot,
-  .cockpit-mission-alert,
-  .holo-figure {
+  .cockpit-mission-alert {
     animation: none;
   }
   .jedi-terminal-sweep,
@@ -1660,4 +1634,21 @@
 .jedi-tabs,
 .jedi-terminal-foot {
   flex-shrink: 0;
+}
+
+/* The order 66 transmission shows its scene: the hooded figure and the commander's hologram. */
+.holo-transmission section.wide {
+  width: min(760px, 100%);
+}
+.order-sixtysix-scene {
+  position: relative;
+  height: clamp(200px, 42vh, 340px);
+  margin: 0 -24px 14px;
+  border-block: 1px solid #d9364555;
+  overflow: hidden;
+}
+.order-sixtysix-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

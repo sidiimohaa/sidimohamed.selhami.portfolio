@@ -31,7 +31,7 @@ export function hothHeight(x: number, z: number) {
   const jitter = Math.sin(z * 0.41 + x * 0.2) * 0.8 + Math.sin(z * 1.3 + x) * 0.3 + Math.sin(x * 0.37 + z * 0.1) * 0.6;
   const outside = Math.max(Math.abs(x) - SIDE, BACK - z) + jitter;
   // A hollow in the west wall leaves room for the wampa's cave.
-  const cave = smooth(Math.hypot((x - WAMPA_CAVE.x) / 4.4, (z - WAMPA_CAVE.z) / 5), 0.72, 1);
+  const cave = smooth(Math.hypot((x - WAMPA_CAVE.x) / 5.4, (z - WAMPA_CAVE.z) / 6.6), 0.72, 1);
   const cliff = ridge * smooth(outside, -0.5, 2.5) * (1 - smooth(z, MOUTH - 4, MOUTH + 18)) * cave;
   const plain =
     (Math.sin(x * 0.013 + z * 0.007) * 3 + Math.sin(x * 0.031 - z * 0.019) * 1.2 + 4.2) * smooth(z, MOUTH + 8, 160) +
@@ -418,7 +418,7 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   const life = createPadLife({ glow, engines: parking.exhausts, notify, guard: false, drone: false, taxi: false, ground: "snow", steam: 0xeef3f7 });
   group.add(life.group);
 
-  const secrets = createHothSecrets(reveal, notify);
+  const secrets = createHothSecrets(reveal, notify, hothHeight);
   group.add(secrets.group);
   secrets.avoid([...circles]);
   circles.push(...secrets.circles);

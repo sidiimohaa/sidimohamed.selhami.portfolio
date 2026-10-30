@@ -654,7 +654,7 @@ export default function Experience() {
         {jumping && <HyperspaceJump key="jump" reduced={reduced} onDone={finishJump} />}
       </AnimatePresence>
       <AnimatePresence>
-        {transmission === "order-66" && <ImperialTransmission key="order" onClose={closeTransmission} />}
+        {transmission === "order-66" && <ImperialTransmission key="order" onClose={closeTransmission} reduced={reduced} />}
         {transmission === "archives" && <ArchivesDossier key="archives" onClose={closeTransmission} />}
       </AnimatePresence>
       <AnimatePresence>

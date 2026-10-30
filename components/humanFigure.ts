@@ -13,6 +13,8 @@ export type HumanLook = {
   iris: number;
   hairStyle: "swept" | "curly" | "short";
   beard?: number;
+  // A close-cropped beard hugging the jaw, rather than a full one.
+  shortBeard?: boolean;
   tunic: number;
   sleeves?: number;
   trousers: number;
@@ -166,11 +168,12 @@ export function createStandingHuman(look: HumanLook, dress?: (parts: Omit<Human,
     ball(head, [0, 0.1, -0.115], [0.04, 0.035, 0.035], hair);
   }
   if (look.beard !== undefined) {
-    const beard = mat(look.beard, 1);
-    ball(head, [0, -0.085, 0.045], [0.07, 0.05, 0.06], beard);
+    const beard = mat(look.beard, 1),
+      trim = look.shortBeard ? 0.82 : 1;
+    ball(head, [0, -0.085 * (look.shortBeard ? 0.96 : 1), 0.045], [0.07 * trim, 0.05 * trim, 0.06 * trim], beard);
     for (const side of [-1, 1]) {
-      ball(head, [side * 0.065, -0.055, 0.04], [0.035, 0.05, 0.05], beard);
-      ball(head, [side * 0.088, -0.015, 0.02], [0.022, 0.045, 0.04], beard);
+      ball(head, [side * 0.065, -0.055, 0.04 - (1 - trim) * 0.03], [0.035 * trim, 0.05 * trim, 0.05 * trim], beard);
+      ball(head, [side * 0.088, -0.015, 0.02 - (1 - trim) * 0.03], [0.022 * trim, 0.045 * trim, 0.04 * trim], beard);
       pipe(head, [[side * 0.004, -0.043, 0.112], [side * 0.022, -0.047, 0.108], [side * 0.037, -0.062, 0.096]], 0.007, beard);
     }
   }
