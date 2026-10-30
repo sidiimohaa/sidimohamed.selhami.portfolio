@@ -559,6 +559,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       // Full detail, then a coarser shadow map, then no sun shadows at all.
       const size = level > 1 ? 2048 : 1024;
       sun.castShadow = level > 0;
+      district.setQuality(level);
       if (sun.shadow.mapSize.x !== size) {
         sun.shadow.mapSize.set(size, size);
         sun.shadow.map?.dispose();

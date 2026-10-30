@@ -38,6 +38,19 @@ export function createTatooineCantina(adobe: THREE.Material) {
     const lampRed = new THREE.MeshBasicMaterial({ color: 0xff704f });
     const cupMaterials = [0x66d8b6, 0x5fbcdb, 0xcf71ba].map(color => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .55, metalness: .25, roughness: .27 }));
     const box = (root: THREE.Object3D, mat: THREE.Material, w: number, h: number, d: number, u: number, y: number, v: number, r = .04) => part(root, rounded(w, h, d, r), mat, [u, y, v]);
+    // Soft dark pools on the floor under tables and booths: contact shadows the lamps cannot give.
+    const blob = (() => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 64;
+        const c = canvas.getContext("2d")!, g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+        g.addColorStop(0, "rgba(0,0,0,1)");
+        g.addColorStop(.55, "rgba(0,0,0,.55)");
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        c.fillStyle = g;
+        c.fillRect(0, 0, 64, 64);
+        return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, opacity: .55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    })();
+    const contact = (u: number, v: number, w: number, d = w) => part(group, new THREE.PlaneGeometry(w, d), blob, [u, .012, v], [-Math.PI / 2, 0, 0]);
     const walls: CantinaWall[] = [
         { minU: -22.3, maxU: -21.8, minV: 53.7, maxV: 71.3 },
         { minU: -22.3, maxU: -4.7, minV: 53.7, maxV: 54.3 },
@@ -160,6 +173,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
         part(inside, new THREE.CylinderGeometry(r * .94, r * .94, .035, 24), counter, [u, .775, v]);
         part(inside, new THREE.CylinderGeometry(.2, .35, .54, 16), trim, [u, .27, v]);
         circles.push({ u, v, r: r + .1 });
+        contact(u, v, r * 3.2);
         drink(u - .18, v, 0, .76);
         drink(u + .18, v + .13, 1, .76);
     };
@@ -190,6 +204,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
     const dejarik = createDejarikDuel();
     dejarik.group.position.set(-8.3, 0, 57.4);
     group.add(dejarik.group);
+    contact(-8.3, 57.4, 2.2, 4.2);
     const actions: ZoneAction[] = [...crowd.actions, {
         id: "dejarik", label: "Han vs Chewbacca", portraitFov: 108,
         position: new THREE.Vector3(-8.3, 1.15, 57.4),
@@ -225,6 +240,28 @@ export function createTatooineCantina(adobe: THREE.Material) {
         light.position.set(u, y - .15, v);
         group.add(light);
     }
+    // Two shadow-casting key lights give the room its relief: daylight falling from the skylight
+    // onto the bar, and a low warm lamp over the dejarik booth, so Han and Chewie are modelled by
+    // the light and throw soft shadows across the board and the benches.
+    const keyLight = (color: number, power: number, reach: number, angle: number, from: [number, number, number], to: [number, number, number]) => {
+        const spot = new THREE.SpotLight(color, power, reach, angle, .85, 2);
+        spot.position.set(...from);
+        spot.target.position.set(...to);
+        spot.castShadow = true;
+        spot.shadow.mapSize.set(1024, 1024);
+        spot.shadow.bias = -.0004;
+        spot.shadow.normalBias = .03;
+        spot.shadow.camera.near = .3;
+        group.add(spot, spot.target);
+        return spot;
+    };
+    const keys = [
+        keyLight(0xffe4bd, 95, 16, .55, [CENTRE.u, 8.8, CENTRE.v], [CENTRE.u - .4, 0, CENTRE.v]),
+        keyLight(0xffb36a, 22, 6, .9, [-8.1, 3.3, 57.1], [-8.3, 0, 57.4]),
+    ];
+    part(inside, new THREE.CylinderGeometry(.22, .3, .18, 16, 1, true), copper, [-8.1, 3.38, 57.1]);
+    part(inside, new THREE.CylinderGeometry(.012, .012, 1.1, 6), trim, [-8.1, 4.0, 57.1]);
+    part(inside, new THREE.SphereGeometry(.07, 10, 8), glow, [-8.1, 3.32, 57.1]);
     // The skylight lets a faint shaft down onto the bar.
     const sky = new THREE.MeshBasicMaterial({ color: 0xffe9c4, side: THREE.DoubleSide });
     part(inside, new THREE.CircleGeometry(.88, 32), sky, [CENTRE.u, 9.04, CENTRE.v], [Math.PI / 2, 0, 0]);
@@ -247,7 +284,9 @@ export function createTatooineCantina(adobe: THREE.Material) {
     bakePart(inside);
     const contains = (u: number, v: number) => u < -5.05 && u > -21.8 && v > 54.3 && v < 70.7;
     const isBlocked = (u: number, v: number, clearance=.35) => walls.some(w => u > w.minU - clearance && u < w.maxU + clearance && v > w.minV - clearance && v < w.maxV + clearance);
-    return { group, circles, actions, contains, isBlocked, bartender: crowd.bartenderSpot, entry: { u: -8.2, v: 62 }, exit: { u: -1.8, v: 62 },
+    return { group, circles, actions, contains, isBlocked,
+        // Off at the lowest quality, like the sun's shadows.
+        setQuality: (level: number) => keys.forEach(k => k.castShadow = level > 0), bartender: crowd.bartenderSpot, entry: { u: -8.2, v: 62 }, exit: { u: -1.8, v: 62 },
         constrain: (walker: {
             u: number;
             v: number;

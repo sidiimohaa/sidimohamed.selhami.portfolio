@@ -97,9 +97,15 @@ export function createSeatedChewbacca(seatHeight = .55) {
     locks(arm, [-side * .01, -.415, .22], [.074, .085, .17], 100, .18, side + 14);
     sphere(arm, [-side * .045, -.49, .405], [.068, .046, .09], skin);
     locks(arm, [-side * .045, -.468, .405], [.067, .025, .075], 25, .075, side + 16);
-    for (let finger = 0; finger < 4; finger++) rod(arm,
-      [-side * .045 - .045 + finger * .03, -.49, .44],
-      [-side * .045 - .047 + finger * .03, -.508, .503], .013, .010, skin);
+    for (let finger = 0; finger < 4; finger++) {
+      const x = -side * .045 - .045 + finger * .03;
+      rod(arm, [x, -.49, .44], [x - .002, -.505, .49], .013, .011, skin);
+      rod(arm, [x - .002, -.505, .49], [x - .003, -.522, .516], .011, .009, skin);
+      // Dark, blunt Wookiee claws.
+      const claw = part(arm, new THREE.ConeGeometry(.0075, .024, 6), black, [x - .003, -.528, .527]);
+      claw.rotation.x = Math.PI / 2 + .7;
+    }
+    rod(arm, [-side * .045 - side * .05, -.49, .4], [-side * .045 - side * .062, -.505, .45], .015, .011, skin);
     bakePart(arm); return arm;
   });
 
@@ -114,7 +120,6 @@ export function createSeatedChewbacca(seatHeight = .55) {
     sphere(head, [side * .115, -.07, .073], [.076, .15, .075], warm);
     locks(head, [side * .13, -.09, .085], [.075, .15, .06], 48, .20, side + 25, true);
     sphere(head, [side * .065, .015, .143], [.049, .028, .027], shadow);
-    sphere(head, [side * .065, .014, .165], [.021, .017, .012], eyes);
     pipe(head, [[side * .026, .059, .153], [side * .069, .063, .162], [side * .106, .039, .141]], .019, warm);
     for (let k = 0; k < 5; k++) strand(head,
       [[side * (.035 + k * .013), .079, .13], [side * (.055 + k * .016), .098 - k * .006, .148], [side * (.085 + k * .014), .043 - k * .01, .14]], .006, k % 2 ? gold : brown);
@@ -135,19 +140,48 @@ export function createSeatedChewbacca(seatHeight = .55) {
     strand(head, [[x, .16 + .09 * (1 - Math.abs(x) / .16), .015], [x * .85, .19, .10], [x * .95, .09, .13]], .0065, i % 3 ? brown : warm);
   }
   bakePart(head);
-  let idleTime = 0, quiet = false;
-  const pose = (amount: number) => {
-    const a = THREE.MathUtils.clamp(amount, 0, 1), t = quiet ? 0 : idleTime;
-    head.rotation.x = .085 + a * .055 + (quiet ? 0 : Math.sin(t * .37) * .012);
-    head.rotation.y = (quiet ? 0 : Math.sin(t * .23) * .045) - a * .035;
-    arms[0].rotation.x = -a * .13;
+  // Deep-set dark eyes with a wet catchlight, under furred lids that blink.
+  const glint = new THREE.MeshBasicMaterial({ color: 0xfff4e0 });
+  const gazes = [-1, 1].map(side => {
+    const g = new THREE.Group(); g.position.set(side * .065, .014, .163); head.add(g);
+    sphere(g, [0, 0, 0], [.021, .017, .012], eyes);
+    sphere(g, [-.005, .005, .011], [.003, .003, .0015], glint);
+    return g;
+  });
+  const lids = [-1, 1].map(side => sphere(head, [side * .065, .037, .157], [.026, .013, .02], warm));
+  // A mouth that opens under the moustache: dark inside, ivory fangs and a lower lip.
+  const ivory = new THREE.MeshStandardMaterial({ color: 0xd8ccae, roughness: .45 });
+  const mouth = new THREE.Group(); mouth.position.set(0, -.1, .2); head.add(mouth);
+  const inner = sphere(mouth, [0, 0, 0], [.055, .004, .028], black);
+  const fangs = [-1, 1].map(side => {
+    const fang = part(mouth, new THREE.ConeGeometry(.008, .032, 6), ivory, [side * .03, -.012, .02]);
+    fang.rotation.x = Math.PI; return fang;
+  });
+  const lowerLip = sphere(mouth, [0, -.012, .012], [.05, .015, .024], skin);
+  let idleTime = 0, quiet = false, gesture = 0;
+  const mood = { look: 0, roar: 0, proud: 0 };
+  const pose = () => {
+    const a = THREE.MathUtils.clamp(gesture, 0, 1), t = quiet ? 0 : idleTime, { look, roar, proud } = mood;
+    // He throws his head back to roar when Han wins, and nods, pleased, when the board goes his way.
+    head.rotation.x = .085 + a * .055 + (1 - look) * .16 - roar * .38 + proud * Math.sin(t * 5) * .05 + (quiet ? 0 : Math.sin(t * .37) * .012);
+    head.rotation.y = (quiet ? 0 : Math.sin(t * .23) * .045) - a * .035 + roar * Math.sin(t * 3) * .08;
+    gazes.forEach(g => g.position.y = .014 + (look - .6) * .003);
+    const blink = !quiet && (t * .21 + .4) % 1 > .965 ? 1 : 0;
+    lids.forEach(l => { l.position.y = .037 - blink * .019 - roar * .006; });
+    const open = Math.max(roar, proud * .35 * (.5 + .5 * Math.sin(t * 9)));
+    inner.scale.y = .004 + open * .048; inner.position.y = -open * .024;
+    fangs.forEach(f => { f.visible = open > .12; f.scale.setScalar(.4 + open * .6); });
+    lowerLip.position.y = -.012 - open * .05;
+    arms[0].rotation.x = -a * .13 - roar * .75;
     arms[0].rotation.y = a * -.13;
-    arms[1].rotation.x = a * .035;
-    arms[1].rotation.z = a * -.065;
-    body.scale.y = quiet ? 1 : 1 + Math.sin(t * .8) * .002;
+    arms[0].rotation.z = -roar * .35;
+    arms[1].rotation.x = a * .035 - roar * .75;
+    arms[1].rotation.z = a * -.065 + roar * .35;
+    body.scale.y = quiet ? 1 : 1 + Math.sin(t * .8) * .002 + proud * .012;
   };
   return { group,
-    tick: (time: number, reduced: boolean) => { idleTime = time; quiet = reduced; pose(0); },
-    play: (amount: number) => pose(quiet ? 0 : amount),
+    tick: (time: number, reduced: boolean) => { idleTime = time; quiet = reduced; pose(); },
+    play: (amount: number) => { gesture = quiet ? 0 : amount; pose(); },
+    react: (next: { look: number; roar: number; proud: number }) => { Object.assign(mood, quiet ? { look: 0, roar: 0, proud: 0 } : next); pose(); },
   };
 }

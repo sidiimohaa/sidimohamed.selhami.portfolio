@@ -12,7 +12,6 @@ import {
   X,
 } from "lucide-react";
 import * as THREE from "three";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { createCockpitModel } from "./cockpitModel";
 import { createCockpitSystems } from "./cockpitSystems";
 import { createCockpitProjection } from "./cockpitProjection";
@@ -115,12 +114,31 @@ export default function CockpitMap({
     const projection = createCockpitProjection();
     const stars = createStarfield(renderer.getPixelRatio());
     scene.add(cockpit, projection.group, stars.points);
-    const studio = new RoomEnvironment();
+    // What the metal reflects: a dark hold with the bright canopy ahead and overhead, a warm
+    // instrument glow low on the left and a cold strip on the right, for crisp, contrasted highlights.
+    const studio = new THREE.Scene();
+    studio.add(new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.MeshBasicMaterial({ color: 0x06090d, side: THREE.BackSide })));
+    for (const [w, h, x, y, z, color, power] of [
+      [16, 8, 0, 6, -10, 0x9fb8d8, 2.2],
+      [12, 2, 0, 12, 0, 0xdfe8f0, 3],
+      [3, 1.2, -9, 0.5, 1, 0xff9a4a, 2.4],
+      [1, 7, 9, 3, 0, 0x7fb0d8, 2.6],
+      [6, 1, 0, -2, 9, 0x2a3440, 1],
+    ] as const) {
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(power), side: THREE.DoubleSide }));
+      panel.position.set(x, y, z);
+      panel.lookAt(0, 0, 0);
+      studio.add(panel);
+    }
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const environment = pmrem.fromScene(studio, 0.015, 0.1, 50);
+    const environment = pmrem.fromScene(studio, 0.02, 0.1, 50);
     scene.environment = environment.texture;
-    scene.environmentIntensity = 0.32;
-    studio.dispose();
+    scene.environmentIntensity = 0.55;
+    studio.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.geometry.dispose();
+      (o.material as THREE.Material).dispose();
+    });
     pmrem.dispose();
     scene.add(new THREE.HemisphereLight(0x8da9c9, 0x151b26, 1.5));
     const key = new THREE.DirectionalLight(0xd3c4ad, 2.6);

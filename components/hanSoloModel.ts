@@ -18,7 +18,6 @@ export function createSeatedHanSolo(seatHeight = .55) {
   const lip = new THREE.MeshStandardMaterial({ color: 0x9b6d56, roughness: .87 });
   const hair = new THREE.MeshStandardMaterial({ color: 0x443124, roughness: .9 });
   const hairLight = new THREE.MeshStandardMaterial({ color: 0x604631, roughness: .88 });
-  const eye = new THREE.MeshStandardMaterial({ color: 0x34433b, roughness: .37 });
   const white = new THREE.MeshStandardMaterial({ color: 0xd7cdb9, roughness: .65 });
   const box = (g: THREE.Group, at: XYZ, size: XYZ, mat: THREE.Material, r = .008) => part(g, rounded(...size, r), mat, at);
   const ball = (g: THREE.Group, at: XYZ, scale: XYZ, mat: THREE.Material) => {
@@ -33,6 +32,25 @@ export function createSeatedHanSolo(seatHeight = .55) {
   const panel = (g: THREE.Group, points: [number, number][], at: XYZ, mat: THREE.Material, depth = .012) => {
     const shape = new THREE.Shape(); points.forEach(([x,y],i)=>i ? shape.lineTo(x,y) : shape.moveTo(x,y)); shape.closePath();
     return part(g, new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: .003, bevelSize: .003, bevelSegments: 1 }), mat, at);
+  };
+  const scar = new THREE.MeshStandardMaterial({ color: 0xe0bfa4, roughness: .7 });
+  // A relaxed hand: palm, four jointed fingers curling over and a thumb on the inside.
+  const hand = (g: THREE.Group, x: number, y: number, z: number, side: number, curl: number) => {
+    box(g, [x, y, z], [.068, .03, .08], skin, .014);
+    for (let f = 0; f < 4; f++) {
+      const fx = x - .025 + f * .0167, len = f === 0 || f === 3 ? .82 : 1;
+      const a: XYZ = [fx, y - .003, z + .036], b: XYZ = [fx, y - .006 - curl * .01, z + .036 + .025 * len], c: XYZ = [fx, y - .012 - curl * .024, z + .05 + .028 * len - curl * .014];
+      ball(g, a, [.0088, .0085, .0088], skin);
+      rod(g, a, b, .0078, .0072, skin);
+      ball(g, b, [.0072, .0072, .0072], skin);
+      rod(g, b, c, .0072, .006, skin);
+      ball(g, c, [.006, .006, .0065], lip);
+    }
+    const t0: XYZ = [x - side * .03, y - .004, z - .012], t1: XYZ = [x - side * .043, y - .009, z + .02], t2: XYZ = [x - side * .041, y - .013, z + .044];
+    ball(g, t0, [.014, .012, .016], skin);
+    rod(g, t0, t1, .011, .009, skin);
+    rod(g, t1, t2, .009, .0075, skin);
+    ball(g, t2, [.0075, .0075, .008], skin);
   };
   const hip = seatHeight + .065, shoulder = seatHeight + .58;
   const body = new THREE.Group(); group.add(body);
@@ -91,12 +109,7 @@ export function createSeatedHanSolo(seatHeight = .55) {
     rod(arm,[side*.018,-.24,.065],[-side*.024,-.34,.31],.05,.038,shirt);
     for(let i=0;i<3;i++)pipe(arm,[[side*.018-.028,-.19-i*.016,.101],[side*.018+.027,-.2-i*.016,.108]],.0028,seam);
     rod(arm,[-side*.022,-.333,.285],[-side*.025,-.351,.328],.041,.04,shirt);
-    box(arm,[-side*.024,-.354,.35],[.072,.033,.093],skin,.016);
-    for(let finger=0;finger<4;finger++) {
-      const x=-side*.024-.026+finger*.017;
-      rod(arm,[x,-.36,.374],[x+side*.002,-.37,.414-finger*.004],.007,.006,skin);
-    }
-    ball(arm,[-side*.024+side*.043,-.35,.347],[.016,.014,.03],skin);
+    hand(arm,-side*.024,-.354,.35,side,side===1?.35:.8);
     bakePart(arm);return arm;
   });
 
@@ -109,7 +122,6 @@ export function createSeatedHanSolo(seatHeight = .55) {
     ball(head,[side*.111,-.01,.013],[.009,.021,.005],lip);
     ball(head,[side*.058,-.012,.07],[.036,.044,.035],skin);
     ball(head,[side*.043,.024,.087],[.025,.012,.013],white);
-    ball(head,[side*.043,.024,.098],[.010,.010,.005],eye);
     pipe(head,[[side*.019,.032,.1],[side*.041,.039,.098],[side*.067,.027,.087]],.0047,skin);
     pipe(head,[[side*.019,.05,.097],[side*.043,.056,.094],[side*.071,.043,.077]],.0048,hair);
   }
@@ -117,7 +129,10 @@ export function createSeatedHanSolo(seatHeight = .55) {
   rod(head,[0,.051,.095],[0,-.013,.12],.009,.014,skin);
   ball(head,[0,-.017,.119],[.018,.014,.016],skin);
   for(const side of [-1,1]) ball(head,[side*.015,-.02,.111],[.008,.009,.009],skin);
-  pipe(head,[[-.032,-.054,.098],[0,-.058,.106],[.032,-.053,.097]],.003,lip);
+  // A small scar under the lip, on the left of the chin.
+  pipe(head,[[.012,-.082,.098],[.02,-.093,.094]],.0018,scar);
+  // Cheekbones.
+  for(const side of [-1,1]) ball(head,[side*.07,-.03,.07],[.03,.022,.025],skin);
   pipe(head,[[-.025,-.061,.098],[0,-.065,.102],[.026,-.06,.097]],.0035,skin);
   // Swept seventies hair: a shaped cap, side part and layered locks at the temples.
   const cap=new THREE.SphereGeometry(1,28,16,0,Math.PI*2,0,Math.PI*.62),cp=cap.getAttribute('position');
@@ -136,14 +151,46 @@ export function createSeatedHanSolo(seatHeight = .55) {
     pipe(head,[[side*.106,.066,.02],[side*.107,.01,.009],[side*.099,-.025,.006]],.01,hairLight);
   }
   bakePart(head);
+  // Hazel irises with a catchlight slide across the eye whites to aim his gaze; the lids blink.
+  const iris = new THREE.MeshStandardMaterial({ color: 0x5a4a2e, roughness: .25 });
+  const pupil = new THREE.MeshStandardMaterial({ color: 0x0c0b0a, roughness: .15 });
+  const glint = new THREE.MeshBasicMaterial({ color: 0xfff6e8 });
+  const gazes = [-1,1].map(side=>{
+    const g=new THREE.Group();g.position.set(side*.043,.024,.1005);head.add(g);
+    part(g,new THREE.CircleGeometry(.0095,16),iris);
+    part(g,new THREE.CircleGeometry(.0045,12),pupil,[0,0,.0004]);
+    part(g,new THREE.CircleGeometry(.0018,8),glint,[-.003,.003,.0008]);
+    return g;
+  });
+  const lids = [-1,1].map(side=>{
+    const lid=ball(head,[side*.043,.042,.089],[.027,.01,.0145],skin);
+    return lid;
+  });
+  // The mouth is its own piece so the famous crooked grin can tug one corner up.
+  const mouth=new THREE.Group();mouth.position.set(0,-.056,.1);head.add(mouth);
+  pipe(mouth,[[-.032,.002,-.002],[0,-.002,.006],[.032,.003,-.003]],.003,lip);
   let gesture=0,lastTime=0,still=false;
+  const mood={look:0,smug:0,annoyed:0};
   const pose=()=>{
-    head.rotation.x=.055+gesture*.085+(still?0:Math.sin(lastTime*.23)*.009);
-    head.rotation.y=-.04+(still?0:Math.sin(lastTime*.25)*.045);
-    arms[0].rotation.x=0;arms[0].rotation.z=.025;
-    arms[1].rotation.x=-gesture*.31;
-    arms[1].rotation.z=-gesture*.12;
+    const t=still?0:lastTime,{look,smug,annoyed}=mood;
+    // Eyes down on the board while it plays, up at Chewie to gloat or to argue.
+    head.rotation.x=.055+gesture*.085+(1-look)*.2-smug*.08+(still?0:Math.sin(t*.23)*.009);
+    head.rotation.y=-.04+(still?0:Math.sin(t*.25)*.045)+annoyed*Math.sin(t*6.5)*.1;
+    head.rotation.z=smug*.07-annoyed*.03;
+    gazes.forEach(g=>g.position.y=.024+(look-.6)*.003);
+    const blink=!still&&(t*.27)%1>.962?1:0;
+    lids.forEach(l=>{l.position.y=.042-blink*.015;l.scale.y=.01+blink*.004;});
+    mouth.rotation.z=smug*.22-annoyed*.08;
+    mouth.position.y=-.056+smug*.002;
+    // A shrug with the free arm when Chewie wins the exchange; a lazy flourish when Han does.
+    arms[0].rotation.x=-annoyed*.35;arms[0].rotation.z=.025-annoyed*.3;
+    arms[1].rotation.x=-gesture*.31-smug*.22;
+    arms[1].rotation.z=-gesture*.12+smug*.16;
     arms[1].rotation.y=-gesture*.11;
   };
-  return {group,tick:(time:number,reduced:boolean)=>{lastTime=time;still=reduced;pose();},play:(amount:number)=>{gesture=THREE.MathUtils.clamp(amount,0,1);pose();}};
+  return {group,
+    tick:(time:number,reduced:boolean)=>{lastTime=time;still=reduced;pose();},
+    play:(amount:number)=>{gesture=THREE.MathUtils.clamp(amount,0,1);pose();},
+    react:(next:{look:number;smug:number;annoyed:number})=>{Object.assign(mood,still?{look:0,smug:0,annoyed:0}:next);pose();},
+  };
 }

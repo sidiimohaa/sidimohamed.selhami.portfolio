@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { sandBanked } from "./weathering";
 import { createJawa, createSandcrawler } from "./jawaModels";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
@@ -31,7 +32,8 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     }
     const grime=brush.createLinearGradient(0,310,0,512);grime.addColorStop(0,"#60554000");grime.addColorStop(1,"#60554066");brush.fillStyle=grime;brush.fillRect(0,310,1024,202);
     const wallMap=new THREE.CanvasTexture(paint);wallMap.colorSpace=THREE.SRGBColorSpace;wallMap.anisotropy=8;
-    adobe=new THREE.MeshStandardMaterial({map:wallMap,roughness:.96});
+    // Sand banked against the foot of every wall, higher here, lower there.
+    adobe=sandBanked(new THREE.MeshStandardMaterial({map:wallMap,roughness:.96}));
     const group = new THREE.Group();
     group.rotation.y = TATOOINE_GATE;
     group.name = "mos-eisley-district";
@@ -271,7 +273,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     batches.forEach((parts, material) => { const geometry = mergeGeometries(parts, false); parts.forEach(p => p.dispose()); if (geometry)
         group.add(new THREE.Mesh(geometry, material)); });
     let clock = 0;
-    return { group, colliders, movers, explorePoint:districtPoint(0,34),
+    return { group, colliders, movers, explorePoint:districtPoint(0,34), setQuality:cantina.setQuality,
         actions:cantina.actions.map(action=>({...action,
             position:districtPoint(action.position.x,action.position.z).setY(action.position.y),
             approach:action.approach?{

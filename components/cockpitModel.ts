@@ -124,6 +124,82 @@ function instrumentsTexture() {
   return texture;
 }
 
+// Wear on painted consoles: every panel face is mapped 0..1, so paint chipped along the borders
+// reads as worn edges, with scuffs and smudges where hands rest. Returns a colour map and a
+// roughness map (bare metal and polished smudges are smoother than the paint).
+function wearTextures(paint: string, seed: number) {
+  const colour = document.createElement("canvas"),
+    rough = document.createElement("canvas");
+  colour.width = colour.height = rough.width = rough.height = 256;
+  const c = colour.getContext("2d")!,
+    r = rough.getContext("2d")!;
+  const rand = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  c.fillStyle = paint;
+  c.fillRect(0, 0, 256, 256);
+  r.fillStyle = "#c8c8c8";
+  r.fillRect(0, 0, 256, 256);
+  // Grime and faded patches.
+  for (let i = 0; i < 40; i++) {
+    const x = rand() * 256,
+      y = rand() * 256,
+      size = 20 + rand() * 60;
+    const g = c.createRadialGradient(x, y, 0, x, y, size);
+    g.addColorStop(0, rand() < 0.5 ? "rgba(0,0,0,.18)" : "rgba(160,170,165,.06)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g;
+    c.fillRect(x - size, y - size, size * 2, size * 2);
+  }
+  // Chipped paint along the edges shows bright metal.
+  for (let i = 0; i < 900; i++) {
+    const along = rand() * 256,
+      depth = Math.pow(rand(), 3) * 18,
+      side = Math.floor(rand() * 4);
+    const x = side === 0 ? depth : side === 1 ? 256 - depth : along,
+      y = side === 2 ? depth : side === 3 ? 256 - depth : along;
+    const w = 1 + rand() * 5,
+      h = 0.6 + rand() * 2;
+    c.fillStyle = `rgba(150,160,158,${0.35 + rand() * 0.4})`;
+    c.fillRect(x, y, side < 2 ? h : w, side < 2 ? w : h);
+    r.fillStyle = "#4a4a4a";
+    r.fillRect(x, y, side < 2 ? h : w, side < 2 ? w : h);
+  }
+  // Fine scratches across the faces.
+  for (let i = 0; i < 120; i++) {
+    const x = rand() * 256,
+      y = rand() * 256,
+      a = rand() * Math.PI,
+      l = 6 + rand() * 30;
+    c.strokeStyle = "rgba(170,178,176,.22)";
+    r.strokeStyle = "#6a6a6a";
+    for (const ctx of [c, r]) {
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+      ctx.stroke();
+    }
+  }
+  // Polished, slightly greasy smudges in the middle, where gloves touch.
+  for (let i = 0; i < 6; i++) {
+    const x = 70 + rand() * 116,
+      y = 70 + rand() * 116,
+      size = 14 + rand() * 18;
+    const g = r.createRadialGradient(x, y, 0, x, y, size);
+    g.addColorStop(0, "rgba(70,70,70,.8)");
+    g.addColorStop(1, "rgba(70,70,70,0)");
+    r.fillStyle = g;
+    r.fillRect(x - size, y - size, size * 2, size * 2);
+  }
+  const map = new THREE.CanvasTexture(colour);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 4;
+  const roughnessMap = new THREE.CanvasTexture(rough);
+  return { map, roughnessMap };
+}
+
 /** A compact X-wing flight deck, with an open central field for the star-map projection. */
 export function createCockpitModel(): THREE.Group {
   const group = new THREE.Group();
@@ -135,15 +211,17 @@ export function createCockpitModel(): THREE.Group {
   });
   worn.bumpMap = worn.map;
   worn.bumpScale = 0.006;
+  worn.roughnessMap = wearTextures("#ffffff", 77).roughnessMap;
+  // Roughness comes from the maps: around 0.78 on paint, smoother on bare metal and smudges.
   const graphite = new THREE.MeshStandardMaterial({
-    color: 0x161e23,
-    roughness: 0.76,
-    metalness: 0.5,
+    ...wearTextures("#1b2328", 1138),
+    roughness: 1,
+    metalness: 0.55,
   });
   const edge = new THREE.MeshStandardMaterial({
-    color: 0x768588,
-    roughness: 0.5,
-    metalness: 0.75,
+    ...wearTextures("#8a989b", 2187),
+    roughness: 0.75,
+    metalness: 0.92,
   });
   const recess = new THREE.MeshStandardMaterial({
     color: 0x05090c,

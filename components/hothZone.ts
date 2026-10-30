@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { snowCover } from "./weathering";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import { createHothBattle, createSnowspeeder } from "./hothBattle";
@@ -269,9 +270,10 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
     list.push(g);
     batches.set(material, list);
   };
-  const steel = new THREE.MeshStandardMaterial({ color: 0x5d646b, roughness: 0.5, metalness: 0.7 });
-  const panel = new THREE.MeshStandardMaterial({ color: 0x8a9298, roughness: 0.6, metalness: 0.45 });
-  const hazard = new THREE.MeshStandardMaterial({ color: 0xd09a2c, roughness: 0.6 });
+  // Equipment left out in the cold: snow settles on every ledge and drifts round the feet.
+  const steel = snowCover(new THREE.MeshStandardMaterial({ color: 0x5d646b, roughness: 0.5, metalness: 0.7 }));
+  const panel = snowCover(new THREE.MeshStandardMaterial({ color: 0x8a9298, roughness: 0.6, metalness: 0.45 }));
+  const hazard = snowCover(new THREE.MeshStandardMaterial({ color: 0xd09a2c, roughness: 0.6 }), 0.8);
   const darkness = new THREE.MeshStandardMaterial({ color: 0x14191d, roughness: 0.9 });
   const lampGlass = new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xffe9c4, emissiveIntensity: 2.2 });
   const ice = new THREE.MeshStandardMaterial({ color: 0xc4dbea, roughness: 0.28, metalness: 0.05, emissive: 0x16344a, emissiveIntensity: 0.25 });
@@ -337,8 +339,8 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
 
   // Hangar clutter: fuel tanks, crates, cables and power units along the walls.
   const circles: Spot[] = [];
-  const crate = new THREE.MeshStandardMaterial({ color: 0x6f7880, roughness: 0.75, metalness: 0.3 });
-  const orange = new THREE.MeshStandardMaterial({ color: 0xb6542e, roughness: 0.7 });
+  const crate = snowCover(new THREE.MeshStandardMaterial({ color: 0x6f7880, roughness: 0.75, metalness: 0.3 }));
+  const orange = snowCover(new THREE.MeshStandardMaterial({ color: 0xb6542e, roughness: 0.7 }), 0.8);
   (
     [
       [-19, -18],
