@@ -903,7 +903,7 @@
 /* --- Toast --- */
 .jedi-toasts {
   position: fixed;
-  top: 84px;
+  top: 14px;
   left: 50%;
   z-index: 240;
   transform: translateX(-50%);
@@ -991,7 +991,8 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #02060ccc;
+  background: #02060ce8;
+  backdrop-filter: blur(6px);
   color: var(--holo-white);
 }
 .rank-cinematic-chosen {
@@ -1550,7 +1551,8 @@
     padding: 14px 14px 10px;
   }
   .jedi-terminal-head h3 {
-    font-size: 17px;
+    font-size: 15px;
+    letter-spacing: 1.4px;
   }
   .jedi-panel {
     margin: 0 10px;
@@ -1628,4 +1630,34 @@
 .cockpit-guard-flat[data-sith="true"] {
   background: radial-gradient(circle, #ff5a64 0 4px, #1a0608 5px);
   box-shadow: 0 0 12px #d93645;
+}
+
+/* On phones the widget shrinks to its badge, like the other round header buttons. */
+@media (max-width: 520px) {
+  .jedi-widget-chip {
+    gap: 0;
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+    position: relative;
+  }
+  .jedi-widget-count,
+  .jedi-widget-gauge {
+    display: none;
+  }
+  .jedi-widget-chip .jedi-alert-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+  }
+  .jedi-widget-card {
+    right: -120px;
+  }
+}
+
+/* Only the panel scrolls; the header, tabs and footer keep their height. */
+.jedi-terminal-head,
+.jedi-tabs,
+.jedi-terminal-foot {
+  flex-shrink: 0;
 }

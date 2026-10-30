@@ -177,16 +177,22 @@ export function createKyberCrystal(reveal: Reveal, at: { x: number; y: number; z
     rock.scale.y = 0.7;
     group.add(rock);
   }
-  const crystalMaterial = new THREE.MeshStandardMaterial({ color: 0x7fd4ff, emissive: 0x4aaaf4, emissiveIntensity: 0.9, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.9 });
+  // Unlit, so it stays a clear blue even in full desert sun.
+  const crystalMaterial = new THREE.MeshBasicMaterial({ color: 0x5cc8ff });
   const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.07), crystalMaterial);
   crystal.scale.set(0.7, 1.6, 0.7);
   crystal.position.set(0, 0.1, 0);
   crystal.rotation.z = 0.3;
   group.add(crystal);
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x6cc4ff, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
-  halo.scale.setScalar(0.5);
+  const glow = glowTexture();
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0x2f9bff, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+  halo.scale.setScalar(0.85);
   halo.position.y = 0.12;
   group.add(halo);
+  // A thin glint that flashes now and then, to catch the eye of someone looking down.
+  const glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xcfeeff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  glint.position.y = 0.16;
+  group.add(glint);
   const light = new THREE.PointLight(0x5ab8ff, 0.8, 2.5, 2);
   light.position.y = 0.3;
   group.add(light);
@@ -215,17 +221,20 @@ export function createKyberCrystal(reveal: Reveal, at: { x: number; y: number; z
         const rise = reduced ? 1 : THREE.MathUtils.smootherstep(taken, 0, 1.4);
         crystal.position.y = 0.1 + rise * 1.2;
         if (!reduced) crystal.rotation.y = taken * 4;
-        crystalMaterial.emissiveIntensity = 0.9 + rise * 3;
-        halo.position.y = crystal.position.y;
-        halo.material.opacity = 0.35 + rise * 0.45;
+        crystalMaterial.color.setHex(0x5cc8ff).lerp(new THREE.Color(0xe6f6ff), rise * 0.6);
+        halo.position.y = glint.position.y = crystal.position.y;
+        halo.material.opacity = 0.55 + rise * 0.35;
+        halo.scale.setScalar(0.85 + rise * 0.6);
         light.position.y = crystal.position.y + 0.2;
         light.intensity = 0.8 + rise * 3;
         if (taken > (reduced ? 0 : 1.4) && taken - dt <= (reduced ? 0 : 1.4)) reveal("kyber-crystal");
         return;
       }
-      crystalMaterial.emissiveIntensity = 0.9 * pulse;
-      halo.material.opacity = 0.3 * pulse;
+      halo.material.opacity = 0.5 * pulse;
       light.intensity = 0.8 * pulse;
+      const flash = reduced ? 0 : Math.max(0, Math.sin(time * 1.7)) ** 24;
+      glint.material.opacity = flash * 0.9;
+      glint.scale.set(0.06 + flash * 0.5, 0.06 + flash * 0.5, 1);
     },
   };
 }

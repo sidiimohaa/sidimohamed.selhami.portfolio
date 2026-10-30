@@ -539,6 +539,11 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
   const kyber = createKyberCrystal(reveal, { ...kyberAt, y: groundHeight(kyberAt.x, kyberAt.z) });
   group.add(kyber.group);
   circles.push(kyber.circle);
+  // Clicked from afar, the visitor walks up to the stones rather than to the cantina's default spot.
+  kyber.action.approach = {
+    position: new THREE.Vector3(kyberAt.x * 0.9, 0, kyberAt.z * 0.9),
+    lookAt: kyber.action.position,
+  };
   circles.push(...taken.slice(1),...district.colliders);
   const blockedByWall=(x:number,z:number)=>{
     const radius=Math.hypot(x,z),angle=Math.atan2(x,z)-GATE_AT;

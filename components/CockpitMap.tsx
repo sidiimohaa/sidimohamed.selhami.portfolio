@@ -364,6 +364,11 @@ export default function CockpitMap({
       } else {
         openedAt = -1;
         beam.material.opacity = 0;
+        // Back to the flat panel (the window got narrower): drop the hologram's projection.
+        const screen = terminal.current;
+        if (screen?.style.transform) {
+          screen.style.transform = screen.style.opacity = screen.style.width = screen.style.height = "";
+        }
       }
       projectorLight.intensity = live.current.reduced
         ? 8

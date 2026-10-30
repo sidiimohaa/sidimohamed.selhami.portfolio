@@ -98,43 +98,41 @@ export function createSandstorm(wind: THREE.Vector2, count = 2600) {
   };
 }
 
-/** Low mist: broad, faint sheets lying a metre off the ground that drift and breathe. */
-export function createGroundMist(color: number, count = 26, reach = 38) {
+/** Low mist: broad, faint banks lying about a metre off the ground that drift and breathe. They
+ *  face the camera, since flat sheets would vanish into thin lines seen from eye height. */
+export function createGroundMist(color: number, count = 22, reach = 36) {
   const group = new THREE.Group();
   group.name = "ground-mist";
   const disc = softDisc();
   const rand = random(8812);
-  const sheets = Array.from({ length: count }, (_, i) => {
-    const material = new THREE.MeshBasicMaterial({ map: disc, color, transparent: true, opacity: 0, depthWrite: false, fog: true });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.renderOrder = 2;
-    group.add(mesh);
+  const banks = Array.from({ length: count }, (_, i) => {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: disc, color, transparent: true, opacity: 0, depthWrite: false, fog: true }));
+    sprite.renderOrder = 2;
+    group.add(sprite);
     const angle = rand() * Math.PI * 2,
-      distance = 6 + rand() * reach;
-    return { mesh, material, x: Math.cos(angle) * distance, z: Math.sin(angle) * distance, size: 9 + rand() * 12, y: 0.25 + rand() * 1.1, phase: i * 1.7, drift: 0.2 + rand() * 0.35 };
+      distance = 7 + rand() * reach;
+    return { sprite, x: Math.cos(angle) * distance, z: Math.sin(angle) * distance, size: 10 + rand() * 12, y: 0.45 + rand() * 0.5, phase: i * 1.7, drift: 0.2 + rand() * 0.35 };
   });
   return {
     group,
     tick: (dt: number, time: number, reduced: boolean, walker: { x: number; z: number }, floor = 0) => {
-      sheets.forEach((sheet) => {
+      banks.forEach((bank) => {
         if (!reduced) {
-          sheet.x += sheet.drift * dt;
-          sheet.z += Math.sin(time * 0.05 + sheet.phase) * 0.08 * dt;
+          bank.x += bank.drift * dt;
+          bank.z += Math.sin(time * 0.05 + bank.phase) * 0.08 * dt;
         }
-        // Sheets that drift too far from the visitor reappear on the other side.
-        const dx = sheet.x - walker.x,
-          dz = sheet.z - walker.z;
+        // Banks that drift too far from the visitor reappear on the other side.
+        const dx = bank.x - walker.x,
+          dz = bank.z - walker.z;
         if (Math.hypot(dx, dz) > reach + 8) {
-          sheet.x = walker.x - dx * 0.9;
-          sheet.z = walker.z - dz * 0.9;
+          bank.x = walker.x - dx * 0.9;
+          bank.z = walker.z - dz * 0.9;
         }
-        sheet.mesh.position.set(sheet.x, floor + sheet.y + (reduced ? 0 : Math.sin(time * 0.3 + sheet.phase) * 0.12), sheet.z);
-        sheet.mesh.scale.set(sheet.size, sheet.size * 0.7, 1);
-        sheet.mesh.rotation.z = sheet.phase + (reduced ? 0 : time * 0.01);
+        bank.sprite.position.set(bank.x, floor + bank.y + (reduced ? 0 : Math.sin(time * 0.3 + bank.phase) * 0.1), bank.z);
+        bank.sprite.scale.set(bank.size, bank.size * 0.16, 1);
         // Thinner near the visitor, so it never fogs the view right in front of the eyes.
-        const near = THREE.MathUtils.smoothstep(Math.hypot(dx, dz), 3, 10);
-        sheet.material.opacity = (0.16 + 0.08 * Math.sin(time * 0.2 + sheet.phase)) * near;
+        const near = THREE.MathUtils.smoothstep(Math.hypot(dx, dz), 4, 12);
+        bank.sprite.material.opacity = (0.3 + 0.1 * Math.sin(time * 0.2 + bank.phase)) * near;
       });
     },
   };

@@ -174,16 +174,22 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   village.elder.root.traverse((o) => {
     if (o instanceof THREE.Mesh) elderMeshes.push(o);
   });
-  // Mission 06: an ancient holocron under the roots of the south-east giant, facing the clearing.
+  // Mission 06: an ancient holocron under the roots of the south-east giant, facing the clearing,
+  // just beyond the buttresses of its root flare (which reaches about three trunk radii out).
   const giant = VILLAGE[2],
-    toClearing = new THREE.Vector2(-giant.x, -giant.z).normalize();
+    toClearing = new THREE.Vector2(-giant.x, -giant.z).normalize(),
+    nook = giant.radius * 3.2;
   const holocron = createBuriedHolocron(reveal, {
-    x: giant.x + toClearing.x * (giant.radius + 0.7),
-    z: giant.z + toClearing.y * (giant.radius + 0.7),
+    x: giant.x + toClearing.x * nook,
+    z: giant.z + toClearing.y * nook,
     facing: Math.atan2(toClearing.x, toClearing.y),
   });
   group.add(holocron.group);
   circles.push(holocron.circle);
+  holocron.action.approach = {
+    position: new THREE.Vector3(giant.x + toClearing.x * (nook + 1.8), 0, giant.z + toClearing.y * (nook + 1.8)),
+    lookAt: holocron.action.position,
+  };
   // A low mist drifting between the trunks, at ground level whatever height the visitor is at.
   const mist = createGroundMist(0xe4ead9);
   group.add(mist.group);

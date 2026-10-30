@@ -236,7 +236,7 @@ export function HyperspaceJump({ reduced, onDone }: { reduced: boolean; onDone: 
       const speed = reduced ? 0 : Math.pow(t, 2.2);
       c.lineCap = "round";
       stars.forEach((star) => {
-        const r0 = star.r * reach * (0.15 + speed * 1.6),
+        const r0 = star.r * reach * (0.5 + speed * 1.4),
           r1 = r0 + reach * speed * star.s * 0.9 + 2 * ratio;
         c.strokeStyle = `rgba(${200 + star.s * 30},${225 + star.s * 20},255,${0.4 + speed * 0.6})`;
         c.lineWidth = (0.6 + star.s * 0.9) * ratio;
