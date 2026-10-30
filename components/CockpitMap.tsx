@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpRight,
   MapPin,
@@ -15,6 +15,10 @@ import * as THREE from "three";
 import { createCockpitModel } from "./cockpitModel";
 import { createCockpitSystems } from "./cockpitSystems";
 import { createCockpitProjection } from "./cockpitProjection";
+import { createMissionConsole } from "./cockpitMissionConsole";
+import { CockpitMissionTerminal } from "./jedi/JediArchives";
+import { holoMatrix } from "./jedi/holoProjection";
+import { OVERLAYS, setSithMode, unlockSecret, useJediProgression } from "./jediProgression";
 import { createStarfield } from "./spaceAmbience";
 import { destinations, landings, planetReferenceStyle } from "./universe";
 
@@ -26,6 +30,9 @@ type Props = {
   onSelectionCue: () => void;
   onClose: () => void;
   onLaunch: (index: number) => void;
+  // Open straight onto the mission journal (from the progression widget).
+  initialJournal?: boolean;
+  onExperience: (experience: "temple" | "destiny") => void;
 };
 
 export default function CockpitMap({
@@ -36,15 +43,37 @@ export default function CockpitMap({
   onSelectionCue,
   onClose,
   onLaunch,
+  initialJournal = false,
+  onExperience,
 }: Props) {
   const [selected, setSelected] = useState(initialSelection);
   const [graphics, setGraphics] = useState(false);
+  const { progress } = useJediProgression();
+  const [journal, setJournal] = useState(initialJournal);
+  const [coverOpen, setCoverOpen] = useState(false);
+  // Narrow screens get the journal as a flat panel; wide ones get it as a hologram in the cockpit.
+  const [compact, setCompact] = useState(false);
+  const journalButton = useRef<HTMLButtonElement>(null);
+  const guardButton = useRef<HTMLButtonElement>(null);
+  const terminal = useRef<HTMLElement>(null);
+  const controlsApi = useRef<ReturnType<typeof createMissionConsole> | null>(null);
   const mount = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const markers = useRef<(HTMLButtonElement | null)[]>([]);
-  const live = useRef({ selected, reduced, onClose });
-  live.current = { selected, reduced, onClose };
+  const live = useRef({ selected, reduced, onClose, journal, progress, coverOpen, compact });
+  live.current = { selected, reduced, onClose, journal, progress, coverOpen, compact };
+  const closeJournal = () => {
+    setJournal(false);
+    requestAnimationFrame(() => journalButton.current?.focus());
+  };
+  const closeRef = useRef(closeJournal);
+  closeRef.current = closeJournal;
+
+  // Opening the star map completes the cartographer's mission.
+  useEffect(() => {
+    unlockSecret("star-map");
+  }, []);
   const current = destinations[selected];
   const accessibleSurface = !!landings[current.name];
 
@@ -53,12 +82,16 @@ export default function CockpitMap({
     close.current?.focus();
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (document.querySelector(OVERLAYS)) return;
         event.preventDefault();
-        live.current.onClose();
+        if (live.current.journal) closeRef.current();
+        else live.current.onClose();
       }
       if (event.key !== "Tab") return;
+      // While the journal is open, focus stays inside it.
+      const scope = live.current.journal && terminal.current ? terminal.current : dialog.current;
       const elements = Array.from(
-        dialog.current?.querySelectorAll<HTMLElement>(
+        scope?.querySelectorAll<HTMLElement>(
           'button:not([disabled]):not([tabindex="-1"]),a[href],[tabindex="0"]',
         ) ?? [],
       );
@@ -72,9 +105,10 @@ export default function CockpitMap({
         first?.focus();
       }
     };
-    window.addEventListener("keydown", keyboard);
+    // Capture, so the journal answers Escape before the experience closes the whole map.
+    window.addEventListener("keydown", keyboard, true);
     return () => {
-      window.removeEventListener("keydown", keyboard);
+      window.removeEventListener("keydown", keyboard, true);
       const target =
         previous?.isConnected &&
         previous !== document.body &&
@@ -113,7 +147,20 @@ export default function CockpitMap({
     cockpit.add(systems.group);
     const projection = createCockpitProjection();
     const stars = createStarfield(renderer.getPixelRatio());
-    scene.add(cockpit, projection.group, stars.points);
+    const pilotEye = new THREE.Vector3(0, 1.55, 2.9);
+    const controls = createMissionConsole(pilotEye);
+    controlsApi.current = controls;
+    scene.add(cockpit, projection.group, stars.points, controls.group);
+    // A fan of light from the journal module up to the holographic screen while it is open.
+    const beamGeometry = new THREE.BufferGeometry();
+    beamGeometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(12), 3));
+    beamGeometry.setIndex([0, 1, 2, 1, 3, 2]);
+    const beam = new THREE.Mesh(
+      beamGeometry,
+      new THREE.MeshBasicMaterial({ color: 0x4aaaf4, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }),
+    );
+    beam.frustumCulled = false;
+    scene.add(beam);
     // What the metal reflects: a dark hold with the bright canopy ahead and overhead, a warm
     // instrument glow low on the left and a cold strip on the right, for crisp, contrasted highlights.
     const studio = new THREE.Scene();
@@ -184,6 +231,42 @@ export default function CockpitMap({
     const projected = new THREE.Vector3();
     let width = 1,
       height = 1;
+    // The journal's screen: a quad in front of the pilot, sized so it projects to a comfortable
+    // reading area from the resting head position, and tilted slightly back like a real display.
+    const rest = new THREE.PerspectiveCamera();
+    const quad = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    const screenSize = { w: 1, h: 1 };
+    const layoutScreen = () => {
+      rest.fov = camera.fov;
+      rest.aspect = camera.aspect;
+      rest.near = 0.05;
+      rest.far = 600;
+      rest.position.copy(pilotEye);
+      rest.lookAt(0, 1.35, -3.4);
+      rest.updateProjectionMatrix();
+      rest.updateMatrixWorld();
+      const w = Math.min(1080, width * 0.9),
+        h = Math.min(700, height * 0.8),
+        left = (width - w) / 2,
+        top = Math.max(64, (height - h) / 2 - height * 0.03);
+      screenSize.w = w;
+      screenSize.h = h;
+      const forward = new THREE.Vector3();
+      rest.getWorldDirection(forward);
+      const corners: [number, number][] = [
+        [left, top],
+        [left + w, top],
+        [left, top + h],
+        [left + w, top + h],
+      ];
+      corners.forEach(([x, y], i) => {
+        const direction = new THREE.Vector3((x / width) * 2 - 1, 1 - (y / height) * 2, 0.5).unproject(rest).sub(pilotEye).normalize();
+        quad[i].copy(pilotEye).addScaledVector(direction, 1.9 / direction.dot(forward));
+      });
+      const centre = quad.reduce((sum, p) => sum.add(p), new THREE.Vector3()).multiplyScalar(0.25);
+      const axis = quad[1].clone().sub(quad[0]).normalize();
+      quad.forEach((p) => p.sub(centre).applyAxisAngle(axis, -0.08).add(centre));
+    };
     const resize = () => {
       width = el.clientWidth;
       height = el.clientHeight;
@@ -192,6 +275,8 @@ export default function CockpitMap({
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
       projection.setCompact(camera.aspect < 0.8);
+      setCompact(camera.aspect < 0.95 || width < 720);
+      layoutScreen();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(el);
@@ -199,7 +284,22 @@ export default function CockpitMap({
     let frame = 0,
       age = 0,
       last = performance.now(),
-      activated = false;
+      activated = false,
+      openedAt = -1;
+    const anchor = new THREE.Vector3(),
+      corner = new THREE.Vector3(),
+      from = new THREE.Vector3(),
+      across = new THREE.Vector3();
+    const toScreen = (point: THREE.Vector3): [number, number] => {
+      corner.copy(point).project(camera);
+      return [(corner.x * 0.5 + 0.5) * width, (-corner.y * 0.5 + 0.5) * height];
+    };
+    const placeOver = (button: HTMLElement | null, object: THREE.Object3D, w: number, h: number) => {
+      if (!button) return;
+      object.getWorldPosition(anchor);
+      const [x, y] = toScreen(anchor);
+      button.style.transform = `translate(${x - w / 2}px,${y - h / 2}px)`;
+    };
     const animate = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
@@ -230,6 +330,41 @@ export default function CockpitMap({
       camera.updateMatrixWorld();
       projection.tick(age, live.current.selected, live.current.reduced);
       systems.tick(age, live.current.selected, live.current.reduced);
+      const { journal: journalOpen, progress: book, coverOpen: lifted, compact: flat } = live.current;
+      controls.setAlert(book.unseen.length > 0);
+      controls.setOpen(journalOpen);
+      controls.setSith(book.sith);
+      controls.setCover(lifted);
+      controls.tick(dt, age, live.current.reduced);
+      placeOver(journalButton.current, controls.journalAnchor, 150, 70);
+      placeOver(guardButton.current, controls.guardAnchor, 76, 70);
+      // The hologram unfolds upward from the module, then holds, following the head's movement.
+      if (journalOpen && !flat) {
+        if (openedAt < 0) openedAt = age;
+        const unfold = live.current.reduced ? 1 : THREE.MathUtils.smootherstep((age - openedAt) / 0.65, 0, 1);
+        controls.journalAnchor.getWorldPosition(from);
+        across.copy(quad[1]).sub(quad[0]).normalize().multiplyScalar(0.18);
+        const points = quad.map((target, i) => {
+          const base = from.clone().addScaledVector(across, i % 2 ? 1 : -1);
+          const k = i < 2 ? unfold : Math.min(1, unfold * 1.35);
+          return base.lerp(target, k);
+        });
+        const screen = terminal.current;
+        if (screen) {
+          const projected = points.map(toScreen);
+          screen.style.width = `${screenSize.w}px`;
+          screen.style.height = `${screenSize.h}px`;
+          screen.style.transform = holoMatrix(screenSize.w, screenSize.h, projected);
+          screen.style.opacity = unfold < 0.04 ? "0" : "1";
+        }
+        const position = beam.geometry.getAttribute("position") as THREE.BufferAttribute;
+        [from.clone().addScaledVector(across, -0.4), from.clone().addScaledVector(across, 0.4), points[2], points[3]].forEach((p, i) => position.setXYZ(i, p.x, p.y, p.z));
+        position.needsUpdate = true;
+        beam.material.opacity = 0.05 + (1 - unfold) * 0.2 + (live.current.reduced ? 0 : Math.sin(age * 3) * 0.01);
+      } else {
+        openedAt = -1;
+        beam.material.opacity = 0;
+      }
       projectorLight.intensity = live.current.reduced
         ? 8
         : 8 + Math.sin(age * 0.9) * 0.25;
@@ -297,6 +432,23 @@ export default function CockpitMap({
     };
   }, []);
 
+  const openJournal = () => {
+    controlsApi.current?.press();
+    onSelectionCue();
+    window.setTimeout(() => setJournal(true), reduced ? 0 : 180);
+  };
+  // First press lifts the safety cover; the switch under it flips the cockpit to the dark side.
+  const useGuard = () => {
+    if (!coverOpen) {
+      setCoverOpen(true);
+      return;
+    }
+    const sith = !progress.sith;
+    setSithMode(sith);
+    onSelectionCue();
+    if (sith) unlockSecret("sith-mode");
+  };
+
   const choose = (index: number, focus = false) => {
     setSelected(index);
     if (index !== selected) onSelectionCue();
@@ -308,6 +460,8 @@ export default function CockpitMap({
       ref={dialog}
       className="cockpit-map"
       data-graphics={graphics}
+      data-journal={journal}
+      data-sith={progress.sith}
       role="dialog"
       aria-modal="true"
       aria-labelledby="cockpit-title"
@@ -336,6 +490,21 @@ export default function CockpitMap({
           >
             {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
+          {(compact || !graphics) && (
+            <>
+              <button
+                className="cockpit-guard-flat"
+                data-open={coverOpen}
+                data-sith={progress.sith}
+                onClick={useGuard}
+                aria-label={coverOpen ? (progress.sith ? "Revenir du côté lumineux" : "Basculer l’interrupteur sous le capot") : "Soulever le capot de sécurité"}
+              />
+              <button className="cockpit-journal-flat" onClick={openJournal} aria-haspopup="dialog">
+                <span>JOURNAL DE MISSIONS</span>
+                {progress.unseen.length > 0 && <i className="jedi-alert-dot" aria-label="nouvelle mission terminée" />}
+              </button>
+            </>
+          )}
           <button
             ref={close}
             className="cockpit-close"
@@ -402,6 +571,53 @@ export default function CockpitMap({
           </button>
         ))}
       </motion.div>
+      {graphics && !compact && (
+        <div className="cockpit-instruments">
+          <button
+            ref={journalButton}
+            className="cockpit-mission-button"
+            onClick={openJournal}
+            onPointerEnter={() => controlsApi.current?.setHover(true)}
+            onPointerLeave={() => controlsApi.current?.setHover(false)}
+            onFocus={() => controlsApi.current?.setHover(true)}
+            onBlur={() => controlsApi.current?.setHover(false)}
+            aria-haspopup="dialog"
+            aria-expanded={journal}
+            aria-label={`Journal de missions${progress.unseen.length ? ", nouvelle transmission reçue" : ""}`}
+          >
+            <span className="cockpit-mission-caption">JOURNAL DE MISSIONS</span>
+            {progress.unseen.length > 0 && <span className="cockpit-mission-alert">NOUVELLE TRANSMISSION REÇUE</span>}
+          </button>
+          <button
+            ref={guardButton}
+            className="cockpit-guard-button"
+            onClick={useGuard}
+            aria-pressed={coverOpen ? progress.sith : undefined}
+            aria-label={coverOpen ? (progress.sith ? "Revenir du côté lumineux" : "Basculer l’interrupteur sous le capot") : "Soulever le capot de sécurité"}
+          />
+        </div>
+      )}
+      <AnimatePresence>
+        {journal && (
+          <motion.div
+            key="journal"
+            className={`cockpit-journal-layer ${compact || !graphics ? "flat" : "holo"}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? 0.1 : 0.25 }}
+          >
+            <CockpitMissionTerminal
+              ref={terminal}
+              mode={compact || !graphics ? "flat" : "holo"}
+              reduced={reduced}
+              onClose={closeJournal}
+              onLaunch={onExperience}
+              style={compact || !graphics ? undefined : { opacity: 0 }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="cockpit-readout-shell">
         <motion.section
           className="cockpit-readout"

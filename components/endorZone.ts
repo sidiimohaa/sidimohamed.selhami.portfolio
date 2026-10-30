@@ -5,7 +5,9 @@ import { createForceGhosts } from "./endorGhosts";
 import { BIKE_PATH, createEndorLife } from "./endorLife";
 import { BUNKER, WRECKS, createEndorLandmarks } from "./endorLandmarks";
 import { BRIDGE, DECK, RAMP, VILLAGE, bridgeHeight, createEndorVillage, rampPoint } from "./endorVillage";
-import { glowTexture, parkShip, type Spot, type Zone, type ZoneAction } from "./landingKit";
+import { glowTexture, parkShip, type Reveal, type Spot, type Zone, type ZoneAction } from "./landingKit";
+import { createBuriedHolocron } from "./zoneSecrets";
+import { createGroundMist } from "./weather";
 import { createSurfaceNavigator } from "./surfaceNavigation";
 import type { Landing } from "./universe";
 
@@ -17,7 +19,7 @@ const HAZE = new THREE.Color(0xb2bf9c);
 // Far enough out to take in the whole ramp round the first village tree.
 const WALK = 40;
 
-export function createEndorZone(landing: Landing, notify: (event: PadEvent) => void): Zone {
+export function createEndorZone(landing: Landing, notify: (event: PadEvent) => void, reveal: Reveal): Zone {
   const group = new THREE.Group();
   const glow = glowTexture();
   // Late-afternoon sun slanting through the canopy gap, warm fill from the fire, green bounce.
@@ -172,7 +174,21 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   village.elder.root.traverse((o) => {
     if (o instanceof THREE.Mesh) elderMeshes.push(o);
   });
+  // Mission 06: an ancient holocron under the roots of the south-east giant, facing the clearing.
+  const giant = VILLAGE[2],
+    toClearing = new THREE.Vector2(-giant.x, -giant.z).normalize();
+  const holocron = createBuriedHolocron(reveal, {
+    x: giant.x + toClearing.x * (giant.radius + 0.7),
+    z: giant.z + toClearing.y * (giant.radius + 0.7),
+    facing: Math.atan2(toClearing.x, toClearing.y),
+  });
+  group.add(holocron.group);
+  circles.push(holocron.circle);
+  // A low mist drifting between the trunks, at ground level whatever height the visitor is at.
+  const mist = createGroundMist(0xe4ead9);
+  group.add(mist.group);
   const actions: ZoneAction[] = [
+    holocron.action,
     {
       id: "elder",
       label: "Écouter l’ancien",
@@ -242,8 +258,10 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
       village.tick(dt, reduced);
       forest.tick(elapsed, reduced);
       life.tick(dt, reduced);
+      holocron.tick(dt, elapsed, reduced);
+      mist.tick(dt, elapsed, reduced, walker);
       // Seen at eye height from wherever the visitor stands, platforms included.
-      ghosts.tick(dt, reduced, viewer.set(walker.x, level + 1.7, walker.z));
+      if (ghosts.tick(dt, reduced, viewer.set(walker.x, level + 1.7, walker.z)) > 0.6) reveal("last-message");
     },
   };
 }

@@ -5,12 +5,15 @@ import {
   glowTexture,
   parkShip,
   random,
+  type Reveal,
   type Spot,
   type Zone,
 } from "./landingKit";
 import type { Landing } from "./universe";
 import { createSurfaceNavigator } from "./surfaceNavigation";
 import { createTatooineDistrict, districtCoordinates, TATOOINE_GATE } from "./tatooineDistrict";
+import { createKyberCrystal } from "./zoneSecrets";
+import { createSandstorm, gustCycle } from "./weather";
 
 const BAY_RADIUS = 16.6,
   WALL_RADIUS = 17,
@@ -24,6 +27,9 @@ const SPAWN = new THREE.Vector3(7, 0, 11.5);
 const SUN = new THREE.Vector3(0.02, 0.139, -0.99).normalize(),
   SECOND = new THREE.Vector3(0.16, 0.105, -0.987).normalize();
 const HAZE = new THREE.Color(0.85, 0.66, 0.46);
+// Over the first four minutes of a visit the suns sink to the horizon and the light turns to dusk.
+const DUSK_HAZE = new THREE.Color(0.74, 0.47, 0.34),
+  SANDY_HAZE = new THREE.Color(0.82, 0.62, 0.42);
 
 const smooth = (value: number, from: number, to: number) => {
   const t = THREE.MathUtils.clamp((value - from) / (to - from), 0, 1);
@@ -164,16 +170,19 @@ function skyDome() {
   return new THREE.Mesh(
     new THREE.SphereGeometry(1800, 48, 24),
     new THREE.ShaderMaterial({
-      uniforms: { sunA: { value: SUN }, sunB: { value: SECOND } },
+      uniforms: { sunA: { value: SUN.clone() }, sunB: { value: SECOND.clone() }, dusk: { value: 0 } },
       vertexShader: `varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-      fragmentShader: `uniform vec3 sunA;uniform vec3 sunB;varying vec3 vDirection;
+      fragmentShader: `uniform vec3 sunA;uniform vec3 sunB;uniform float dusk;varying vec3 vDirection;
        void main(){
         vec3 n=normalize(vDirection);float h=n.y;
-        vec3 zenith=vec3(.36,.52,.68),horizon=vec3(.95,.78,.56),below=vec3(.86,.66,.46);
+        vec3 zenith=mix(vec3(.36,.52,.68),vec3(.2,.22,.42),dusk),horizon=mix(vec3(.95,.78,.56),vec3(1.0,.52,.3),dusk),below=mix(vec3(.86,.66,.46),vec3(.62,.38,.28),dusk);
+        // The glow round the suns spreads and reddens as they set.
+        float toward=max(dot(normalize(n.xz),normalize(sunA.xz)),0.0);
+        horizon=mix(horizon,vec3(1.0,.42,.22),dusk*pow(toward,6.0)*(1.0-smoothstep(0.0,.25,abs(h))));
         vec3 c=h>0.0?mix(horizon,zenith,pow(h,.55)):mix(horizon,below,pow(-h,.5));
         float a=max(dot(n,sunA),0.0),b=max(dot(n,sunB),0.0);
-        c+=vec3(1.0,.86,.62)*(pow(a,24.0)*.22+pow(a,600.0)*.25);
-        c+=vec3(1.0,.62,.36)*(pow(b,30.0)*.16+pow(b,800.0)*.2);
+        c+=mix(vec3(1.0,.86,.62),vec3(1.0,.55,.3),dusk)*(pow(a,24.0-dusk*14.0)*(.22+dusk*.2)+pow(a,600.0)*.25);
+        c+=mix(vec3(1.0,.62,.36),vec3(1.0,.4,.22),dusk)*(pow(b,30.0-dusk*16.0)*(.16+dusk*.14)+pow(b,800.0)*.2);
         gl_FragColor=vec4(c,1.0);
        }`,
       side: THREE.BackSide,
@@ -196,12 +205,14 @@ function sunTexture() {
   });
 }
 
-export function createTatooineZone(landing: Landing, notify: (event: PadEvent) => void): Zone {
+export function createTatooineZone(landing: Landing, notify: (event: PadEvent) => void, reveal: Reveal): Zone {
   const group = new THREE.Group();
   const rand = random(1977);
   const glow = glowTexture(),
     sunlight = sunTexture();
-  group.add(skyDome());
+  const sky = skyDome();
+  group.add(sky);
+  const discs: THREE.Sprite[] = [];
   (
     [
       [SUN, 0xfff4dc, 110],
@@ -221,6 +232,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     disc.position.copy(direction).multiplyScalar(1500);
     disc.scale.setScalar(size);
     group.add(disc);
+    discs.push(disc);
   });
   const ambient=new THREE.HemisphereLight(0xb4c8dc,0xc8925a,1.35);
   group.add(ambient);
@@ -522,6 +534,11 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
 
   const district = createTatooineDistrict(adobe,groundHeight);
   group.add(district.group);
+  // Mission 09: a kyber crystal between a few stones at the foot of the bay wall, across from the gate.
+  const kyberAt = { x: Math.sin(GATE_AT + 2.4) * 15.2, z: Math.cos(GATE_AT + 2.4) * 15.2 };
+  const kyber = createKyberCrystal(reveal, { ...kyberAt, y: groundHeight(kyberAt.x, kyberAt.z) });
+  group.add(kyber.group);
+  circles.push(kyber.circle);
   circles.push(...taken.slice(1),...district.colliders);
   const blockedByWall=(x:number,z:number)=>{
     const radius=Math.hypot(x,z),angle=Math.atan2(x,z)-GATE_AT;
@@ -544,13 +561,26 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
   // Indoors, a warm amber haze replaces the desert air.
   const fog = new THREE.FogExp2(HAZE, 0.0016),
     smoke = new THREE.Color(0x5a3c22);
+  // Sand squalls blow in from the open desert every minute or so.
+  const storm = createSandstorm(new THREE.Vector2(0.8, 0.6));
+  group.add(storm.group);
+  const squall = gustCycle(58, 17, 28);
+  const sunsetting = {
+    sun: new THREE.Vector3(),
+    second: new THREE.Vector3(),
+    colors: [new THREE.Color(0xffdcae), new THREE.Color(0xff7a3a), new THREE.Color(0xff9a5c), new THREE.Color(0xff4a24)],
+    sky: [new THREE.Color(0xb4c8dc), new THREE.Color(0x6f6a96), new THREE.Color(0xc8925a), new THREE.Color(0x7a4630)],
+    discs: [new THREE.Color(0xfff4dc), new THREE.Color(0xffa060), new THREE.Color(0xffb878), new THREE.Color(0xff6a3a)],
+    haze: new THREE.Color(),
+  };
+  const setElevation = (out: THREE.Vector3, from: THREE.Vector3, elevation: number) => out.set(from.x, 0, from.z).normalize().multiplyScalar(Math.sqrt(1 - elevation * elevation)).setY(elevation);
   return {
     group,
     fog,
     exposure: 1,
     walkRadius: 76,
     explorePoint:district.explorePoint,
-    actions:district.actions,
+    actions:[...district.actions,kyber.action],
     actionApproach:district.actionApproach,
     interior:district.interior,
     routeTo,
@@ -576,7 +606,10 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     ship: parking.ship,
     shipRest: parking.shipRest,
     colliders: { circles, footprint: parking.footprint, movers: [...life.movers,...district.movers] },
-    setViewport: life.setViewport,
+    setViewport: (height: number) => {
+      life.setViewport(height);
+      storm.setViewport(height);
+    },
     // Beside the ship's nose, the gate and its twin suns on the right of the view.
     spawn: { position: SPAWN.clone(), yaw: 0.25 },
     setThrust: (level: number) => {
@@ -586,11 +619,36 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     tick: (dt, elapsed, reduced, walker) => {
       life.tick(dt, elapsed, reduced, walker);
       district.tick(dt,reduced,walker);
+      kyber.tick(dt, elapsed, reduced);
       const indoors=district.interior.contains(walker.x,walker.z),blend=1-Math.exp(-dt*4);
-      ambient.intensity+=((indoors?.32:1.35)-ambient.intensity)*blend;
-      second.intensity+=((indoors?.1:.9)-second.intensity)*blend;
-      fog.density+=((indoors?.028:.0016)-fog.density)*blend;
-      fog.color.lerp(indoors?smoke:HAZE,blend);
+      // The suns go down, the light warms to orange and the sky deepens.
+      const dusk=smooth(elapsed,15,255),{colors,sky:tints,discs:glows}=sunsetting;
+      setElevation(sunsetting.sun,SUN,THREE.MathUtils.lerp(SUN.y,-.012,dusk));
+      setElevation(sunsetting.second,SECOND,THREE.MathUtils.lerp(SECOND.y,-.035,dusk));
+      sun.position.copy(sunsetting.sun).multiplyScalar(300);
+      second.position.copy(sunsetting.second).multiplyScalar(300);
+      sun.color.lerpColors(colors[0],colors[1],dusk);
+      second.color.lerpColors(colors[2],colors[3],dusk);
+      sun.intensity=THREE.MathUtils.lerp(2.6,1.05,dusk)*(indoors?.7:1);
+      ambient.color.lerpColors(tints[0],tints[1],dusk);
+      ambient.groundColor.lerpColors(tints[2],tints[3],dusk);
+      const material=sky.material as THREE.ShaderMaterial;
+      material.uniforms.dusk.value=dusk;
+      material.uniforms.sunA.value.copy(sunsetting.sun);
+      material.uniforms.sunB.value.copy(sunsetting.second);
+      discs.forEach((disc,i)=>{
+        disc.position.copy(i?sunsetting.second:sunsetting.sun).multiplyScalar(1500);
+        disc.material.color.lerpColors(glows[i*2],glows[i*2+1],dusk);
+        disc.scale.setScalar((i?75:110)*(1+dusk*.25));
+      });
+      // Squalls thicken the air outside; indoors the cantina keeps its own haze.
+      const gust=indoors?0:squall(elapsed);
+      storm.tick(dt,elapsed,gust,reduced,walker,groundHeight);
+      sunsetting.haze.lerpColors(HAZE,DUSK_HAZE,dusk).lerp(SANDY_HAZE,gust*.6);
+      ambient.intensity+=((indoors?.32:THREE.MathUtils.lerp(1.35,.85,dusk))-ambient.intensity)*blend;
+      second.intensity+=((indoors?.1:THREE.MathUtils.lerp(.9,.35,dusk))-second.intensity)*blend;
+      fog.density+=((indoors?.028:.0016+(reduced?0:gust*.0065))-fog.density)*blend;
+      fog.color.lerp(indoors?smoke:sunsetting.haze,blend);
       stations.tick(elapsed, reduced);
     },
   };

@@ -4,10 +4,12 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import { createHothBattle, createSnowspeeder } from "./hothBattle";
 import { createBriefingTable } from "./hothBriefing";
-import { createTerminals, glowTexture, parkShip, random, type Spot, type Zone } from "./landingKit";
+import { createTerminals, glowTexture, parkShip, random, type Reveal, type Spot, type Zone } from "./landingKit";
 import { createShipModel } from "./shipModel";
 import { createHothGlacier } from "./hothGlacier";
 import { createHothTauntauns } from "./hothTauntauns";
+import { createHothSecrets, WAMPA_CAVE } from "./hothSecrets";
+import { gustCycle } from "./weather";
 import type { Landing } from "./universe";
 
 // Echo Base's main hangar: a vaulted glacier cavern, open at +z onto
@@ -28,7 +30,9 @@ export function hothHeight(x: number, z: number) {
   const ridge = ROOF - 1 + Math.sin(x * 0.07) * 1.5 + Math.sin(z * 0.05 + x * 0.03) * 2 + Math.sin(x * 0.23 + z * 0.17) * 0.6;
   const jitter = Math.sin(z * 0.41 + x * 0.2) * 0.8 + Math.sin(z * 1.3 + x) * 0.3 + Math.sin(x * 0.37 + z * 0.1) * 0.6;
   const outside = Math.max(Math.abs(x) - SIDE, BACK - z) + jitter;
-  const cliff = ridge * smooth(outside, -0.5, 2.5) * (1 - smooth(z, MOUTH - 4, MOUTH + 18));
+  // A hollow in the west wall leaves room for the wampa's cave.
+  const cave = smooth(Math.hypot((x - WAMPA_CAVE.x) / 4.4, (z - WAMPA_CAVE.z) / 5), 0.72, 1);
+  const cliff = ridge * smooth(outside, -0.5, 2.5) * (1 - smooth(z, MOUTH - 4, MOUTH + 18)) * cave;
   const plain =
     (Math.sin(x * 0.013 + z * 0.007) * 3 + Math.sin(x * 0.031 - z * 0.019) * 1.2 + 4.2) * smooth(z, MOUTH + 8, 160) +
     smooth(Math.hypot(x, z), 520, 1100) * (60 + Math.sin(x * 0.006) * 30 + Math.sin(x * 0.017 + z * 0.004) * 14);
@@ -208,17 +212,18 @@ function snowfall(count: number) {
   for (let i = 0; i < count * 3; i++) seeds[i] = rand();
   geometry.setAttribute("position", new THREE.BufferAttribute(seeds, 3));
   const material = new THREE.ShaderMaterial({
-    uniforms: { time: { value: 0 }, origin: { value: new THREE.Vector3() }, scale: { value: 1 } },
-    vertexShader: `uniform float time;uniform vec3 origin;uniform float scale;varying float vAlpha;
+    uniforms: { time: { value: 0 }, origin: { value: new THREE.Vector3() }, scale: { value: 1 }, gust: { value: 0 } },
+    vertexShader: `uniform float time;uniform vec3 origin;uniform float scale;uniform float gust;varying float vAlpha;
       const vec3 box=vec3(60.0,34.0,60.0);
       void main(){
-        vec3 drift=vec3(2.6,-2.2,-3.4)*time+vec3(sin(time*.7+position.y*40.0),0.0,cos(time*.5+position.x*30.0))*1.2;
+        // In a squall the flakes swirl harder (and their clock runs faster, see the tick).
+        vec3 drift=vec3(2.6,-2.2,-3.4)*time+vec3(sin(time*.7+position.y*40.0),0.0,cos(time*.5+position.x*30.0))*(1.2+gust*2.5);
         vec3 p=mod(position*box+drift-origin+box*.5,box)-box*.5+origin;
         p.y+=10.0;
         // Windblown snow thins underneath the natural ice vault.
         float ceiling=${ROOF-3}.0+16.0*pow(sqrt(max(0.0,1.0-p.x*p.x/${(SIDE+1.2)**2})),.85);
         float covered=step(abs(p.x),${SIDE - 1}.0)*step(p.z,${MOUTH - 4}.0)*step(${BACK}.0,p.z)*step(p.y,ceiling);
-        vAlpha=mix(.85,.12,covered);
+        vAlpha=mix(.85,.12,covered)*(1.0+gust*.4);
         vec4 view=modelViewMatrix*vec4(p,1.0);
         gl_Position=projectionMatrix*view;
         gl_PointSize=min(18.0,scale*(2.0+fract(position.z*91.0)*2.5)*(26.0/-view.z));
@@ -232,7 +237,7 @@ function snowfall(count: number) {
   return { points, material };
 }
 
-export function createHothZone(landing: Landing, notify: (event: PadEvent) => void): Zone {
+export function createHothZone(landing: Landing, notify: (event: PadEvent) => void, reveal: Reveal): Zone {
   const group = new THREE.Group();
   const rand = random(1980);
   const glow = glowTexture();
@@ -413,6 +418,11 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   const life = createPadLife({ glow, engines: parking.exhausts, notify, guard: false, drone: false, taxi: false, ground: "snow", steam: 0xeef3f7 });
   group.add(life.group);
 
+  const secrets = createHothSecrets(reveal, notify);
+  group.add(secrets.group);
+  secrets.avoid([...circles]);
+  circles.push(...secrets.circles);
+
   const battle = createHothBattle(hothHeight);
   group.add(battle.group);
   // Storm: falling snow, gusts of spindrift across the mouth and a fog that breathes.
@@ -424,7 +434,10 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
     return { sprite, age: i * 0.6, life: 6, x: 0, z: 0, size: 6 };
   });
   const fog = new THREE.FogExp2(SKY, 0.0017);
-  let clock = 0;
+  // Blizzard squalls sweep through every forty seconds or so.
+  const squall = gustCycle(44, 13, 18);
+  let clock = 0,
+    windClock = 0;
   return {
     group,
     fog,
@@ -437,6 +450,7 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       walker.z = THREE.MathUtils.clamp(walker.z, BACK + 4, MOUTH + 12);
     },
     terminals: stations.terminals,
+    actions: secrets.actions,
     ship: parking.ship,
     shipRest: parking.shipRest,
     colliders: { circles, footprint: parking.footprint, movers: life.movers },
@@ -456,19 +470,26 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       table.tick(elapsed, reduced, stations.terminals);
       battle.tick(dt, reduced);
       tauntauns.tick(dt, reduced);
+      secrets.tick(dt, elapsed, reduced, walker);
       const daylightMix=smooth(walker.z,16,46),blend=1-Math.exp(-dt*3);
       ambient.intensity+=((1.05+daylightMix*.5)-ambient.intensity)*blend;
-      if (!reduced) clock += dt;
+      const gust = reduced ? 0 : squall(elapsed);
+      // Time runs faster for the flakes in a squall, so they rush past instead of drifting.
+      if (!reduced) {
+        clock += dt;
+        windClock += dt * (1 + gust * 2.2);
+      }
       flakes.points.visible = !reduced;
-      flakes.material.uniforms.time.value = clock;
+      flakes.material.uniforms.time.value = windClock;
+      flakes.material.uniforms.gust.value = gust;
       flakes.material.uniforms.origin.value.set(walker.x, 0, walker.z);
-      fog.density = 0.0017 * (1 + (reduced ? 0 : Math.sin(clock * 0.21) * 0.12 + Math.sin(clock * 0.53) * 0.06));
+      fog.density = 0.0017 * (1 + (reduced ? 0 : Math.sin(clock * 0.21) * 0.12 + Math.sin(clock * 0.53) * 0.06) + gust * 2.8);
       gusts.forEach((gust) => {
         if (reduced) {
           gust.sprite.visible = false;
           return;
         }
-        gust.age += dt;
+        gust.age += dt * (1 + squall(elapsed));
         if (gust.age > gust.life) {
           gust.age = 0;
           gust.life = 4 + Math.random() * 4;
@@ -480,7 +501,7 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
         gust.sprite.visible = true;
         gust.sprite.position.set(gust.x + gust.age * 9, 1 + t * 2, gust.z - gust.age * 2);
         gust.sprite.scale.set(gust.size * (1 + t), gust.size * 0.45 * (1 + t), 1);
-        gust.sprite.material.opacity = Math.sin(t * Math.PI) * 0.22;
+        gust.sprite.material.opacity = Math.sin(t * Math.PI) * 0.22 * (1 + squall(elapsed) * 1.8);
       });
     },
   };

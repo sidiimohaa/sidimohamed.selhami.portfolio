@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./cockpit.css";
 @import "./transmissions.css";
+@import "./jedi.css";
 :root {
   --cream: #e9e9de;
   --muted: #858b82;

@@ -108,6 +108,8 @@ export function createCantinaCrowd() {
     [-13.9, 66.75],
   ];
   stools.forEach(([u, v], index) => {
+    // This empty stool's place at the counter is where Luke stands.
+    if (index === 3) return;
     part(group, new THREE.CylinderGeometry(0.2, 0.2, 0.07, 14), wood, [u, 0.74, v]);
     part(group, new THREE.CylinderGeometry(0.035, 0.05, 0.72, 8), brass, [u, 0.36, v]);
     part(group, new THREE.TorusGeometry(0.15, 0.015, 6, 14), brass, [u, 0.28, v], [Math.PI / 2, 0, 0]);

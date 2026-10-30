@@ -308,7 +308,7 @@ export function createForceGhosts() {
       const near = 1 - THREE.MathUtils.smoothstep(group.worldToLocal(local.copy(viewer)).length(), 6, 10);
       shown += (near - shown) * Math.min(1, dt * (near > shown ? 0.8 : 1.5));
       group.visible = shown > 0.004;
-      if (!group.visible) return;
+      if (!group.visible) return shown;
       fade.value = shown;
       time.value = clock;
       halos.forEach((halo, i) => (halo.material.opacity = shown * 0.3 * (reduced ? 1 : 0.85 + Math.sin(clock * 1.3 + i * 2) * 0.15)));
@@ -320,6 +320,7 @@ export function createForceGhosts() {
         figure.head.rotation.y += (yaw + (reduced ? 0 : Math.sin(clock * 0.4 + i * 2) * 0.04) - figure.head.rotation.y) * ease;
         figure.head.rotation.x += (pitch - figure.head.rotation.x) * ease;
       });
+      return shown;
     },
   };
 }

@@ -10,9 +10,11 @@ import {
   glowTexture,
   parkShip,
   random,
+  type Reveal,
   type Spot,
   type Zone,
 } from "./landingKit";
+import { createForgottenConsole } from "./zoneSecrets";
 import type { Landing } from "./universe";
 
 const PAD_RADIUS = 16;
@@ -184,6 +186,7 @@ function padTexture(label: string) {
 export function createCoruscantZone(
   landing: Landing,
   notify: (event: PadEvent) => void,
+  reveal: Reveal,
 ): Zone {
   const group = new THREE.Group();
   const rand = random(3700);
@@ -410,6 +413,10 @@ export function createCoruscantZone(
   group.add(parking.ship);
   const life = createPadLife({ glow, engines: parking.exhausts, notify });
   group.add(life.group);
+  // Mission 04: a forgotten console tucked behind the west cargo, turned towards the pad.
+  const archive = createForgottenConsole(reveal, { x: -13.9, z: -3.6, facing: Math.atan2(13.9, 3.6) });
+  group.add(archive.group);
+  circles.push(archive.circle);
 
   let chase = 0;
   return {
@@ -418,6 +425,7 @@ export function createCoruscantZone(
     exposure: 1.15,
     walkRadius: PAD_RADIUS - 1.1,
     terminals: stations.terminals,
+    actions: [archive.action],
     ship: parking.ship,
     shipRest: parking.shipRest,
     colliders: { circles, footprint: parking.footprint, movers: life.movers },
@@ -435,6 +443,7 @@ export function createCoruscantZone(
       walker: { x: number; z: number },
     ) => {
       life.tick(dt, elapsed, reduced, walker);
+      archive.tick(dt, elapsed, reduced);
       const motion = reduced ? 0 : 1;
       lights.forEach((light, i) => {
         const lane = lanes[light.lane];

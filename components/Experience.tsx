@@ -22,6 +22,29 @@ const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
 const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
 const CockpitMap = dynamic(() => import("./CockpitMap"), { ssr: false });
 import { destinations, landings, planetReferenceStyle } from "./universe";
+import {
+  getProgress,
+  markRankCelebrated,
+  onProgress,
+  rankFor,
+  ranks,
+  unlockSecret,
+  useJediProgression,
+  type Mission,
+  type MissionId,
+  type Rank,
+  OVERLAYS,
+} from "./jediProgression";
+import {
+  ArchivesDossier,
+  HyperspaceJump,
+  ImperialTransmission,
+  JediProgressWidget,
+  RankUpCinematic,
+  SecretDiscoveryToast,
+} from "./jedi/JediOverlays";
+const TempleRoom = dynamic(() => import("./jedi/TempleRoom"), { ssr: false });
+const FinalVaderExperience = dynamic(() => import("./jedi/FinalVaderExperience"), { ssr: false });
 
 function OrbitalLogo() {
   return (
@@ -54,19 +77,39 @@ export default function Experience() {
     [unsupported, setUnsupported] = useState(false),
     [resetKey, setResetKey] = useState(0),
     [droidSignal, setDroidSignal] = useState(0),
-    [surface, setSurface] = useState<number | null>(null);
+    [surface, setSurface] = useState<number | null>(null),
+    // The Jedi progression's screens: toasts, rank ceremonies, mission scenes and rewards.
+    [toasts, setToasts] = useState<{ mission: Mission; total: number }[]>([]),
+    [ceremonies, setCeremonies] = useState<Rank[]>([]),
+    [journalFirst, setJournalFirst] = useState(false),
+    [reward, setReward] = useState<"temple" | "destiny" | null>(null),
+    [jumping, setJumping] = useState(false),
+    [transmission, setTransmission] = useState<"order-66" | "archives" | null>(null);
+  const { progress } = useJediProgression();
   const audio = useRef<FlightAudio | null>(null),
     timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const current = destinations[destination],
     landing = landings[current.name],
     ground = surface !== null ? destinations[surface] : null,
     groundLanding = ground ? landings[ground.name] : undefined;
+  const lastSix = useRef(0);
   const guidance = useRef<number | null>(null),
     approachProgress = useRef<HTMLElement>(null),
     arrivedRef = useRef(arrived);
   arrivedRef.current = arrived;
+  // Holding the boost for four seconds of thrust breaks into hyperspace (mission 02).
+  const boostSince = useRef<number | null>(null);
   const onFlight = useCallback((flight: FlightTelemetry) => {
     guidance.current = flight.target;
+    if (flight.boost && flight.manual) {
+      const now = performance.now();
+      boostSince.current ??= now;
+      if (now - boostSince.current > 4000) {
+        boostSince.current = null;
+        setJumping(true);
+        audio.current?.jump();
+      }
+    } else boostSince.current = null;
     audio.current?.flight(flight);
     if (approachProgress.current)
       approachProgress.current.style.transform = `scaleX(${flight.approachProgress})`;
@@ -77,6 +120,36 @@ export default function Experience() {
     audio.current?.droid();
   }, []);
   const onExitSound = useCallback(() => audio.current?.exit(), []);
+  // Every unlock and rank change, wherever it happens, comes through the shared progression.
+  useEffect(() => {
+    const pending = getProgress(),
+      reached = rankFor(pending.found.length);
+    // A ceremony interrupted by a reload plays once more on the next visit.
+    if (ranks.indexOf(reached) > ranks.findIndex((rank) => rank.id === pending.celebrated)) setCeremonies([reached]);
+    return onProgress((event) => {
+      if (event.type === "unlock") {
+        setToasts((queue) => [...queue, { mission: event.mission, total: event.total }]);
+        audio.current?.chime();
+      } else setCeremonies((queue) => [...queue.filter((rank) => rank.id !== event.to.id), event.to]);
+    });
+  }, []);
+  const dismissToast = useCallback(() => setToasts((queue) => queue.slice(1)), []);
+  const finishCeremony = useCallback(() => {
+    setCeremonies((queue) => {
+      if (queue[0]) markRankCelebrated(queue[0].id);
+      return queue.slice(1);
+    });
+  }, []);
+  const finishJump = useCallback(() => {
+    setJumping(false);
+    unlockSecret("hyperspace");
+  }, []);
+  const closeTransmission = useCallback(() => setTransmission(null), []);
+  const onSecret = useCallback((id: MissionId) => {
+    unlockSecret(id);
+    // The forgotten console opens its dossier as it is found.
+    if (id === "forgotten-archives") setTransmission("archives");
+  }, []);
   const onHyperspace = useCallback((phase: HyperspacePhase) => {
     if (phase === "arrive") audio.current?.exit(0.5);
     else audio.current?.jump();
@@ -140,7 +213,8 @@ export default function Experience() {
   }, [soundscape, sound]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      // Escape is taken by an overlay or the mission journal first when one is open.
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(OVERLAYS)) {
         timers.current.forEach(clearTimeout);
         setMapOpen(false);
         setHelpOpen(false);
@@ -166,6 +240,17 @@ export default function Experience() {
         else launch(aimed);
       }
       if (e.key === "Shift") setBoost(true);
+      // Typing the two sixes of the order opens an Imperial transmission (mission 08).
+      // The physical 6 key, so it works with or without Shift on any keyboard layout.
+      const six = e.key === "6" || e.code === "Digit6" || e.code === "Numpad6";
+      if (six && !e.repeat && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        const now = performance.now();
+        if (now - lastSix.current < 1200) {
+          lastSix.current = 0;
+          setTransmission("order-66");
+          unlockSecret("order-66");
+        } else lastSix.current = now;
+      }
     };
     const up = (e: KeyboardEvent) => {
       if (e.key === "Shift") setBoost(false);
@@ -226,7 +311,8 @@ export default function Experience() {
     audio.current.setEnabled(enabled);
     setSound(enabled);
   };
-  const openMap = () => {
+  const openMap = (journal = false) => {
+    setJournalFirst(journal);
     timers.current.forEach(clearTimeout);
     setTravel(false);
     setArrived(false);
@@ -254,10 +340,11 @@ export default function Experience() {
     timers.current.forEach(clearTimeout);
     setTravel(false);
   };
-  const paused = loading || mapOpen || helpOpen || surface !== null;
+  const paused = loading || mapOpen || helpOpen || surface !== null || reward !== null;
   return (
     <main
       aria-busy={loading}
+      data-side={progress.sith ? "sith" : "light"}
       className={`experience open-space ${travel ? "is-travelling" : ""} ${ground ? "on-surface" : ""}`}
     >
       <div className="space-haze" />
@@ -289,10 +376,11 @@ export default function Experience() {
           planet={ground.name}
           landing={groundLanding}
           reduced={reduced}
-          paused={mapOpen || helpOpen}
-          hidden={mapOpen}
+          paused={mapOpen || helpOpen || reward !== null}
+          hidden={mapOpen || reward !== null}
           onCue={onSurfaceCue}
           onMusic={onSurfaceMusic}
+          onSecret={onSecret}
           onTakeoff={takeOff}
         />
       )}
@@ -329,9 +417,10 @@ export default function Experience() {
           </span>
         </button>
         <nav aria-label="Navigation principale" className="minimal-nav">
+          <JediProgressWidget onOpenJournal={() => openMap(true)} hidden={loading} />
           <button
             className="map-trigger"
-            onClick={openMap}
+            onClick={() => openMap()}
             aria-label="Ouvrir la carte stellaire"
           >
             <Map size={15} />
@@ -399,6 +488,11 @@ export default function Experience() {
             onSelectionCue={() => audio.current?.chime()}
             onClose={() => setMapOpen(false)}
             onLaunch={launch}
+            initialJournal={journalFirst}
+            onExperience={(experience) => {
+              setMapOpen(false);
+              setReward(experience);
+            }}
           />
         )}
       </AnimatePresence>
@@ -455,7 +549,7 @@ export default function Experience() {
               </button>
             )}
             <div className="orbit-actions">
-              <button className="text-button" onClick={openMap}>
+              <button className="text-button" onClick={() => openMap()}>
                 CHANGER DE CAP <ArrowUpRight size={12} />
               </button>
               <button className="text-button" onClick={() => setArrived(false)}>
@@ -555,6 +649,25 @@ export default function Experience() {
             </motion.section>
           </motion.div>
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {jumping && <HyperspaceJump key="jump" reduced={reduced} onDone={finishJump} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {transmission === "order-66" && <ImperialTransmission key="order" onClose={closeTransmission} />}
+        {transmission === "archives" && <ArchivesDossier key="archives" onClose={closeTransmission} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {reward === "temple" && <TempleRoom key="temple" reduced={reduced} onClose={() => setReward(null)} />}
+        {reward === "destiny" && <FinalVaderExperience key="destiny" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
+      </AnimatePresence>
+      <div className="jedi-toasts">
+        <AnimatePresence>
+          {toasts[0] && <SecretDiscoveryToast key={toasts[0].mission.id} mission={toasts[0].mission} total={toasts[0].total} reduced={reduced} onDone={dismissToast} />}
+        </AnimatePresence>
+      </div>
+      <AnimatePresence>
+        {ceremonies[0] && !loading && <RankUpCinematic key={ceremonies[0].id} to={ceremonies[0]} reduced={reduced} onDone={finishCeremony} />}
       </AnimatePresence>
       {unsupported && (
         <div className="webgl-note mono">

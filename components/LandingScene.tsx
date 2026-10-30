@@ -13,16 +13,17 @@ import BountyProjectPanel from "./BountyProjectPanel";
 import PassionsViewer from "./PassionsViewer";
 import { createEndorZone } from "./endorZone";
 import type { PadEvent } from "./coruscantLife";
-import type { ZoneAction } from "./landingKit";
+import type { Reveal, Zone, ZoneAction } from "./landingKit";
+import type { MissionId } from "./jediProgression";
 import type { Landing } from "./universe";
 
 // Each world with a landing zone builds its own scene around the shared pad layout.
-const zones = {
+const zones: Record<string, (landing: Landing, notify: (event: PadEvent) => void, reveal: Reveal) => Zone> = {
   Coruscant: createCoruscantZone,
   Tatooine: createTatooineZone,
   Hoth: createHothZone,
   Endor: createEndorZone,
-} as const;
+};
 
 export type SurfaceCue = "terminal" | "takeoff" | "step" | "cantina-enter" | "cantina-leave" | PadEvent;
 type Props = {
@@ -34,6 +35,8 @@ type Props = {
   onCue: (cue: SurfaceCue) => void;
   // The zone's music level where the visitor stands, 0 to 1, and whether they are inside with it.
   onMusic?: (level: number, inside: boolean) => void;
+  // A secret mission the visitor has just completed here, once per landing.
+  onSecret?: (id: MissionId) => void;
   onTakeoff: () => void;
 };
 type Phase = "arrival" | "explore" | "takeoff";
@@ -60,6 +63,7 @@ export default function LandingScene({
   hidden,
   onCue,
   onMusic,
+  onSecret,
   onTakeoff,
 }: Props) {
   const mount = useRef<HTMLDivElement>(null),
@@ -75,7 +79,7 @@ export default function LandingScene({
   const [inDistrict,setInDistrict] = useState(false);
   const [inCantina,setInCantina] = useState(false);
   // Things to use in the scene (the bounty puck, Grogu), and the project a puck has opened.
-  const [actions, setActions] = useState<{ id: string; label: string }[]>([]);
+  const [actions, setActions] = useState<{ id: string; label: string; hidden?: boolean }[]>([]);
   const [bounty, setBounty] = useState<number | null>(null);
   // The passions presentation opened from Endor, and the way up to its village.
   const [story, setStory] = useState<{ at?: number; title: string } | null>(null);
@@ -89,9 +93,11 @@ export default function LandingScene({
   live.current = { reduced, paused, hidden };
   const cue = useRef(onCue),
     music = useRef(onMusic),
+    secret = useRef(onSecret),
     leave = useRef(onTakeoff);
   cue.current = onCue;
   music.current = onMusic;
+  secret.current = onSecret;
   leave.current = onTakeoff;
   const controls = useRef<{
     walkTo: (index: number) => void;
@@ -131,8 +137,13 @@ export default function LandingScene({
       environment=generator.fromScene(room,.02);scene.environment=environment.texture;scene.environmentIntensity=.45;
       generator.dispose();room.dispose();
     }
-    const build = zones[planet as keyof typeof zones] ?? createCoruscantZone;
-    const zone = build(landing, (event) => cue.current(event));
+    const build = zones[planet] ?? createCoruscantZone;
+    const seen = new Set<MissionId>();
+    const zone = build(landing, (event) => cue.current(event), (id) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      secret.current?.(id);
+    });
     renderer.toneMappingExposure = zone.exposure;
     let ratio = ceiling,
       quality = coarse ? 1 : 2;
@@ -149,7 +160,11 @@ export default function LandingScene({
     const actionOf = new Map<THREE.Object3D, ZoneAction>();
     zone.actions?.forEach((action) => action.objects.forEach((object) => actionOf.set(object, action)));
     const actionObjects = [...actionOf.keys()];
-    setActions(zone.actions?.map(({ id, label }) => ({ id, label })) ?? []);
+    // Secret actions only join the buttons once the visitor stands close to them.
+    const listed = (near: string[]) => zone.actions?.filter((action) => !action.hidden || near.includes(action.id)).map(({ id, label, hidden }) => ({ id, label, hidden })) ?? [];
+    const secretActions = zone.actions?.filter((action) => action.hidden) ?? [];
+    let nearKey = "";
+    setActions(listed([]));
 
     const walker = {
       x: zone.spawn.position.x,
@@ -614,6 +629,13 @@ export default function LandingScene({
       const { reduced: still, paused: frozen } = live.current;
       if (!frozen && !(current === "arrival" && elapsed < entryHold)) clock += dt;
       zone.tick(frozen ? 0 : dt, elapsed, still, walker);
+      if (secretActions.length) {
+        const near = secretActions.filter((action) => Math.hypot(action.position.x - walker.x, action.position.z - walker.z) < 4.5).map((action) => action.id);
+        if (near.join() !== nearKey) {
+          nearKey = near.join();
+          setActions(listed(near));
+        }
+      }
       if (zone.music) {
         const heard = zone.music(walker);
         if (Math.abs(heard.level - heardLevel) > 0.02 || heard.inside !== heardInside) {
@@ -1015,7 +1037,7 @@ export default function LandingScene({
           {planet==="Tatooine"&&<button className="surface-district mono" onClick={()=>controls.current?.district()} disabled={phase==="takeoff"}>{inDistrict?"← X-WING":"MOS EISLEY ↗"}</button>}
           {planet==="Tatooine"&&<button className="surface-district surface-cantina mono" onClick={()=>controls.current?.cantina()} disabled={phase==="takeoff"}>{inCantina?"← SORTIR":"CANTINA ↗"}</button>}
           {climb&&<button className="surface-district surface-climb mono" onClick={()=>controls.current?.climb()} disabled={phase==="takeoff"}>{aloft?climb.down:climb.up}</button>}
-          {(planet!=="Tatooine"||inCantina)&&actions.map((action)=><button key={action.id} className="surface-district surface-action mono" onClick={()=>controls.current?.act(action.id)} disabled={phase==="takeoff"}>{action.label.toUpperCase()}</button>)}
+          {actions.filter((action)=>planet!=="Tatooine"||inCantina||action.hidden).map((action)=><button key={action.id} className="surface-district surface-action mono" onClick={()=>controls.current?.act(action.id)} disabled={phase==="takeoff"}>{action.label.toUpperCase()}</button>)}
           <div className="surface-terminals">
             {landing.terminals.map((item, index) => (
               <button

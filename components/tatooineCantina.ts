@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { createCantinaCrowd } from "./cantinaCrowd";
 import { glowTexture, type ZoneAction } from "./landingKit";
 import { createDejarikDuel } from "./dejarikDuel";
+import { createBarCameos } from "./cantinaCameos";
 import { bakePart, part, pipe, rounded } from "./tatooineCharacters";
 export type CantinaWall = {
     minU: number;
@@ -205,6 +206,11 @@ export function createTatooineCantina(adobe: THREE.Material) {
     dejarik.group.position.set(-8.3, 0, 57.4);
     group.add(dejarik.group);
     contact(-8.3, 57.4, 2.2, 4.2);
+    // Obi-Wan and Luke at the bar, and the scorch where Han shot first.
+    const cameos = createBarCameos();
+    group.add(cameos.group);
+    circles.push(...cameos.circles);
+    let last = 0;
     const actions: ZoneAction[] = [...crowd.actions, {
         id: "dejarik", label: "Han vs Chewbacca", portraitFov: 108,
         position: new THREE.Vector3(-8.3, 1.15, 57.4),
@@ -306,9 +312,12 @@ export function createTatooineCantina(adobe: THREE.Material) {
                     walker.v = d + .001;
             }
         },
-        tick: (time: number, reduced: boolean) => {
+        tick: (time: number, reduced: boolean, visitor = { u: 0, v: 0 }) => {
+            const dt = THREE.MathUtils.clamp(time - last, 0, .1);
+            last = time;
             crowd.tick(time, reduced);
             dejarik.tick(time, reduced);
+            cameos.tick(time, dt, reduced, visitor);
             if (reduced)
                 return;
             // Candle-like flicker on the sconces; the skylight shaft breathes with the haze.

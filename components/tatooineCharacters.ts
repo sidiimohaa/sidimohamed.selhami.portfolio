@@ -81,6 +81,7 @@ export function createHeroDroids() {
     part(shell, rounded(.18, .13, .29, .025), white, [0, .07, .08]);
     bakePart(shell);
     const dome = new THREE.Group();
+    dome.name = "r2-dome";
     dome.position.y = .98;
     r2.add(dome);
     part(dome, new THREE.SphereGeometry(.325, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2), chrome);

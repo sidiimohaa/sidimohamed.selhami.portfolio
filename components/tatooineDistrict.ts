@@ -300,7 +300,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
             clock += dt;
             const move = reduced ? 0 : dt;
             const local = districtCoordinates(walker.x, walker.z);
-            cantina.tick(clock,reduced);scenery.tick(dt,clock,reduced,local);
+            cantina.tick(clock,reduced,local);scenery.tick(dt,clock,reduced,local);
             life.tick(clock,dt,reduced);map.tick(clock,reduced,local);
             residents.tick(dt,clock,reduced,local);
             const bar=districtPoint(cantina.bartender.u,cantina.bartender.v);bartender.x=bar.x;bartender.z=bar.z;

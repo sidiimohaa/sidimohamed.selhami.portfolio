@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { MissionId } from "./jediProgression";
 import { createShipModel } from "./shipModel";
 import type { Landing } from "./universe";
 
@@ -112,6 +113,8 @@ export type ZoneAction = {
   present?: (project: Landing["terminals"][number], index: number, count: number) => void;
   // Actions that open the "Mes passions" presentation (at a step, or from its intro).
   story?: { at?: number; title: string };
+  // A secret: usable by clicking it in the scene, and offered as a button only up close.
+  hidden?: boolean;
   activate: (reduced: boolean) => void;
 };
 export type Zone = {
@@ -146,8 +149,10 @@ export type Zone = {
   spawn: { position: THREE.Vector3; yaw: number };
   setViewport: (height: number) => void;
   setThrust: (level: number) => void;
-  tick: (dt: number, elapsed: number, reduced: boolean, walker: { x: number; z: number }) => void;
+  tick: (dt: number, elapsed: number, reduced: boolean, walker: { x: number; z: number; yaw: number }) => void;
 };
+// Zones report a secret mission once the visitor has completed it there.
+export type Reveal = (id: MissionId) => void;
 
 const TERMINAL_RING = 12;
 // Four spots clear of the cargo stacks, then the front and back of the ring for longer lists.
