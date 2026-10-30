@@ -100,6 +100,8 @@ export type ZoneTerminal = {
 };
 // Every landing zone shares one layout: the ship on the centre circle, terminals on a ring.
 export type ZoneAction = {
+  // Optional stand point for an interaction away from the zone’s default.
+  approach?: { position: THREE.Vector3; lookAt: THREE.Vector3 };
   id: string;
   label: string;
   position: THREE.Vector3;

@@ -367,7 +367,7 @@ export default function LandingScene({
     const act = (id: string) => {
       const action = zone.actions?.find((item) => item.id === id);
       if (current !== "explore" || !action) return;
-      const approach = zone.actionApproach;
+      const approach = action.approach ?? zone.actionApproach;
       const far = Math.hypot(action.position.x - walker.x, action.position.z - walker.z) > 3.2;
       facing = null;
       walked = true;
@@ -376,6 +376,9 @@ export default function LandingScene({
         walker.x = approach.position.x;
         walker.z = approach.position.z;
         walker.yaw = Math.atan2(-(approach.lookAt.x - walker.x), -(approach.lookAt.z - walker.z));
+        walker.pitch = THREE.MathUtils.clamp(Math.atan2(approach.lookAt.y - EYE - floor(), Math.hypot(approach.lookAt.x - walker.x, approach.lookAt.z - walker.z)), -.6, .4);
+        route = [];
+        pending = null;
         perform(action);
         return;
       }

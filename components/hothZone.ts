@@ -6,6 +6,7 @@ import { createBriefingTable } from "./hothBriefing";
 import { createTerminals, glowTexture, parkShip, random, type Spot, type Zone } from "./landingKit";
 import { createShipModel } from "./shipModel";
 import { createHothGlacier } from "./hothGlacier";
+import { createHothTauntauns } from "./hothTauntauns";
 import type { Landing } from "./universe";
 
 // Echo Base's main hangar: a vaulted glacier cavern, open at +z onto
@@ -396,6 +397,9 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   group.add(parked);
   circles.push({ x: -15.5, z: 22, r: 2.6 });
 
+  const tauntauns = createHothTauntauns(circles);
+  group.add(tauntauns.group);
+
   const metal = steel;
   const stations = createTerminals(landing, metal, circles);
   group.add(stations.group);
@@ -449,6 +453,7 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       stations.tick(elapsed, reduced);
       table.tick(elapsed, reduced, stations.terminals);
       battle.tick(dt, reduced);
+      tauntauns.tick(dt, reduced);
       const daylightMix=smooth(walker.z,16,46),blend=1-Math.exp(-dt*3);
       ambient.intensity+=((1.05+daylightMix*.5)-ambient.intensity)*blend;
       if (!reduced) clock += dt;

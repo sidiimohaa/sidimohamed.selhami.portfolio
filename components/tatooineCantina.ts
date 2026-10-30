@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createCantinaCrowd } from "./cantinaCrowd";
-import { glowTexture } from "./landingKit";
+import { glowTexture, type ZoneAction } from "./landingKit";
+import { createDejarikTable } from "./dejarikTable";
 import { bakePart, part, pipe, rounded } from "./tatooineCharacters";
 export type CantinaWall = {
     minU: number;
@@ -175,7 +176,8 @@ export function createTatooineCantina(adobe: THREE.Material) {
         part(inside, new THREE.SphereGeometry(.09, 12, 8), lampRed, [-21.45, 2.75, v]);
     }
     for (const v of [57.4, 67.3]) {
-        table(-8.3, v, .65);
+        if (v === 57.4) circles.push({ u: -8.3, v, r: .75 });
+        else table(-8.3, v, .65);
         seat(-8.3, v - 1.1, 0);
         seat(-8.3, v + 1.1, Math.PI);
         circles.push({ u: -8.3, v: v - 1.1, r: .65 }, { u: -8.3, v: v + 1.1, r: .65 });
@@ -184,6 +186,16 @@ export function createTatooineCantina(adobe: THREE.Material) {
     const crowd = createCantinaCrowd();
     group.add(crowd.group);
     circles.push(...crowd.circles);
+    // Replace the south table, retaining its benches and existing collision footprint.
+    const dejarik = createDejarikTable();
+    dejarik.group.position.set(-8.3, 0, 57.4);
+    group.add(dejarik.group);
+    const actions: ZoneAction[] = [...crowd.actions, {
+        id: "dejarik", label: "Jouer au Dejarik",
+        position: new THREE.Vector3(-8.3, 1.05, 57.4),
+        approach: { position: new THREE.Vector3(-6.4, 0, 57.7), lookAt: new THREE.Vector3(-8.3, 1.05, 57.4) },
+        objects: dejarik.objects, activate: dejarik.activate,
+    }];
     // A sign can be read while approaching along the street.
     const canvas = document.createElement("canvas");
     canvas.width = 512;
@@ -235,7 +247,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
     bakePart(inside);
     const contains = (u: number, v: number) => u < -5.05 && u > -21.8 && v > 54.3 && v < 70.7;
     const isBlocked = (u: number, v: number, clearance=.35) => walls.some(w => u > w.minU - clearance && u < w.maxU + clearance && v > w.minV - clearance && v < w.maxV + clearance);
-    return { group, circles, actions:crowd.actions, contains, isBlocked, bartender: crowd.bartenderSpot, entry: { u: -8.2, v: 62 }, exit: { u: -1.8, v: 62 },
+    return { group, circles, actions, contains, isBlocked, bartender: crowd.bartenderSpot, entry: { u: -8.2, v: 62 }, exit: { u: -1.8, v: 62 },
         constrain: (walker: {
             u: number;
             v: number;
@@ -257,6 +269,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
         },
         tick: (time: number, reduced: boolean) => {
             crowd.tick(time, reduced);
+            dejarik.tick(time, reduced);
             if (reduced)
                 return;
             // Candle-like flicker on the sconces; the skylight shaft breathes with the haze.
