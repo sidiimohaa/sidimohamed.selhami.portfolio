@@ -158,6 +158,12 @@ export default function LandingScene({
       pitch: 0.04,
       stride: 0,
     };
+    let actionFov: number | undefined;
+    const setLens = (portrait?: number) => {
+      actionFov = portrait;
+      camera.fov = camera.aspect < .8 ? (portrait ?? 72) : 60;
+      camera.updateProjectionMatrix();
+    };
     const keys = new Set<string>(),
       steer = { x: 0, y: 0 };
     // Each pointer either walks, as a joystick under the finger, or looks around by grabbing the view.
@@ -274,6 +280,7 @@ export default function LandingScene({
     // Walk out to the ring around the ship, follow it, then step up to the terminal.
     const walkTo = (index: number) => {
       if (current !== "explore") return;
+      setLens();
       const terminal = zone.terminals[index],
         stand = standFor(index);
       if (live.current.reduced) {
@@ -332,6 +339,7 @@ export default function LandingScene({
     };
     const district=()=>{
       if(current!=="explore"||!zone.explorePoint||!zone.routeTo)return;
+      setLens();
       const outside=Math.hypot(walker.x,walker.z)>20;
       const destination=outside?zone.spawn.position:zone.explorePoint;
       if(live.current.reduced){walker.x=destination.x;walker.z=destination.z;walker.yaw=outside?zone.spawn.yaw:Math.atan2(-destination.x,-destination.z);}
@@ -340,6 +348,7 @@ export default function LandingScene({
     };
     const cantina=()=>{
       if(current!=="explore"||!zone.interior||!zone.routeTo)return;
+      setLens();
       const entering=!zone.interior.contains(walker.x,walker.z);
       const destination=entering?zone.interior.entry:zone.interior.exit;
       if(live.current.reduced){walker.x=destination.x;walker.z=destination.z;const look=zone.interior.entry.clone().sub(zone.interior.exit).multiplyScalar(entering?1:-1);walker.yaw=Math.atan2(-look.x,-look.z);}
@@ -367,6 +376,7 @@ export default function LandingScene({
     const act = (id: string) => {
       const action = zone.actions?.find((item) => item.id === id);
       if (current !== "explore" || !action) return;
+      setLens(action.portraitFov);
       const approach = action.approach ?? zone.actionApproach;
       const far = Math.hypot(action.position.x - walker.x, action.position.z - walker.z) > 3.2;
       facing = null;
@@ -468,6 +478,7 @@ export default function LandingScene({
           0.9,
         );
         if (grip.travelled > 8) {
+          if (actionFov !== undefined) setLens();
           route = [];
           facing = null;
           pending = null;
@@ -555,7 +566,7 @@ export default function LandingScene({
         h = el.clientHeight;
       renderer.setSize(w, h);
       camera.aspect = w / h;
-      camera.fov = w / h < 0.8 ? 72 : 60;
+      camera.fov = w / h < 0.8 ? (actionFov ?? 72) : 60;
       camera.updateProjectionMatrix();
       zone.setViewport(h * renderer.getPixelRatio());
     };
@@ -682,6 +693,7 @@ export default function LandingScene({
         );
         let moving = Math.abs(push) > 0.05;
         if (Math.abs(turn) + Math.abs(push) > 0.05) {
+          if (actionFov !== undefined) setLens();
           route = [];
           facing = null;
           pending = null;

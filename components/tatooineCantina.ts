@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createCantinaCrowd } from "./cantinaCrowd";
 import { glowTexture, type ZoneAction } from "./landingKit";
-import { createDejarikTable } from "./dejarikTable";
+import { createDejarikDuel } from "./dejarikDuel";
 import { bakePart, part, pipe, rounded } from "./tatooineCharacters";
 export type CantinaWall = {
     minU: number;
@@ -187,13 +187,13 @@ export function createTatooineCantina(adobe: THREE.Material) {
     group.add(crowd.group);
     circles.push(...crowd.circles);
     // Replace the south table, retaining its benches and existing collision footprint.
-    const dejarik = createDejarikTable();
+    const dejarik = createDejarikDuel();
     dejarik.group.position.set(-8.3, 0, 57.4);
     group.add(dejarik.group);
     const actions: ZoneAction[] = [...crowd.actions, {
-        id: "dejarik", label: "Jouer au Dejarik",
-        position: new THREE.Vector3(-8.3, 1.05, 57.4),
-        approach: { position: new THREE.Vector3(-6.4, 0, 57.7), lookAt: new THREE.Vector3(-8.3, 1.05, 57.4) },
+        id: "dejarik", label: "Han vs Chewbacca", portraitFov: 94,
+        position: new THREE.Vector3(-8.3, 1.15, 57.4),
+        approach: { position: new THREE.Vector3(-5.9, 0, 57.4), lookAt: new THREE.Vector3(-8.3, 1.15, 57.4) },
         objects: dejarik.objects, activate: dejarik.activate,
     }];
     // A sign can be read while approaching along the street.

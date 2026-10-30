@@ -130,7 +130,6 @@ export function createCantinaCrowd() {
       [-20.55, 63.55, Math.PI],
       [-20.55, 67.05, 0],
       [-8.3, 68.4, Math.PI],
-      [-8.3, 56.3, 0],
     ] as const
   ).forEach(([u, v, yaw], index) => {
     const look = palette[(index + 2) % palette.length];
