@@ -191,7 +191,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
     dejarik.group.position.set(-8.3, 0, 57.4);
     group.add(dejarik.group);
     const actions: ZoneAction[] = [...crowd.actions, {
-        id: "dejarik", label: "Han vs Chewbacca", portraitFov: 94,
+        id: "dejarik", label: "Han vs Chewbacca", portraitFov: 108,
         position: new THREE.Vector3(-8.3, 1.15, 57.4),
         approach: { position: new THREE.Vector3(-5.9, 0, 57.4), lookAt: new THREE.Vector3(-8.3, 1.15, 57.4) },
         objects: dejarik.objects, activate: dejarik.activate,
