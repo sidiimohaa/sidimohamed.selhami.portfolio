@@ -144,6 +144,7 @@ export const landings: Partial<Record<string, Landing>> = {
         label: "Identité",
         heading: "Sidi-Mohamed Selhami",
         body: "Étudiant en Bachelor 3 Marketing IA & Data.",
+        links: [{ label: "Voir mon LinkedIn", href: "https://www.linkedin.com/in/sidi-mohamed-selhami-919848242/" }],
       },
       {
         id: "transmission",
