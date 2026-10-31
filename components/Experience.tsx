@@ -23,6 +23,7 @@ const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
 const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
 const CockpitMap = dynamic(() => import("./CockpitMap"), { ssr: false });
 import { destinations, landings, planetReferenceStyle } from "./universe";
+import { addFlightTime, logDocking, logLanding, logOrbit } from "./flightLog";
 import {
   getProgress,
   markRankCelebrated,
@@ -166,6 +167,20 @@ export default function Experience() {
     setTravel(false);
     setArrived(true);
   }, []);
+  // The flight log: worlds reached in orbit, landings, and time spent flying with the page open.
+  useEffect(() => {
+    if (arrived) logOrbit(destinations[destination].name);
+  }, [arrived, destination]);
+  useEffect(() => {
+    if (surface !== null) logLanding(destinations[surface].name);
+  }, [surface]);
+  useEffect(() => {
+    if (loading) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) addFlightTime(15);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [loading]);
   useEffect(
     () => () => {
       timers.current.forEach(clearTimeout);
@@ -346,6 +361,7 @@ export default function Experience() {
     setBoost(false);
     setCombat(true);
     setStation(start);
+    if (start === "explore") logDocking();
   };
   const leaveStation = () => {
     setStation(null);

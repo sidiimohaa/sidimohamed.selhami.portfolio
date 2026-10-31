@@ -9,6 +9,7 @@ import { createStationAudio, type StationAudio } from "./stationAudio";
 import RecruiterMode from "./RecruiterMode";
 import StationPanel, { type PanelId } from "./StationPanels";
 import { SECTIONS, identity, type Section } from "./cvData";
+import { loadDossier as load, saveDossier as save } from "./dossierProgress";
 
 // The Death Star, inside: a professional record to explore in the first person. The approach and
 // landing in the hangar play first (skippable), then the visitor walks the station; the Recruiter
@@ -18,7 +19,6 @@ type Props = { start: "explore" | "recruiter"; reduced: boolean; sound: boolean;
 // Where the plan takes the visitor, and what they turn to face on arrival.
 type Destination = { id: string; label: string; short: string; room: RoomId; x: number; z: number; face: [number, number] };
 
-const STORE = "orbital-death-star-v1";
 const destinations: Destination[] = [
   { id: "hangar", label: "Hangar · Accueil", short: "Hangar", room: "hangar", x: 0, z: -19, face: [0, -26] },
   { id: "dossier", label: "Dossier CV complet", short: "CV", room: "dossier", x: -33, z: -38, face: [-35, -42.4] },
@@ -28,22 +28,6 @@ const destinations: Destination[] = [
   { id: "command", label: "Commandement · Projets", short: "Projets", room: "command", x: 102, z: -35, face: [102, -60] },
 ];
 const upper = (room: RoomId | null) => room === "command" || room === "liftB";
-const load = (): { seen: Section[]; secret: boolean } => {
-  try {
-    const value = JSON.parse(localStorage.getItem(STORE) ?? "null");
-    if (value && Array.isArray(value.seen)) return { seen: value.seen.filter((s: string) => (SECTIONS as readonly string[]).includes(s)), secret: value.secret === true };
-  } catch {
-    // Private browsing: progress lasts for the visit.
-  }
-  return { seen: [], secret: false };
-};
-const save = (value: { seen: Section[]; secret: boolean }) => {
-  try {
-    localStorage.setItem(STORE, JSON.stringify(value));
-  } catch {
-    // Nothing to do.
-  }
-};
 function panelFor(id: string): { id: PanelId; focus?: string } | null {
   if (id === "accueil") return { id: "accueil" };
   if (id === "exp-bricoman") return { id: "experience", focus: "bricoman" };

@@ -1,3 +1,5 @@
+import { education, projects } from "./deathStar/cvData";
+
 export type PlanetReference = {
   width: number;
   height: number;
@@ -94,9 +96,9 @@ export const destinations = [
       centerY: 450,
       radius: 405,
     },
-    summary: "Un monde de glace où des plans holographiques révèlent mes diplômes.",
+    summary: "Un monde de glace où des plans holographiques retracent ma formation.",
     description:
-      "Des plaines gelées, des tempêtes et une base taillée dans la glace. Sur la table de briefing, des plans holographiques dévoilent mes diplômes, un objectif atteint après l’autre.",
+      "Des plaines gelées, des tempêtes et une base taillée dans la glace. Sur la table de briefing, des plans holographiques retracent ma formation, du baccalauréat au Bachelor en cours.",
   },
 ];
 
@@ -123,6 +125,8 @@ export type LandingTerminal = {
   links?: { label: string; href: string }[];
   // A step of the "Mes passions" presentation this terminal can open (Endor).
   story?: number;
+  // On Hoth: a qualification obtained, or one still under way.
+  status?: "done" | "progress";
 };
 export type Landing = {
   pad: string;
@@ -131,7 +135,8 @@ export type Landing = {
   terminals: LandingTerminal[];
 };
 
-// Présentations des zones : contact et formation à Coruscant, projets à Tatooine, diplômes à Hoth.
+// Présentations des zones : contact et formation à Coruscant, projets à Tatooine, formation à Hoth.
+// Hoth et Tatooine reprennent les données réelles du CV (components/deathStar/cvData.ts).
 export const landings: Partial<Record<string, Landing>> = {
   Coruscant: {
     pad: "PLATEFORME 3-7 · NIVEAU 5127",
@@ -212,45 +217,23 @@ export const landings: Partial<Record<string, Landing>> = {
       },
     ],
   },
-  // Hoth présente les diplômes : un par terminal, du plus ancien au plus récent (quatre au plus
-  // sur les plans holographiques).
+  // Hoth retrace la formation : une étape par terminal, de la plus ancienne à la plus récente
+  // (quatre au plus sur les plans holographiques), la dernière encore en cours.
   Hoth: {
     pad: "HANGAR PRINCIPAL · BASE ÉCHO",
     welcome:
-      "Bienvenue sur Hoth. Les plans de la table de briefing révèlent mes diplômes, chaque terminal en détaille un.",
+      "Bienvenue sur Hoth. Les plans de la table de briefing retracent mon parcours de formation, chaque terminal en détaille une étape.",
     soundscape: "ice",
-    terminals: [
-      {
-        id: "diplome-1",
-        label: "2018",
-        heading: "Intitulé du premier diplôme",
-        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
-        meta: "École · Ville · 2018",
-      },
-      {
-        id: "diplome-2",
-        label: "2020",
-        heading: "Intitulé du deuxième diplôme",
-        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
-        meta: "École · Ville · 2020",
-      },
-      {
-        id: "diplome-3",
-        label: "2022",
-        heading: "Intitulé du troisième diplôme",
-        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
-        meta: "École · Ville · 2022",
-      },
-      {
-        id: "diplome-4",
-        label: "2024",
-        heading: "Intitulé du quatrième diplôme",
-        body: "Une phrase sur la formation, sa spécialité et ce qu’elle a apporté.",
-        meta: "École · Ville · 2024",
-        links: [{ label: "Voir le diplôme", href: "https://example.com/" }],
-      },
-    ],
+    terminals: education.map((item) => ({
+      id: `formation-${item.id}`,
+      label: item.year,
+      heading: item.title,
+      body: item.details[0],
+      meta: [item.school, item.place, item.period, item.status].filter(Boolean).join(" · "),
+      status: item.status === "En cours" ? ("progress" as const) : ("done" as const),
+    })),
   },
+  // Tatooine présente les projets : ORBITAL et deux de ses modules, puis « Mes passions ».
   Tatooine: {
     pad: "BAIE D’AMARRAGE 94 · MOS EISLEY",
     welcome:
@@ -258,39 +241,33 @@ export const landings: Partial<Record<string, Landing>> = {
     soundscape: "desert",
     terminals: [
       {
-        id: "alpha",
-        label: "Alpha",
-        heading: "Projet Alpha",
-        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
-        meta: "Rôle · Technos · Année",
-        links: [
-          { label: "Voir le projet", href: "https://example.com/" },
-          { label: "Code source", href: "https://github.com/" },
-        ],
+        id: "orbital",
+        label: "ORBITAL",
+        heading: projects[0].title,
+        body: "Une galaxie à explorer en vaisseau : planètes, cockpit de X-wing, missions Jedi, arcade et un dossier CV dans l’Étoile de la Mort. Conçu en dirigeant des assistants de code IA.",
+        meta: "Concept et direction · Next.js, Three.js, TypeScript · 2026",
       },
       {
-        id: "beta",
-        label: "Bêta",
-        heading: "Projet Bêta",
-        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
-        meta: "Rôle · Technos · Année",
-        links: [{ label: "Voir le projet", href: "https://example.com/" }],
+        id: "arcade",
+        label: "Arcade",
+        heading: "Galactic Arcade — cinq simulations",
+        body: "Un centre de simulation dans le cockpit : combat spatial, champ d’astéroïdes, piratage, course de speeder sur Endor et défense de Hoth, avec crédits, succès et récompenses.",
+        meta: "Module d’ORBITAL · Three.js, Web Audio · 2026",
       },
       {
-        id: "gamma",
-        label: "Gamma",
-        heading: "Projet Gamma",
-        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
-        meta: "Rôle · Technos · Année",
-        links: [{ label: "Voir le projet", href: "https://example.com/" }],
+        id: "dossier",
+        label: "Dossier",
+        heading: "L’Étoile de la Mort — CV interactif",
+        body: "Une station à parcourir en première personne qui présente mon parcours, et un mode recruteur pour l’essentiel en quelques clics.",
+        meta: "Module d’ORBITAL · Three.js, React · 2026",
       },
       {
-        id: "delta",
-        label: "Delta",
-        heading: "Projet Delta",
-        body: "Une phrase qui présente le projet, le problème qu’il résout et ce qu’il apporte.",
-        meta: "Rôle · Technos · Année",
-        links: [{ label: "Voir le projet", href: "https://example.com/" }],
+        id: "passions",
+        label: "Passions",
+        heading: projects[1].title,
+        body: projects[1].solution,
+        meta: "Création numérique · HTML, CSS, JavaScript",
+        links: projects[1].link ? [projects[1].link] : undefined,
       },
     ],
   },

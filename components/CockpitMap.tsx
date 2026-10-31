@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { createDefenseConsole } from "./hothDefense/console";
+import { createFlightLogConsole } from "./flightLogConsole";
+import { FlightLogPanel } from "./FlightLogPanel";
+import { useFlightLog } from "./flightLog";
 import type { HothDefenseRuntime } from "./hothDefense/runtime";
 import type { DefenseView } from "./hothDefense/types";
 import defenseStyles from "./hothDefense/CockpitDefense.module.css";
@@ -74,7 +76,12 @@ export default function CockpitMap({
   const [defenseError, setDefenseError] = useState<string | null>(null);
   const [defenseView, setDefenseView] = useState<DefenseView | null>(null);
   const [defenseVolume, setDefenseVolume] = useState(.55);
-  const defenseButton = useRef<HTMLButtonElement>(null);
+  // The flight log, on the centre console where the training switch used to be.
+  const [flightLog, setFlightLog] = useState(false);
+  const logButton = useRef<HTMLButtonElement>(null);
+  const logScreen = useRef<HTMLElement>(null);
+  const logApi = useRef<ReturnType<typeof createFlightLogConsole> | null>(null);
+  const log = useFlightLog();
   const defenseRuntime = useRef<HothDefenseRuntime | null>(null);
   const defenseRequest = useRef(0);
   const defenseApi = useRef<{ load: () => Promise<void>; stop: () => void } | null>(null);
@@ -109,8 +116,8 @@ export default function CockpitMap({
   const close = useRef<HTMLButtonElement>(null);
   const markers = useRef<(HTMLButtonElement | null)[]>([]);
   const onGameFinish = useRef<(result: GameResult) => void>(() => undefined);
-  const live = useRef({ selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange, arcade, arcadeGame, holoColor, accent, trail });
-  live.current = { selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange, arcade, arcadeGame, holoColor, accent, trail };
+  const live = useRef({ selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange, arcade, arcadeGame, holoColor, accent, trail, flightLog });
+  live.current = { selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange, arcade, arcadeGame, holoColor, accent, trail, flightLog };
   const closeJournal = () => {
     setJournal(false);
     requestAnimationFrame(() => journalButton.current?.focus());
@@ -126,6 +133,12 @@ export default function CockpitMap({
   };
   const closeArcadeRef = useRef(closeArcade);
   closeArcadeRef.current = closeArcade;
+  const closeFlightLog = () => {
+    setFlightLog(false);
+    requestAnimationFrame(() => (logButton.current ?? close.current)?.focus());
+  };
+  const closeLogRef = useRef(closeFlightLog);
+  closeLogRef.current = closeFlightLog;
 
   // Opening the star map completes the cartographer's mission.
   useEffect(() => {
@@ -144,7 +157,8 @@ export default function CockpitMap({
       if (event.key === "Escape") {
         if (document.querySelector(OVERLAYS)) return;
         event.preventDefault();
-        if (live.current.arcade) closeArcadeRef.current();
+        if (live.current.flightLog) closeLogRef.current();
+        else if (live.current.arcade) closeArcadeRef.current();
         else if (live.current.journal) closeRef.current();
         else live.current.onClose();
       }
@@ -154,7 +168,9 @@ export default function CockpitMap({
         ? dialog.current?.querySelector<HTMLElement>(".hoth-defense")
         : live.current.arcadeGame
           ? dialog.current?.querySelector<HTMLElement>(".arcade-game")
-          : live.current.arcade && arcadeScreen.current
+          : live.current.flightLog && logScreen.current
+            ? logScreen.current
+            : live.current.arcade && arcadeScreen.current
             ? arcadeScreen.current
             : live.current.journal && terminal.current
               ? terminal.current
@@ -216,9 +232,10 @@ export default function CockpitMap({
     cockpit.add(systems.group);
     const projection = createCockpitProjection();
     const stars = createStarfield(renderer.getPixelRatio());
-    const defenseConsole = createDefenseConsole();
-    scene.add(defenseConsole.group);
     const pilotEye = new THREE.Vector3(0, 1.55, 2.9);
+    const logConsole = createFlightLogConsole(pilotEye);
+    logApi.current = logConsole;
+    scene.add(logConsole.group);
     const arcadeConsole = createArcadeConsole(pilotEye);
     scene.add(arcadeConsole.group);
     const controls = createMissionConsole(pilotEye);
@@ -277,7 +294,7 @@ export default function CockpitMap({
     const stopDefense = () => {
       generation++;
       defenseRuntime.current?.dispose(); defenseRuntime.current = null;
-      projection.group.visible = stars.points.visible = controls.group.visible = defenseConsole.group.visible = true;
+      projection.group.visible = stars.points.visible = controls.group.visible = logConsole.group.visible = true;
       beam.visible = true;
       camera.fov = camera.aspect < .8 ? 58 : 52;
       camera.updateProjectionMatrix();
@@ -287,7 +304,7 @@ export default function CockpitMap({
         const token = ++generation;
         const module = await import("./hothDefense/runtime");
         if (removed || token !== generation) return;
-        projection.group.visible = stars.points.visible = controls.group.visible = defenseConsole.group.visible = false;
+        projection.group.visible = stars.points.visible = controls.group.visible = logConsole.group.visible = false;
         beam.visible = false;
         defenseRuntime.current = module.createHothDefenseRuntime({ scene, camera, renderer, reduced: live.current.reduced, sound: live.current.sound, volume: live.current.defenseVolume, onView: setDefenseView });
       },
@@ -299,7 +316,7 @@ export default function CockpitMap({
       gameGeneration++;
       gameRuntime.current?.dispose();
       gameRuntime.current = null;
-      projection.group.visible = stars.points.visible = controls.group.visible = defenseConsole.group.visible = true;
+      projection.group.visible = stars.points.visible = controls.group.visible = logConsole.group.visible = true;
       beam.visible = true;
       camera.fov = camera.aspect < 0.8 ? 58 : 52;
       camera.updateProjectionMatrix();
@@ -309,7 +326,7 @@ export default function CockpitMap({
         const token = ++gameGeneration;
         const module = await import("./arcade/cockpitGames");
         if (removed || token !== gameGeneration) return;
-        projection.group.visible = controls.group.visible = defenseConsole.group.visible = false;
+        projection.group.visible = controls.group.visible = logConsole.group.visible = false;
         beam.visible = false;
         gameRuntime.current = module.createCockpitGame({
           kind,
@@ -474,8 +491,8 @@ export default function CockpitMap({
       controls.tick(dt, age, live.current.reduced);
       placeOver(journalButton.current, controls.journalAnchor, 150, 70);
       placeOver(guardButton.current, controls.guardAnchor, 76, 70);
-      placeOver(defenseButton.current, defenseConsole.anchor, 172, 52);
-      defenseConsole.tick(age, live.current.reduced, live.current.defense);
+      placeOver(logButton.current, logConsole.anchor, 172, 52);
+      logConsole.tick(age, live.current.reduced, live.current.flightLog);
       placeOver(arcadeButton.current, arcadeConsole.anchor, 124, 54);
       if (consoleTint !== live.current.holoColor) arcadeConsole.setAccent((consoleTint = live.current.holoColor));
       if (cabinTint !== live.current.accent && !live.current.defense) fill.color.set((cabinTint = live.current.accent));
@@ -483,7 +500,15 @@ export default function CockpitMap({
       arcadeConsole.tick(dt, age, live.current.reduced);
       // A hologram (the journal, or the arcade) unfolds upward from its module, then holds,
       // following the head's movement.
-      const panel = flat ? null : journalOpen ? { id: "journal", element: terminal.current, origin: controls.journalAnchor as THREE.Object3D, color: "#4aaaf4" } : live.current.arcade ? { id: "arcade", element: arcadeScreen.current, origin: arcadeConsole.anchor as THREE.Object3D, color: live.current.holoColor } : null;
+      const panel = flat
+        ? null
+        : journalOpen
+          ? { id: "journal", element: terminal.current, origin: controls.journalAnchor as THREE.Object3D, color: "#4aaaf4" }
+          : live.current.arcade
+            ? { id: "arcade", element: arcadeScreen.current, origin: arcadeConsole.anchor as THREE.Object3D, color: live.current.holoColor }
+            : live.current.flightLog
+              ? { id: "log", element: logScreen.current, origin: logConsole.anchor as THREE.Object3D, color: "#6fe39a" }
+              : null;
       if (panel) {
         if (openedFor !== panel.id) {
           openedFor = panel.id;
@@ -515,7 +540,7 @@ export default function CockpitMap({
         openedFor = "";
         beam.material.opacity = 0;
         // Back to the flat panel (the window got narrower): drop the hologram's projection.
-        for (const screen of [terminal.current, arcadeScreen.current]) {
+        for (const screen of [terminal.current, arcadeScreen.current, logScreen.current]) {
           if (screen?.style.transform) {
             screen.style.transform = screen.style.opacity = screen.style.width = screen.style.height = "";
           }
@@ -621,7 +646,7 @@ export default function CockpitMap({
     if (defenseFromArcade.current) {
       defenseFromArcade.current = false;
       setArcade(true);
-    } else requestAnimationFrame(() => defenseButton.current?.focus());
+    } else requestAnimationFrame(() => (arcadeButton.current ?? close.current)?.focus());
   };
   useEffect(() => { defenseRuntime.current?.setSound(sound); }, [sound]);
   useEffect(() => { defenseRuntime.current?.setVolume(defenseVolume); }, [defenseVolume]);
@@ -676,6 +701,7 @@ export default function CockpitMap({
     ensureArcadeAudio().ui("select");
     arcadeApi.current?.press();
     setJournal(false);
+    setFlightLog(false);
     setArcadeResult(null);
     window.setTimeout(() => setArcade(true), reduced ? 0 : 200);
   };
@@ -754,8 +780,22 @@ export default function CockpitMap({
     [],
   );
 
+  const openFlightLog = () => {
+    if (flightLog) return closeFlightLog();
+    setArcade(false);
+    setJournal(false);
+    onSelectionCue();
+    window.setTimeout(() => setFlightLog(true), reduced ? 0 : 160);
+  };
+  // The console's readout follows the log, the Jedi missions and the arcade.
+  useEffect(() => {
+    const visited = destinations.filter((item) => log.orbits.includes(item.name)).length;
+    logApi.current?.update({ planets: `PLANÈTES ${visited}/${destinations.length}`, missions: `MISSIONS ${progress.found.length}/10`, credits: `${arcadeData.credits.toLocaleString("fr-FR")} CR` });
+  }, [log, progress, arcadeData, graphics]);
+
   const openJournal = () => {
     setArcade(false);
+    setFlightLog(false);
     controlsApi.current?.press();
     onSelectionCue();
     window.setTimeout(() => setJournal(true), reduced ? 0 : 180);
@@ -784,7 +824,7 @@ export default function CockpitMap({
       className={`cockpit-map ${defense || arcadeGame ? defenseStyles.combat : ""}`}
       data-graphics={graphics}
       data-journal={journal}
-      data-arcade={arcade}
+      data-arcade={arcade || flightLog}
       data-sith={progress.sith}
       role="dialog"
       aria-modal="true"
@@ -846,7 +886,22 @@ export default function CockpitMap({
           </div>
         </div>
       )}
-      {!defense && !arcadeGame && !arcade && <button ref={defenseButton} className={defenseStyles.defenseButton} onClick={enterDefense} disabled={!graphics} aria-label="Lancer DEFENSE OF HOTH" aria-haspopup="dialog"><span>DEFENSE OF HOTH</span></button>}
+      {!defense && !arcadeGame && !arcade && graphics && (
+        <button
+          ref={logButton}
+          className="cockpit-log-button"
+          onClick={openFlightLog}
+          onPointerEnter={() => logApi.current?.setHover(true)}
+          onPointerLeave={() => logApi.current?.setHover(false)}
+          onFocus={() => logApi.current?.setHover(true)}
+          onBlur={() => logApi.current?.setHover(false)}
+          aria-haspopup="dialog"
+          aria-expanded={flightLog}
+          aria-label="Carnet de vol du pilote"
+        >
+          <span>CARNET DE VOL</span>
+        </button>
+      )}
       {defense && <HothDefenseHUD view={defenseView} loading={defenseLoading} error={defenseError} sound={sound} volume={defenseVolume}
         onStart={() => defenseRuntime.current?.start()} onPause={() => defenseRuntime.current?.pause()} onResume={() => defenseRuntime.current?.resume()}
         onRestart={restartDefense} onExit={leaveDefense}
@@ -996,6 +1051,38 @@ export default function CockpitMap({
               reduced={reduced}
               onClose={closeJournal}
               onLaunch={onExperience}
+              style={compact || !graphics ? undefined : { opacity: 0 }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {flightLog && (
+          <motion.div
+            key="log"
+            className={`cockpit-log-layer ${compact || !graphics ? "flat" : "holo"}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? 0.1 : 0.25 }}
+          >
+            <FlightLogPanel
+              ref={logScreen}
+              mode={compact || !graphics ? "flat" : "holo"}
+              reduced={reduced}
+              onClose={closeFlightLog}
+              onLaunch={(index) => {
+                setFlightLog(false);
+                onLaunch(index);
+              }}
+              onArcade={() => {
+                setFlightLog(false);
+                openArcade();
+              }}
+              onJournal={() => {
+                setFlightLog(false);
+                openJournal();
+              }}
               style={compact || !graphics ? undefined : { opacity: 0 }}
             />
           </motion.div>

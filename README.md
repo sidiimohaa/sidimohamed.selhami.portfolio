@@ -76,7 +76,7 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 
 - En orbite de Tatooine, « Atterrir » (ou E) pose le X-wing dans la baie d'amarrage 94 de Mos Eisley : un cercle de sable tassé entouré d'un mur d'adobe, avec un grand portail par lequel on voit les deux soleils se coucher sur les dunes.
 - Autour : village de dômes et de tours, évaporateurs d'humidité, dunes et mesas dans la brume. Le vent souffle des bouffées de sable sur le sol de la baie et l'ambiance sonore est celle du désert.
-- Chaque terminal présente un projet (titre, ligne « rôle · technos · année », description, liens). Les quatre projets sont provisoires : ils se remplacent dans `landings.Tatooine` de `components/universe.ts`.
+- Chaque terminal présente un projet (titre, ligne « rôle · technos · année », description, liens). Les quatre projets sont réels : ORBITAL, ses modules Galactic Arcade et Étoile de la Mort, et la présentation « Mes passions » (`landings.Tatooine` de `components/universe.ts`).
 - « Mos Eisley » mène dans la rue du quartier. À la sortie de la baie, un plan holographique montre le quartier et la position du visiteur en direct (`tatooineMap.ts`).
 - Scènes de rue (`tatooineStreetLife.ts`) : des Jawas marchandent un droïde avec un fermier, des sandtroopers contrôlent une voyageuse derrière une barrière et un scanner, un sandtrooper patrouille à dos de lézard au bout de la rue, et un troupeau traverse une dune au loin.
 - Les soldats impériaux (`stormtrooperModel.ts`) reprennent le casque classique : deux oculaires noirs, joues évasées, grille et aérateurs. Plastron galbé, plaques articulées, ceinture à cartouches, blaster E-11 et sacs de terrain détaillés remplacent les volumes simples ; l'officier conserve son épaulette orange. La marche, le contrôle au scanner, la pose du cavalier et le mouvement réduit utilisent le même modèle.
@@ -93,12 +93,12 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 
 - Hoth présente les diplômes (rubrique 05). La base Écho est creusée au pied d'une muraille glaciaire d'environ 200 mètres de haut. Une arrivée large montre ses stries, sa crête enneigée et l'entrée voûtée, puis le X-wing entre par cette ouverture et se pose dans le hangar. La cavité conserve ses corniches, ses stalactites et ses lampes de travail latérales. Le décollage repasse par l'ouverture sur la plaine.
 - Dans le hangar, on trouve des portes blindées, une galerie de commandement éclairée, un second X-wing en réparation, un snowspeeder, des caisses et l'équipe au sol.
-- La table de briefing (`hothBriefing.ts`) projette, comme les plans d'attaque des rebelles, le schéma holographique d'une station de combat : parallèles, méridiens, tranchée, parabole et anneau de scan. Ses cibles sont les diplômes : chaque cible est reliée à une fiche « Objectif atteint », un tracé lumineux passe de l'une à l'autre, la cible s'allume quand on s'approche de son terminal, et toucher une fiche y mène.
+- La table de briefing (`hothBriefing.ts`) projette, comme les plans d'attaque des rebelles, le schéma holographique d'une station de combat : parallèles, méridiens, tranchée, parabole et anneau de scan. Ses cibles sont les étapes de formation : chaque cible est reliée à une fiche « Objectif atteint » (ou « En cours »), un tracé lumineux passe de l'une à l'autre, la cible s'allume quand on s'approche de son terminal, et toucher une fiche y mène.
 - Au loin (`hothBattle.ts`), trois marcheurs géants avancent dans la tempête et tirent sur la tranchée. Les canons rebelles et deux snowspeeders ripostent, les tirs soulèvent des gerbes de neige, et le générateur de bouclier brille derrière la tranchée. Les snowspeeders reprennent la silhouette des films : coque en coin effilée, cockpit à l'avant, deux grosses nacelles moteur, aérofreins fendus et canons de nez. Les tirs ont un cœur blanc et un halo de couleur : rouge orangé pour les marcheurs, rouge vif pour les rebelles.
 - Une trentaine de secondes après l'arrivée, puis environ toutes les deux minutes et demie, un snowspeeder quitte sa ronde, fait trois boucles serrées autour des pattes d'un marcheur en déroulant son câble, puis le lâche. Le marcheur entravé vacille, bascule sur le côté et s'écrase dans une gerbe d'explosions, avant de disparaître dans la tempête et d'être remplacé au loin.
 - Les AT-AT (`atatModel.ts`) ont une coque à panneaux patinés, un cou annelé, une tête à quatre canons, des articulations circulaires et des vérins. Leur démarche lève une patte à la fois ; une résolution géométrique des jambes maintient les pieds au sol pendant l'appui, même sur le relief. Les détails fixes sont regroupés par matériau (48 maillages par marcheur).
 - La tempête : neige qui tombe (plus rare sous le toit), rafales de poudreuse devant l'ouverture et brouillard qui respire. L'ambiance sonore mêle le vent, le ronronnement de la base et des explosions lointaines.
-- Les quatre diplômes sont provisoires (quatre au plus sur les plans) : ils se remplacent dans `landings.Hoth` de `components/universe.ts`.
+- Les quatre étapes de formation viennent du CV (`components/deathStar/cvData.ts`) : Bac STMG, BTS MCO, formation PRISMA et Bachelor 3 INSEEC ; une étape en cours s’affiche « En cours » plutôt qu’« Objectif atteint ».
 
 ## Atterrissage sur Endor
 
@@ -116,7 +116,7 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 
 ## Defense of Hoth
 
-Depuis la carte stellaire, le bouton physique rouge **DEFENSE OF HOTH** ouvre un simulateur dans le cockpit existant. Le champ de bataille, les sondes, les véhicules et le boss AT-AT sont rendus dans la même scène Three.js, derrière la verrière. Trois vagues, des projectiles avec collisions, la chaleur des canons, les boucliers et la Base Echo déterminent la partie.
+Depuis la carte stellaire, le programme **DEFENSE OF HOTH** de Galactic Arcade ouvre un simulateur dans le cockpit existant. Le champ de bataille, les sondes, les véhicules et le boss AT-AT sont rendus dans la même scène Three.js, derrière la verrière. Trois vagues, des projectiles avec collisions, la chaleur des canons, les boucliers et la Base Echo déterminent la partie.
 
 - Souris : viser ; clic gauche maintenu : tirer ; clic droit maintenu ou bouton Zoom : zoom tactique.
 - Clavier : flèches pour viser, Entrée maintenue pour tirer, Espace pour l’impulsion ionique, R pour refroidir, Échap pour mettre en pause.
@@ -127,6 +127,10 @@ Depuis la carte stellaire, le bouton physique rouge **DEFENSE OF HOTH** ouvre un
 - Le boss AT-AT, plus grand, émerge d’un blizzard qui s’épaissit puis se dissipe. Les explosions se reflètent sur la verrière ; les tirs reçus font jaillir des étincelles du tableau de bord, et des fissures apparaissent quand les boucliers faiblissent.
 
 `npm run test:hoth` vérifie les trois vagues avec de vrais tirs simulés, les points faibles protégés du boss, sa chute, la victoire parfaite, la défaite, les délais de recharge, la surchauffe, la pause, le redémarrage et le nettoyage des ressources 3D. `npm run build` produit l’export statique.
+
+## Carnet de vol
+
+Au centre du tableau de bord, l’écran vert **CARNET DE VOL** résume la visite : planètes atteintes en orbite, atterrissages, accostage de l’Étoile de la Mort, temps de vol, missions Jedi, crédits et records de Galactic Arcade, sections du dossier CV consultées. Il propose le prochain cap et permet de s’y rendre d’un clic. Tout reste dans le stockage local (`orbital-flight-log-v1`).
 
 ## Galactic Arcade
 

@@ -147,10 +147,12 @@ export function createBriefingTable(landing: Landing, at: { x: number; z: number
     c.fillStyle = "#e9f9ff";
     c.font = "bold 64px Arial, Helvetica, sans-serif";
     c.textAlign = "center";
-    c.fillText("PLANS · DIPLÔMES OBTENUS", 680, 98);
+    c.fillText("PLANS · PARCOURS DE FORMATION", 680, 98);
     c.fillStyle = "#7fd0f0";
     c.font = "32px SFMono-Regular, Consolas, monospace";
-    c.fillText(`${count} OBJECTIF${count > 1 ? "S" : ""} ATTEINT${count > 1 ? "S" : ""} · DOSSIER DE FORMATION`, 680, 156);
+    const ongoing = landing.terminals.filter((item) => item.status === "progress").length,
+      done = count - ongoing;
+    c.fillText(`${done} OBJECTIF${done > 1 ? "S" : ""} ATTEINT${done > 1 ? "S" : ""}${ongoing ? ` · ${ongoing} EN COURS` : ""}`, 680, 156);
   });
   header.position.y = CENTRE + RADIUS + 0.65;
   group.add(header);
@@ -174,7 +176,7 @@ export function createBriefingTable(landing: Landing, at: { x: number; z: number
       c.strokeRect(6, 6, 628, 308);
       c.fillStyle = "#ffd28a";
       c.font = "26px SFMono-Regular, Consolas, monospace";
-      c.fillText(`OBJECTIF 0${index + 1} · ATTEINT ✓`, 30, 50);
+      c.fillText(`OBJECTIF 0${index + 1} · ${diploma.status === "progress" ? "EN COURS" : "ATTEINT ✓"}`, 30, 50);
       c.fillStyle = "#e9f9ff";
       c.font = "bold 58px Arial, Helvetica, sans-serif";
       c.fillText(diploma.label.toUpperCase(), 30, 120);
