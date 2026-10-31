@@ -12,6 +12,7 @@ import {
   CircleHelp,
   Map,
   PlaneLanding,
+  Briefcase,
 } from "lucide-react";
 import Preloader from "./Preloader";
 import { createFlightAudio, type FlightAudio } from "./flightAudio";
@@ -45,6 +46,7 @@ import {
 } from "./jedi/JediOverlays";
 const TempleRoom = dynamic(() => import("./jedi/TempleRoom"), { ssr: false });
 const FinalVaderExperience = dynamic(() => import("./jedi/FinalVaderExperience"), { ssr: false });
+const DeathStarStation = dynamic(() => import("./deathStar/DeathStarStation"), { ssr: false });
 
 function OrbitalLogo() {
   return (
@@ -85,7 +87,9 @@ export default function Experience() {
     [journalFirst, setJournalFirst] = useState(false),
     [reward, setReward] = useState<"temple" | "destiny" | null>(null),
     [jumping, setJumping] = useState(false),
-    [transmission, setTransmission] = useState<"order-66" | "archives" | null>(null);
+    [transmission, setTransmission] = useState<"order-66" | "archives" | null>(null),
+    // Inside the Death Star: the professional record, walked through or in Recruiter mode.
+    [station, setStation] = useState<"explore" | "recruiter" | null>(null);
   const { progress } = useJediProgression();
   const audio = useRef<FlightAudio | null>(null),
     timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -215,7 +219,7 @@ export default function Experience() {
   }, [soundscape, sound, combat]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (document.querySelector(".hoth-defense, .arcade-game, .arcade")) { lastSix.current = 0; return; }
+      if (document.querySelector(".hoth-defense, .arcade-game, .arcade, .death-star-station")) { lastSix.current = 0; return; }
       // Escape is taken by an overlay or the mission journal first when one is open.
       if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(OVERLAYS)) {
         timers.current.forEach(clearTimeout);
@@ -238,8 +242,9 @@ export default function Experience() {
           focused !== undefined
             ? Number(focused)
             : (guidance.current ?? destination);
-        // In orbit of a world with a landing zone, E takes the ship down.
+        // In orbit of a world with a landing zone, E takes the ship down; at the Death Star, E docks.
         if (arrivedRef.current && landing && aimed === destination) land();
+        else if (arrivedRef.current && destination === 3 && aimed === destination) enterStation("explore");
         else launch(aimed);
       }
       if (e.key === "Shift") setBoost(true);
@@ -335,6 +340,18 @@ export default function Experience() {
     setDestination(0);
     setResetKey((key) => key + 1);
   };
+  const enterStation = (start: "explore" | "recruiter") => {
+    timers.current.forEach(clearTimeout);
+    setHelpOpen(false);
+    setBoost(false);
+    setCombat(true);
+    setStation(start);
+  };
+  const leaveStation = () => {
+    setStation(null);
+    setCombat(false);
+    setArrived(true);
+  };
   const replayArrival = () => {
     reset();
     setLoading(true);
@@ -343,7 +360,7 @@ export default function Experience() {
     timers.current.forEach(clearTimeout);
     setTravel(false);
   };
-  const paused = loading || mapOpen || helpOpen || surface !== null || reward !== null;
+  const paused = loading || mapOpen || helpOpen || surface !== null || reward !== null || station !== null;
   return (
     <main
       aria-busy={loading}
@@ -362,7 +379,7 @@ export default function Experience() {
           arrived,
           reduced,
           paused,
-          hidden: surface !== null || mapOpen,
+          hidden: surface !== null || mapOpen || station !== null,
           resetKey,
           droidSignal,
         }}
@@ -406,8 +423,8 @@ export default function Experience() {
       </h1>
       <header
         className="header"
-        inert={loading || mapOpen}
-        style={mapOpen ? { visibility: "hidden" } : undefined}
+        inert={loading || mapOpen || station !== null}
+        style={mapOpen || station ? { visibility: "hidden" } : undefined}
       >
         <button
           className="brand"
@@ -543,9 +560,19 @@ export default function Experience() {
               {landing
                 ? "ZONE D’ATTERRISSAGE DÉGAGÉE · E POUR ATTERRIR"
                 : destination === 3
-                  ? "TRANSMISSION DE LA STATION"
+                  ? "BAIE D’ARRIMAGE OUVERTE · E POUR ACCOSTER"
                   : "L’EXPLORATION DE CE MONDE SE PRÉPARE"}
             </span>
+            {destination === 3 && (
+              <div className="station-actions">
+                <button className="land-button mono" onClick={() => enterStation("explore")}>
+                  <PlaneLanding size={13} /> ACCOSTER LA STATION
+                </button>
+                <button className="land-button mono recruiter" onClick={() => enterStation("recruiter")}>
+                  <Briefcase size={13} /> MODE RECRUTEUR
+                </button>
+              </div>
+            )}
             {landing && (
               <button className="land-button mono" onClick={land}>
                 <PlaneLanding size={13} /> ATTERRIR SUR{" "}
@@ -665,6 +692,7 @@ export default function Experience() {
         {reward === "temple" && <TempleRoom key="temple" reduced={reduced} onClose={() => setReward(null)} />}
         {reward === "destiny" && <FinalVaderExperience key="destiny" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
       </AnimatePresence>
+      {station && <DeathStarStation key="station" start={station} reduced={reduced} sound={sound} onClose={leaveStation} />}
       <div className="jedi-toasts">
         <AnimatePresence>
           {toasts[0] && !combat && <SecretDiscoveryToast key={toasts[0].mission.id} mission={toasts[0].mission} total={toasts[0].total} reduced={reduced} onDone={dismissToast} />}

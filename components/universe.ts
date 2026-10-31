@@ -64,8 +64,8 @@ export const destinations = [
   },
   {
     name: "L’Étoile de la Mort",
-    category: "Station orbitale",
-    tag: "AUX CONFINS DE L’EMPIRE",
+    category: "Le dossier CV",
+    tag: "ARCHIVES IMPÉRIALES",
     number: "04",
     className: "death-star",
     image: "/planets/death-star.png",
@@ -76,9 +76,9 @@ export const destinations = [
       centerY: 341,
       radius: 330,
     },
-    summary: "L’acier, la tranchée et une silhouette impossible à confondre.",
+    summary: "Une station impériale qui archive mon parcours professionnel.",
     description:
-      "Une surface d’acier striée de lumière, une tranchée à l’équateur, une parabole monumentale. Un clin d’œil à l’univers qui inspire ce voyage, à découvrir depuis l’orbite.",
+      "Derrière l’acier strié de lumière, la station archive mon dossier professionnel : expériences, formations, compétences et projets. Accostez pour l’explorer, ou passez en mode recruteur pour l’essentiel en quelques clics.",
   },
   {
     name: "Hoth",

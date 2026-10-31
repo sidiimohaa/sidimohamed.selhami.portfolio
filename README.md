@@ -139,3 +139,18 @@ Sur le tableau de bord, à droite du journal de missions, la console **GALACTIC 
 - **Defense of Hoth** : le simulateur existant, lancé depuis le catalogue ; ses parties comptent aussi dans l’arcade.
 
 Chaque partie terminée met à jour les statistiques (dernier score, record, parties, victoires, meilleur temps, date du record), verse des crédits galactiques (victoire, record, performance parfaite, première victoire, sans double paiement) et débloque les succès et les grades, de Cadet à Légende galactique. Les crédits achètent des couleurs d’hologramme, des thèmes de console, des titres, l’éclairage du cockpit et la couleur des réacteurs du X-wing. Tout reste dans le stockage local versionné `orbital-galactic-arcade`, sans achat réel. Codes du terminal : 1977 et 1138 ; une combinaison de flèches cache autre chose.
+
+## L’Étoile de la Mort · dossier professionnel
+
+En orbite de l’Étoile de la Mort, la transmission propose **Accoster la station** (ou E) et **Mode Recruteur**. L’approche est une courte séquence : le X-wing entre dans la baie du hangar, la transmission « IMPERIAL ARCHIVES — Personnel File Access Granted » s’affiche, puis la vue passe à la première personne. L’introduction peut être passée.
+
+- **Hangar** : console d’accueil holographique (identité, profil, trois choix : explorer, consulter rapidement, télécharger le CV PDF).
+- **Archives** : un terminal par expérience (Bricoman/Tecnomat, Aldi) et une synthèse du parcours.
+- **Centre de formation** : table holographique et frise des diplômes, du Bac STMG au Bachelor 3 INSEEC.
+- **Salle des compétences** : arbre holographique en six branches ; chaque nœud distingue compétence confirmée, en développement et domaine d’intérêt, avec son contexte et ses preuves.
+- **Salle de commandement** (par ascenseur) : grand écran, consoles par projet (ORBITAL, « Mes passions »).
+- **Archives confidentielles** (depuis le hangar) : le CV complet, téléchargement, LinkedIn, e-mail, retour à la galaxie.
+
+Déplacements : ZQSD/WASD et flèches, souris glissée pour regarder, clic pour aller vers un point ou une console, E pour interagir, M pour le plan ; sur téléphone, pouce gauche pour avancer, glisser à droite pour regarder. Le **Mode Recruteur** reste accessible partout et remplace la station sans WebGL. Qualité graphique réglable ; mouvements réduits respectés.
+
+Toutes les données viennent de `components/deathStar/cvData.ts`, tirées du CV `public/cv/CV_Sidi_Mohamed_Selhami_Alternance_2026.pdf`. Les certifications restent masquées tant que leurs intitulés réels n’y sont pas ajoutés.
