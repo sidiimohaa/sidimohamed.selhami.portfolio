@@ -10,6 +10,7 @@ import RecruiterMode from "./RecruiterMode";
 import StationPanel, { type PanelId } from "./StationPanels";
 import { SECTIONS, identity, type Section } from "./cvData";
 import { loadDossier as load, saveDossier as save } from "./dossierProgress";
+import { IMPERIAL_PRESENCES } from "./imperialRoster";
 
 // The Death Star, inside: a professional record to explore in the first person. The approach and
 // landing in the hangar play first (skippable), then the visitor walks the station; the Recruiter
@@ -27,8 +28,10 @@ const destinations: Destination[] = [
   { id: "skills", label: "Salle des compétences", short: "Compétences", room: "skills", x: 0, z: -130, face: [0, -140] },
   { id: "command", label: "Commandement · Projets", short: "Projets", room: "command", x: 102, z: -35, face: [102, -60] },
 ];
+const encounters: Destination[] = IMPERIAL_PRESENCES.map((actor) => ({ id: `meet-${actor.id}`, label: actor.name, short: actor.name, room: actor.room, x: actor.approach[0], z: actor.approach[1], face: [actor.position[0], actor.position[2]] }));
 const upper = (room: RoomId | null) => room === "command" || room === "liftB";
 function panelFor(id: string): { id: PanelId; focus?: string } | null {
+  if (id.startsWith("presence:") && IMPERIAL_PRESENCES.some((actor) => actor.id === id.slice(9))) return { id: "presence", focus: id.slice(9) };
   if (id === "accueil") return { id: "accueil" };
   if (id === "exp-bricoman") return { id: "experience", focus: "bricoman" };
   if (id === "exp-aldi") return { id: "experience", focus: "aldi" };
@@ -669,6 +672,8 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
                 {d.label}
               </button>
             ))}
+            <span className="mono">PRÉSENCES IMPÉRIALES</span>
+            {encounters.map((d) => <button key={d.id} onClick={() => goTo(d)}>{d.label}</button>)}
             <p className="mono">
               DOSSIER CONSULTÉ : {progress.seen.length}/{SECTIONS.length} SECTIONS
             </p>

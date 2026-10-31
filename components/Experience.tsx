@@ -140,11 +140,13 @@ export default function Experience() {
     });
   }, []);
   const dismissToast = useCallback(() => setToasts((queue) => queue.slice(1)), []);
+  // The save happens outside the state update: a store write while React renders warns.
+  const ceremonyQueue = useRef(ceremonies);
+  ceremonyQueue.current = ceremonies;
   const finishCeremony = useCallback(() => {
-    setCeremonies((queue) => {
-      if (queue[0]) markRankCelebrated(queue[0].id);
-      return queue.slice(1);
-    });
+    const done = ceremonyQueue.current[0];
+    if (done) markRankCelebrated(done.id);
+    setCeremonies((queue) => queue.slice(1));
   }, []);
   const finishJump = useCallback(() => {
     setJumping(false);

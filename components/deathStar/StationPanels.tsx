@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Download, FileText, Linkedin, Mail, Map, X } from "lucide-react";
 import { CV_PDF, education, experiences, identity, interests, languages, projects, skillTree, statusLabel, type Section } from "./cvData";
+import { IMPERIAL_PRESENCES } from "./imperialRoster";
 
 // The holographic sheets the station's consoles open: one per kind of terminal. Content comes
 // from cvData only; the panels are ordinary HTML, readable by keyboard and screen readers.
 
-export type PanelId = "accueil" | "experience" | "experiences" | "formation" | "skills" | "projects" | "code" | "bonus" | "transmission" | "vader" | "droid" | "secret";
+export type PanelId = "accueil" | "experience" | "experiences" | "formation" | "skills" | "projects" | "code" | "bonus" | "transmission" | "vader" | "droid" | "secret" | "presence";
 type Props = {
   id: PanelId;
   focus?: string;
@@ -60,6 +61,7 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
     vader: "Observation",
     droid: "Contact inattendu",
     secret: "Message du Haut Commandement",
+    presence: "Présence impériale",
   };
 
   let body: React.ReactNode = null;
@@ -258,6 +260,10 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
         <p>Immobile devant la baie, elle contemple les étoiles et ne se retourne pas. Seule sa respiration rompt le silence de la salle. Mieux vaut retourner à la lecture du dossier.</p>
       </>
     );
+  if (id === "presence") {
+    const actor = IMPERIAL_PRESENCES.find((entry) => entry.id === focus);
+    if (actor) body = <><p className="ds-holo-kicker">{actor.location}</p><h2>{actor.name}</h2><p>{actor.description}</p><p className="ds-holo-sub">« {actor.transmission} »</p><div className="ds-holo-choices"><button onClick={onClose}>Reprendre l’exploration</button><button onClick={onPlan}><Map size={15} /> Voir les autres présences</button></div></>;
+  }
   if (id === "droid")
     body = (
       <>

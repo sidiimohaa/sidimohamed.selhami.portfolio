@@ -261,6 +261,9 @@
   border: 1px solid #7cc8ff66;
   background: #05101ce6;
   backdrop-filter: blur(6px);
+  max-height: calc(100dvh - 145px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .ds-menu > span,
 .ds-menu p {

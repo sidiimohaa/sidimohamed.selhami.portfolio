@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { createScoutSpeeder } from "../scoutSpeeder";
 
 // The forest of Endor for Speeder Bike Racing: a winding corridor between giant redwoods, trunks
 // in the way, checkpoint beacons, an Ewok village at the finish, and the Imperial 74-Z speeder bike
@@ -128,52 +129,13 @@ function fernGeometry() {
 }
 
 export function createSpeederBike(trail: string) {
+  const rig = createScoutSpeeder({ trail, light: true });
+  // The shared model faces +Z for Endor's patrol path; the race travels along -Z.
+  rig.root.rotation.y = Math.PI;
   const bike = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xc8cbc6, roughness: 0.55, metalness: 0.35 });
-  const grey = new THREE.MeshStandardMaterial({ color: 0x55595c, roughness: 0.6, metalness: 0.5 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1d2023, roughness: 0.7, metalness: 0.4 });
-  const camo = new THREE.MeshStandardMaterial({ color: 0x4d5a39, roughness: 0.95 });
-  const camoDark = new THREE.MeshStandardMaterial({ color: 0x3a3426, roughness: 0.95 });
-  const exhaust = new THREE.MeshBasicMaterial({ color: trail, toneMapped: false });
-  const add = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(x, y, z);
-    mesh.rotation.set(rx, ry, rz);
-    bike.add(mesh);
-    return mesh;
-  };
-  add(new THREE.BoxGeometry(0.44, 0.36, 1.9), white, 0, 0, 0.2);
-  add(new THREE.BoxGeometry(0.38, 0.22, 0.7), white, 0, 0.12, -0.7, 0.35);
-  add(new THREE.BoxGeometry(0.46, 0.08, 1.7), dark, 0, -0.2, 0.25);
-  add(new THREE.CylinderGeometry(0.27, 0.32, 0.95, 14).rotateX(Math.PI / 2), grey, 0, 0.04, 1.3);
-  for (const x of [-0.12, 0.12]) add(new THREE.CylinderGeometry(0.08, 0.1, 0.18, 10).rotateX(Math.PI / 2), dark, x, 0.04, 1.83);
-  for (const x of [-0.12, 0.12]) add(new THREE.CircleGeometry(0.075, 12), exhaust, x, 0.04, 1.925);
-  // The long steering forks and the vanes at their tips.
-  for (const x of [-0.17, 0.17]) {
-    add(new THREE.BoxGeometry(0.06, 0.06, 2.7), grey, x, -0.08, -1.95);
-    add(new THREE.BoxGeometry(0.035, 0.6, 0.95), white, x * 1.35, -0.08, -3.1);
-  }
-  add(new THREE.BoxGeometry(0.5, 0.03, 0.5), white, 0, -0.08, -3.05);
-  add(new THREE.BoxGeometry(0.74, 0.04, 0.04), dark, 0, 0.36, -0.36);
-  add(new THREE.BoxGeometry(0.34, 0.1, 0.62), camoDark, 0, 0.24, 0.48);
-  for (const x of [-0.3, 0.3]) add(new THREE.BoxGeometry(0.14, 0.05, 0.3), dark, x, -0.12, 0.2);
-  // The rider, leaning into the handlebar in Endor camouflage.
-  for (const x of [-0.16, 0.16]) {
-    add(new THREE.BoxGeometry(0.13, 0.5, 0.14), camoDark, x, 0.26, 0.2, -1.05);
-    add(new THREE.BoxGeometry(0.12, 0.42, 0.13), camoDark, x * 1.45, 0.04, 0.02, 0.35);
-    add(new THREE.BoxGeometry(0.09, 0.42, 0.09), camo, x * 1.6, 0.66, -0.18, -1.15);
-  }
-  add(new THREE.BoxGeometry(0.42, 0.56, 0.28), camo, 0, 0.72, 0.28, -0.75);
-  add(new THREE.SphereGeometry(0.16, 14, 10), camo, 0, 1.0, -0.05);
-  add(new THREE.BoxGeometry(0.2, 0.05, 0.05), dark, 0, 0.98, -0.2);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: trail, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-  glow.position.set(0, 0.04, 2.05);
-  bike.add(glow);
-  // Lights the ground behind the bike, not the engine itself.
-  const light = new THREE.PointLight(trail, 1.5, 6, 2);
-  light.position.set(0, -0.8, 3.2);
-  bike.add(light);
-  return { bike, glow, light };
+  bike.name = "racing-scout-speeder";
+  bike.add(rig.root);
+  return { bike, glow: rig.glow, light: rig.light, animateRider: rig.tick };
 }
 
 export function createEndorTrack(scene: THREE.Scene, options: { trail: string; reduced: boolean }) {
@@ -311,7 +273,8 @@ export function createEndorTrack(scene: THREE.Scene, options: { trail: string; r
     root.add(bridge);
   }
 
-  const { bike, glow, light } = createSpeederBike(options.trail);
+  const { bike, glow, light, animateRider } = createSpeederBike(options.trail);
+  let riderClock = 0, riderBank = 0, riderThrust = 0;
   root.add(bike);
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.4, 20), new THREE.MeshBasicMaterial({ map: glowTexture(), color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2;
@@ -324,6 +287,7 @@ export function createEndorTrack(scene: THREE.Scene, options: { trail: string; r
     place: (x: number, d: number, yaw: number, roll: number, pitch: number, bob: number, thrust: number) => {
       bike.position.set(x, 1.15 + bob, -d);
       bike.rotation.set(pitch, yaw, roll, "YXZ");
+      riderBank = roll; riderThrust = thrust;
       shadow.position.set(x, 0.03, -d + 0.2);
       glow.scale.setScalar(0.32 + thrust * 0.55);
       light.intensity = 1 + thrust * 3;
@@ -332,6 +296,8 @@ export function createEndorTrack(scene: THREE.Scene, options: { trail: string; r
       if (gates[index]) gates[index].flash = 1;
     },
     tick: (dt: number) => {
+      riderClock += dt;
+      animateRider(riderClock, options.reduced, riderBank, riderThrust);
       for (const g of gates) {
         g.flash = Math.max(0, g.flash - dt * 1.5);
         g.band.opacity = 0.22 + g.flash * 0.6;

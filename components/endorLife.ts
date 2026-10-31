@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import type { PadEvent } from "./coruscantLife";
-import { glowTexture, random } from "./landingKit";
-import { bakePart, createSandtrooper, part, rounded } from "./tatooineCharacters";
+import { random } from "./landingKit";
+import { part } from "./tatooineCharacters";
+import { createScoutSpeeder } from "./scoutSpeeder";
 import { CLEARING } from "./endorForest";
 
 // Life in the forest round the clearing: a pair of speeder bikes racing between the trunks now
@@ -30,29 +31,7 @@ export const BIKE_PATH = new THREE.CatmullRomCurve3(
 );
 
 export function speederBike(withRider = true) {
-  const root = new THREE.Group();
-  const hull = new THREE.MeshStandardMaterial({ color: 0x5f6458, roughness: 0.6, metalness: 0.45 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x24272a, roughness: 0.6, metalness: 0.5 });
-  part(root, rounded(0.5, 0.38, 1.9, 0.12), hull, [0, 0, -0.1]);
-  part(root, rounded(0.56, 0.5, 0.75, 0.1), dark, [0, 0.02, -1.05]);
-  part(root, rounded(0.34, 0.12, 0.6, 0.05), dark, [0, 0.26, -0.3]);
-  part(root, new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6), dark, [0, 0.32, 0.45], [0, 0, Math.PI / 2]);
-  // Two long steering vanes reaching forward, each ending in a pair of flaps.
-  for (const side of [-1, 1]) {
-    part(root, new THREE.BoxGeometry(0.06, 0.06, 1.8), dark, [side * 0.16, -0.1, 1.7]);
-    part(root, rounded(0.36, 0.03, 0.42, 0.01), hull, [side * 0.3, -0.1, 2.5]);
-  }
-  bakePart(root);
-  const exhaust = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xff9a5c, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
-  exhaust.position.set(0, 0.02, -1.5);
-  exhaust.scale.setScalar(0.6);
-  root.add(exhaust);
-  // A scout trooper astride it, leaning into the handlebars.
-  const rider = createSandtrooper();
-  rider.group.position.set(0, -0.5, -0.35);
-  rider.group.rotation.x = 0.28;
-  if (withRider) root.add(rider.group);
-  return { root, rider };
+  return createScoutSpeeder({ withRider });
 }
 
 function bird() {
@@ -150,7 +129,7 @@ export function createEndorLife(notify: (event: PadEvent) => void) {
         race = t;
         notify("speeder-arrive");
       }
-      bikes.forEach(({ root, rider }, i) => {
+      bikes.forEach(({ root, tick }, i) => {
         const run = race < 0 ? -1 : ((t - race - i * 1.1) * 30) / length;
         root.visible = run > 0 && run < 1;
         if (!root.visible) return;
@@ -160,9 +139,7 @@ export function createEndorLife(notify: (event: PadEvent) => void) {
         const heading = Math.atan2(ahead.x - at.x, ahead.z - at.z);
         const turn = Math.atan2(Math.sin(heading - root.rotation.y), Math.cos(heading - root.rotation.y));
         root.rotation.set(0, heading, THREE.MathUtils.clamp(-turn * 14, -0.6, 0.6));
-        rider.tick(t, false, reduced);
-        rider.legs.forEach((leg, side) => leg.rotation.set(-1.25, 0, side ? 0.3 : -0.3));
-        rider.arms.forEach((arm) => (arm.rotation.x = -1.2));
+        tick(t, reduced, root.rotation.z, 1);
       });
       if (race >= 0 && ((t - race - 1.1) * 30) / length > 1) {
         race = -1;

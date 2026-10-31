@@ -155,6 +155,8 @@ En orbite de l’Étoile de la Mort, la transmission propose **Accoster la stati
 - **Salle de commandement** (par ascenseur) : grand écran, consoles par projet (ORBITAL, « Mes passions »).
 - **Archives confidentielles** (depuis le hangar) : le CV complet, téléchargement, LinkedIn, e-mail, retour à la galaxie.
 
+Quatre présences impériales se rencontrent dans la station (`imperialRoster.ts`) : le général Grievous au hangar, le comte Dooku aux archives, Dark Maul au centre de formation et Palpatine, entre deux gardes royaux, en salle de commandement. Le plan les liste sous « Présences impériales ».
+
 Déplacements : ZQSD/WASD et flèches, souris glissée pour regarder, clic pour aller vers un point ou une console, E pour interagir, M pour le plan ; sur téléphone, pouce gauche pour avancer, glisser à droite pour regarder. Le **Mode Recruteur** reste accessible partout et remplace la station sans WebGL. Qualité graphique réglable ; mouvements réduits respectés.
 
 Toutes les données viennent de `components/deathStar/cvData.ts`, tirées du CV `public/cv/CV_Sidi_Mohamed_Selhami_Alternance_2026.pdf`. Les certifications restent masquées tant que leurs intitulés réels n’y sont pas ajoutés.

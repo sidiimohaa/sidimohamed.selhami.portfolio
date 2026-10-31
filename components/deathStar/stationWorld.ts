@@ -6,6 +6,7 @@ import { createSandtrooper } from "../stormtrooperModel";
 import { createShipModel } from "../shipModel";
 import { createSurfaceNavigator } from "../surfaceNavigation";
 import { education, experiences, identity, skillTree, statusLabel } from "./cvData";
+import { createStationPresences } from "./stationPresences";
 
 // The inside of the Death Star, built for the professional record: a hangar that welcomes the
 // visitor, a main corridor to a hub, and from it the archives (experience), the training centre
@@ -1098,6 +1099,25 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     block(x, z, 0.6);
   }
 
+  // Physical encounters: the court's robes, joints and weapons keep their articulated groups.
+  const presences = createStationPresences();
+  root.add(presences.group);
+  presences.setLight(options.light);
+  for (const actor of presences.actors) {
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(actor.radius, actor.radius, 2.5, 10), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.set(actor.position[0], actor.position[1] + 1.2, actor.position[2]);
+    presences.group.add(hit);
+    interact(`presence:${actor.id}`, `Rencontrer ${actor.name}`, actor.room, actor.position[0], 1.35, actor.position[2], 4, hit);
+    block(actor.position[0], actor.position[2], actor.radius);
+  }
+  presences.guards.forEach((guard) => {
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(.52, .6, 2.3, 10), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.copy(guard.group.position).add(new THREE.Vector3(0, 1.1, 0));
+    presences.group.add(hit);
+    interact("presence:palpatine", "Observer la garde impériale", "command", guard.group.position.x, 1.35, guard.group.position.z, 3.2, hit);
+    block(guard.group.position.x, guard.group.position.z, .62);
+  });
+
   // A mouse droid patrolling the main corridor.
   const mouse = new THREE.Group();
   const droidBody = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.35, metalness: 0.6 });
@@ -1217,11 +1237,13 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     lightRoom,
     setLight: (light: boolean) => {
       decor.visible = !light;
+      presences.setLight(light);
       glowLayer.visible = true;
       pool.forEach((item, i) => (item.light.visible = !light || i < 3));
     },
     tick: (dt: number, time: number, player: THREE.Vector3, room: RoomId | null, reduced: boolean, liftDoors: { a: number; b: number }) => {
       if (room) lightRoom(room);
+      presences.tick(time, reduced, player, room);
       pool.forEach((item) => (item.light.intensity = THREE.MathUtils.damp(item.light.intensity, item.goal, 4, dt)));
       let opened = false;
       for (const door of doors) {
