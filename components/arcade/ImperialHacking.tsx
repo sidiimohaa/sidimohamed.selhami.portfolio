@@ -166,6 +166,7 @@ export default function ImperialHacking({ reduced, audio, onFinish, onQuit }: Pr
   const end = (won: boolean, finalErrors = errors) => {
     if (done.current) return;
     done.current = true;
+    setFeedback("");
     setStage(won ? "won" : "lost");
     if (won) audio?.success();
     else audio?.fail();
@@ -314,7 +315,7 @@ export default function ImperialHacking({ reduced, audio, onFinish, onQuit }: Pr
     }
   };
 
-  const layer = { circuit: 1, cipher: 2, firewall: 3 }[stage as "circuit"] ?? 0;
+  const layer = { brief: 1, circuit: 1, cipher: 2, firewall: 3, won: 3, lost: 3 }[stage];
   const urgent = left < 30;
 
   return (
@@ -326,7 +327,7 @@ export default function ImperialHacking({ reduced, audio, onFinish, onQuit }: Pr
             <strong id="hack-title">IMPERIAL HACKING</strong>
           </div>
           <div className="hack-status" aria-live="off">
-            <span>COUCHE {Math.max(1, layer)}/3</span>
+            <span>COUCHE {layer}/3</span>
             <span>ERREURS {errors}</span>
             <span className={urgent ? "hack-alert" : ""}>ALERTE DANS {Math.floor(left / 60)}:{Math.floor(left % 60).toString().padStart(2, "0")}</span>
           </div>
@@ -405,7 +406,7 @@ export default function ImperialHacking({ reduced, audio, onFinish, onQuit }: Pr
                       </button>
                     );
                   })}
-                  <span className="hack-end" data-on={r === circuit.end && powered.solved} aria-hidden="true">
+                  <span className="hack-end" data-sink={r === circuit.end} data-on={r === circuit.end && powered.solved} aria-hidden="true">
                     {r === circuit.end ? "◆" : ""}
                   </span>
                 </div>

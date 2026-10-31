@@ -290,6 +290,8 @@ const subscribe = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
+/** Calls back whenever the records change (in this tab or another); returns the unsubscribe. */
+export const onArcadeChange = (listener: () => void) => subscribe(listener);
 const blank = fresh();
 export function useArcade() {
   const data = useSyncExternalStore(subscribe, getArcade, () => blank);

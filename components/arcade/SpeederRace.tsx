@@ -127,10 +127,17 @@ export default function SpeederRace({ reduced, audio, trail, best, onFinish, onQ
         s.x += s.vx * step;
         // The corridor's walls of trunks, then the trunks in the way.
         const offset = s.x - centre(s.d);
+        // Brushing the wall of trunks throws the bike back and slows it; only trunks in the way
+        // count as crashes.
         if (Math.abs(offset) > HALF - 0.7) {
-          s.x = centre(s.d) + Math.sign(offset) * (HALF - 2.4);
-          s.vx = -Math.sign(offset) * 4;
-          if (racing && s.invuln <= 0) crash("Les arbres du bord !");
+          s.x = centre(s.d) + Math.sign(offset) * (HALF - 1.6);
+          s.vx = -Math.sign(offset) * 6;
+          if (racing && s.speed > 16) {
+            s.speed = 16;
+            s.shake = Math.max(s.shake, 0.5);
+            say("Vous frôlez les arbres !", 1.6);
+            live.current.audio?.whoosh();
+          }
         }
         const obstacles = track.obstacles;
         while (s.obstacle < obstacles.length && obstacles[s.obstacle].d <= s.d) {

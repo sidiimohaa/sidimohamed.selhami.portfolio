@@ -10,6 +10,7 @@ const HothDefenseHUD = dynamic(() => import("./hothDefense/HothDefenseHUD"), { s
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpRight,
+  Gamepad2,
   MapPin,
   Navigation,
   Orbit,
@@ -798,7 +799,7 @@ export default function CockpitMap({
       <div className="cockpit-fallback" aria-hidden="true" />
       <div ref={mount} className="cockpit-canvas" />
       <div className="cockpit-vignette" aria-hidden="true" />
-      {!defense && !arcadeGame && graphics && (
+      {!defense && !arcadeGame && graphics && !compact && (
         <button
           ref={arcadeButton}
           className="cockpit-arcade-button"
@@ -882,11 +883,9 @@ export default function CockpitMap({
                 <span>JOURNAL DE MISSIONS</span>
                 {progress.unseen.length > 0 && <i className="jedi-alert-dot" aria-label="nouvelle mission terminée" />}
               </button>
-              {!graphics && (
-                <button className="cockpit-arcade-flat" onClick={openArcade} aria-haspopup="dialog">
-                  <span>ARCADE</span>
-                </button>
-              )}
+              <button className="cockpit-arcade-flat" onClick={openArcade} aria-haspopup="dialog" aria-expanded={arcade} aria-label="Galactic Arcade, centre de simulation">
+                <Gamepad2 size={16} />
+              </button>
             </>
           )}
           <button

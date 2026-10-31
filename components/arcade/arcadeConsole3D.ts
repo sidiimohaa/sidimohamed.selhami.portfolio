@@ -71,7 +71,7 @@ export function createArcadeConsole(pilot: THREE.Vector3) {
   const group = new THREE.Group();
   group.name = "cockpit-galactic-arcade";
   // To the right of the mission journal module, clear of it from the pilot's seat.
-  group.position.set(0.86, 1.13, 0.74);
+  group.position.set(0.86, 1.2, 0.74);
   group.lookAt(pilot);
   group.scale.setScalar(0.8);
   const metal = new THREE.MeshStandardMaterial({ color: 0x8e9ba2, roughness: 0.3, metalness: 0.9 });

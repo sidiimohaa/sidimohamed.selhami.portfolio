@@ -127,3 +127,15 @@ Depuis la carte stellaire, le bouton physique rouge **DEFENSE OF HOTH** ouvre un
 - Le boss AT-AT, plus grand, émerge d’un blizzard qui s’épaissit puis se dissipe. Les explosions se reflètent sur la verrière ; les tirs reçus font jaillir des étincelles du tableau de bord, et des fissures apparaissent quand les boucliers faiblissent.
 
 `npm run test:hoth` vérifie les trois vagues avec de vrais tirs simulés, les points faibles protégés du boss, sa chute, la victoire parfaite, la défaite, les délais de recharge, la surchauffe, la pause, le redémarrage et le nettoyage des ressources 3D. `npm run build` produit l’export statique.
+
+## Galactic Arcade
+
+Sur le tableau de bord, à droite du journal de missions, la console **GALACTIC ARCADE** (écran, LED, boutons) projette au clic un hologramme : catalogue de simulations, profil de pilote, succès, récompenses et terminal de codes. Sur téléphone, elle s’ouvre en panneau depuis l’icône manette de l’en-tête. Le catalogue est piloté par les données (`components/arcade/catalog.ts`).
+
+- **Space Battle** : trois vagues de chasseurs TIE dans le cockpit ; boucliers puis coque, trois torpilles à protons sur la cible verrouillée.
+- **Asteroid Survival** : champ d’astéroïdes de plus en plus dense ; 90 s valident la mission, 180 s débloquent Asteroid Master, les passages au ras rapportent des combos.
+- **Imperial Hacking** : circuit à reconnecter, code chiffré à traduire, séquence du pare-feu à reproduire avant l’alerte ; chaque erreur coûte du temps.
+- **Speeder Bike Racing** : course en caméra poursuite dans la forêt d’Endor, avec boost, points de passage et arrivée au village ewok ; trois collisions avec un tronc détruisent le speeder.
+- **Defense of Hoth** : le simulateur existant, lancé depuis le catalogue ; ses parties comptent aussi dans l’arcade.
+
+Chaque partie terminée met à jour les statistiques (dernier score, record, parties, victoires, meilleur temps, date du record), verse des crédits galactiques (victoire, record, performance parfaite, première victoire, sans double paiement) et débloque les succès et les grades, de Cadet à Légende galactique. Les crédits achètent des couleurs d’hologramme, des thèmes de console, des titres, l’éclairage du cockpit et la couleur des réacteurs du X-wing. Tout reste dans le stockage local versionné `orbital-galactic-arcade`, sans achat réel. Codes du terminal : 1977 et 1138 ; une combinaison de flèches cache autre chose.

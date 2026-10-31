@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { destinations } from "./universe";
 import { createPlanetLayers } from "./planetMaterial";
 import { createShipModel } from "./shipModel";
+import { equippedValue, getArcade, onArcadeChange } from "./arcade/arcadeStore";
 import {
   createNebula,
   createShootingStars,
@@ -606,6 +607,13 @@ export default function SpaceScene({
       )
         engineCores.add(object.material);
     });
+    // The engine trail bought in Galactic Arcade tints the exhaust glow.
+    const tintEngines = () => {
+      const trail = equippedValue(getArcade(), "engine");
+      exhausts.forEach((engine) => engine.material.color.set(trail.startsWith("#") ? trail : 0xff8fc2));
+    };
+    tintEngines();
+    const stopTint = onArcadeChange(tintEngines);
     ship.position.set(0, -1.55, 25);
     ship.rotation.set(-1.04, 0, 0);
     ship.scale.setScalar(0.585);
@@ -1147,6 +1155,7 @@ export default function SpaceScene({
     };
     frame = requestAnimationFrame(animate);
     return () => {
+      stopTint();
       disposed = true;
       referenceTextures.forEach((texture) => texture.dispose());
       nebula.dispose();

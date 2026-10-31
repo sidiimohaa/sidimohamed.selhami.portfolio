@@ -35,11 +35,10 @@
   background: radial-gradient(ellipse at 50% 50%, #4aaaf422, transparent 70%);
 }
 .cockpit-arcade-flat {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 6px 10px;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   border: 1px solid #78c6ff55;
   border-radius: 2px;
   color: #d5ecfa;
@@ -1138,7 +1137,16 @@
     height: 72px;
     border-radius: 50% !important;
     flex-direction: column;
+    align-items: center;
     justify-content: center;
+    border: 1px solid #ff8d7d88;
+    background: radial-gradient(circle, #5a1a1fcc, #2a0c12dd);
+    box-shadow: 0 0 18px #ff6f7d44;
+    color: #ffe1e4;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    pointer-events: auto;
     touch-action: none;
   }
   .arcade-hud-meters {
@@ -1562,6 +1570,9 @@
   color: #4a1a20;
   font-size: 14px;
 }
+.hack-end[data-sink="true"] {
+  color: #b9785a;
+}
 .hack-end[data-on="true"] {
   color: #ffd98a;
   text-shadow: 0 0 10px #ffb347;
@@ -1593,6 +1604,7 @@
   font-weight: 400;
 }
 .hack-cipher {
+  grid-template-columns: repeat(6, 1fr);
   width: 100%;
   max-width: 560px;
   color: #ff9aa3;
@@ -1709,5 +1721,10 @@
   }
   .arcade-hud-message {
     bottom: 70px;
+  }
+}
+@media (pointer: coarse) {
+  .arcade-hud-actions kbd {
+    display: none;
   }
 }

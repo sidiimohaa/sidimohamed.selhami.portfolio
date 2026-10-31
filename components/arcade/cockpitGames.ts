@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { tieGeometry } from "../tieModel";
 import type { ArcadeAudio } from "./arcadeAudio";
 import type { GameResult } from "./arcadeStore";
 
@@ -49,58 +49,6 @@ const radio = [
   "Rouge Leader : des TIE d’élite ! Gardez vos torpilles pour eux.",
 ];
 
-const baked = (parts: [THREE.BufferGeometry, THREE.Matrix4][]) =>
-  mergeGeometries(parts.map(([geometry, matrix]) => {
-    const copy = geometry.index ? geometry.toNonIndexed() : geometry.clone();
-    return copy.applyMatrix4(matrix);
-  }));
-const at = (x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) =>
-  new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(1, 1, 1));
-
-// A TIE fighter: ball cockpit with its octagonal window, two pylons and the hexagonal solar wings,
-// pointing up and down, with their six struts. Baked into three meshes shared by the whole squadron.
-function tieGeometry() {
-  const hex = (radius: number, depth: number) => {
-    const shape = new THREE.Shape();
-    for (let i = 0; i < 6; i++) {
-      const a = Math.PI / 2 + (i * Math.PI) / 3;
-      if (i) shape.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
-      else shape.moveTo(Math.cos(a) * radius, Math.sin(a) * radius);
-    }
-    shape.closePath();
-    return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false }).translate(0, 0, -depth / 2).rotateY(Math.PI / 2);
-  };
-  const ball = new THREE.SphereGeometry(1, 22, 16),
-    collar = new THREE.CylinderGeometry(0.6, 0.66, 0.34, 8).rotateX(Math.PI / 2),
-    ring = new THREE.TorusGeometry(0.58, 0.05, 6, 8),
-    spoke = new THREE.BoxGeometry(0.045, 0.56, 0.04),
-    pylon = new THREE.CylinderGeometry(0.2, 0.32, 1.9, 10).rotateZ(Math.PI / 2),
-    hub = new THREE.CylinderGeometry(0.48, 0.48, 0.3, 12).rotateZ(Math.PI / 2),
-    frame = hex(3.1, 0.1),
-    panel = hex(2.86, 0.16),
-    strut = new THREE.BoxGeometry(0.2, 3.0, 0.14);
-  const hull: [THREE.BufferGeometry, THREE.Matrix4][] = [
-    [ball, at(0, 0, 0)],
-    [collar, at(0, 0, 0.92)],
-    [ring, at(0, 0, 1.1)],
-  ];
-  for (let i = 0; i < 8; i++) hull.push([spoke, at(Math.cos((i * Math.PI) / 4) * 0.28, Math.sin((i * Math.PI) / 4) * 0.28, 1.1, 0, 0, (i * Math.PI) / 4 - Math.PI / 2)]);
-  for (const side of [-1, 1]) {
-    hull.push([pylon, at(side * 1.7, 0, 0)], [frame, at(side * 2.7, 0, 0)], [hub, at(side * 2.7, 0, 0)]);
-    for (let i = 0; i < 6; i++) {
-      const a = Math.PI / 2 + (i * Math.PI) / 3;
-      hull.push([strut, at(side * 2.7, Math.sin(a) * 1.5, -Math.cos(a) * 1.5, a - Math.PI / 2)]);
-    }
-  }
-  const panels = baked([
-    [panel, at(-2.7, 0, 0)],
-    [panel, at(2.7, 0, 0)],
-  ]);
-  const glass = new THREE.CircleGeometry(0.58, 8).translate(0, 0, 1.095);
-  [ball, collar, ring, spoke, pylon, hub, frame, panel, strut].forEach((g) => g.dispose());
-  return { hull: baked(hull), panels, glass };
-}
-
 // Lumpy rocks: an icosphere pushed in and out by smooth waves, so shared edges never crack apart.
 function rockGeometry(seed: number) {
   const geometry = new THREE.IcosahedronGeometry(1, 2);
@@ -148,7 +96,7 @@ type Fighter = {
 };
 type Bolt = { mesh: THREE.Mesh; active: boolean; enemy: boolean; vel: THREE.Vector3; ttl: number; impact: number; travelled: number; fighter: Fighter | null; hits: boolean; damage: number };
 type Torpedo = { mesh: THREE.Group; active: boolean; vel: THREE.Vector3; target: Fighter | null; ttl: number };
-type Blast = { group: THREE.Group; core: THREE.Mesh; fire: THREE.Mesh; debris: THREE.Mesh[]; velocity: THREE.Vector3[]; age: number; life: number; size: number; active: boolean };
+type Blast = { group: THREE.Group; core: THREE.Mesh; fire: THREE.Mesh; debris: THREE.Mesh[]; velocity: THREE.Vector3[]; age: number; life: number; size: number; active: boolean; rocky: boolean };
 type Rock = { mesh: THREE.Mesh; active: boolean; pos: THREE.Vector3; r: number; speed: number; spin: THREE.Vector3; checked: boolean };
 
 export function createCockpitGame(options: {
@@ -214,6 +162,7 @@ export function createCockpitGame(options: {
 
   // Explosions: a white core, an orange ball of fire and tumbling debris, from a small pool.
   const debrisGeometry = keep(new THREE.BoxGeometry(0.5, 0.25, 0.7));
+  const rubbleGeometry = keep(new THREE.IcosahedronGeometry(0.4, 0));
   const debrisMaterial = keep(new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.7, metalness: 0.4 }));
   const rockDebrisMaterial = keep(new THREE.MeshStandardMaterial({ color: 0x5d544b, roughness: 0.95, flatShading: true }));
   const sphere = keep(new THREE.SphereGeometry(1, 16, 12));
@@ -225,13 +174,14 @@ export function createCockpitGame(options: {
     group.add(core, fire, ...debris);
     group.visible = false;
     field.add(group);
-    return { group, core, fire, debris, velocity: debris.map(() => new THREE.Vector3()), age: 0, life: 1, size: 1, active: false };
+    return { group, core, fire, debris, velocity: debris.map(() => new THREE.Vector3()), age: 0, life: 1, size: 1, active: false, rocky: false };
   });
   const explode = (where: THREE.Vector3, size: number, rocky = false, spark = false) => {
     const blast = blasts.find((item) => !item.active) ?? blasts[0];
     blast.active = true;
     blast.age = 0;
     blast.size = size;
+    blast.rocky = rocky;
     blast.life = 0.9 + size * 0.35;
     blast.group.position.copy(where);
     blast.group.visible = true;
@@ -240,6 +190,7 @@ export function createCockpitGame(options: {
     blast.debris.forEach((piece, i) => {
       piece.visible = !spark;
       piece.material = rocky ? rockDebrisMaterial : debrisMaterial;
+      piece.geometry = rocky ? rubbleGeometry : debrisGeometry;
       piece.position.set(0, 0, 0);
       piece.scale.setScalar(rocky ? size * rand(0.6, 1.6) : rand(0.6, 1.3));
       blast.velocity[i].set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize().multiplyScalar(rand(8, 22) * size);
@@ -798,7 +749,7 @@ export function createCockpitGame(options: {
           const distance = f.pos.distanceTo(ship);
           if (playing && f.pos.z < -20 && distance < 150 && time > f.nextShot) {
             f.nextShot = time + rand(1.6, 3.2) / (1 + (wave - 1) * 0.25) / (f.elite ? 1.25 : 1);
-            const hits = Math.random() < 0.22 + (wave - 1) * 0.07 + (f.elite ? 0.1 : 0);
+            const hits = Math.random() < 0.17 + (wave - 1) * 0.06 + (f.elite ? 0.1 : 0);
             tmp.copy(ship).add(hits ? tmp2.set(rand(-0.5, 0.5), rand(-0.4, 0.4), 0) : tmp2.set(rand(-1, 1), rand(-1, 1), 0).normalize().multiplyScalar(rand(5, 10)));
             from.copy(f.pos);
             const b = bolt(true, from, tmp.clone().sub(from), 150);
@@ -927,7 +878,7 @@ export function createCockpitGame(options: {
           continue;
         }
         const s = blast.size;
-        blast.core.scale.setScalar(s * (0.6 + k * 2.2));
+        blast.core.scale.setScalar(s * (0.6 + k * 2.2) * (blast.rocky ? 0.45 : 1));
         blast.fire.scale.setScalar(s * (1 + k * 5));
         (blast.core.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1 - k * 2.2);
         (blast.fire.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.85 * (1 - k));

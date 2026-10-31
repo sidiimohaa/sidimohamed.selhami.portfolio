@@ -48,22 +48,28 @@ function barkTexture() {
   );
 }
 function groundTexture() {
+  // Forest floor: brown needles and leaf litter, fine and low in contrast, with a little moss.
   return canvasTexture(
     256,
     256,
     (c) => {
-      c.fillStyle = "#3a3220";
+      c.fillStyle = "#3b2f20";
       c.fillRect(0, 0, 256, 256);
-      for (let i = 0; i < 1400; i++) {
+      for (let i = 0; i < 2600; i++) {
         const tone = Math.random();
-        c.fillStyle = tone < 0.45 ? `rgba(70,92,40,${0.25 + Math.random() * 0.35})` : tone < 0.8 ? `rgba(94,70,42,${0.25 + Math.random() * 0.3})` : `rgba(20,16,10,${0.3 + Math.random() * 0.3})`;
-        const s = 2 + Math.random() * 10;
+        c.strokeStyle = tone < 0.2 ? `rgba(78,92,46,${0.2 + Math.random() * 0.25})` : tone < 0.75 ? `rgba(104,78,50,${0.2 + Math.random() * 0.3})` : `rgba(28,21,13,${0.25 + Math.random() * 0.3})`;
+        c.lineWidth = 1 + Math.random() * 1.5;
+        const x = Math.random() * 256,
+          y = Math.random() * 256,
+          a = Math.random() * Math.PI,
+          l = 2 + Math.random() * 6;
         c.beginPath();
-        c.ellipse(Math.random() * 256, Math.random() * 256, s, s * (0.3 + Math.random() * 0.7), Math.random() * 3, 0, Math.PI * 2);
-        c.fill();
+        c.moveTo(x, y);
+        c.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+        c.stroke();
       }
     },
-    [40, 300],
+    [60, 480],
   );
 }
 function shaftTexture() {
@@ -163,8 +169,9 @@ export function createSpeederBike(trail: string) {
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: trail, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   glow.position.set(0, 0.04, 2.05);
   bike.add(glow);
-  const light = new THREE.PointLight(trail, 4, 6, 2);
-  light.position.set(0, 0, 2.3);
+  // Lights the ground behind the bike, not the engine itself.
+  const light = new THREE.PointLight(trail, 1.5, 6, 2);
+  light.position.set(0, -0.8, 3.2);
   bike.add(light);
   return { bike, glow, light };
 }
@@ -318,8 +325,8 @@ export function createEndorTrack(scene: THREE.Scene, options: { trail: string; r
       bike.position.set(x, 1.15 + bob, -d);
       bike.rotation.set(pitch, yaw, roll, "YXZ");
       shadow.position.set(x, 0.03, -d + 0.2);
-      glow.scale.setScalar(0.8 + thrust * 1.6);
-      light.intensity = 3 + thrust * 6;
+      glow.scale.setScalar(0.32 + thrust * 0.55);
+      light.intensity = 1 + thrust * 3;
     },
     flashGate: (index: number) => {
       if (gates[index]) gates[index].flash = 1;
