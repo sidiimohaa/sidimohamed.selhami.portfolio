@@ -256,8 +256,8 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
     body = (
       <>
         <p className="ds-holo-kicker">Poste d’observation · secteur 7</p>
-        <h2>Une silhouette familière</h2>
-        <p>Immobile devant la baie, elle contemple les étoiles et ne se retourne pas. Seule sa respiration rompt le silence de la salle. Mieux vaut retourner à la lecture du dossier.</p>
+        <h2>Dark Vador</h2>
+        <p>Immobile devant la baie, les mains dans le dos, le Seigneur Sith contemple les étoiles et ne se retourne pas. Seule sa respiration rompt le silence de la salle. Mieux vaut retourner à la lecture du dossier.</p>
       </>
     );
   if (id === "presence") {

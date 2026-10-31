@@ -16,15 +16,6 @@ export function createStationPresences() {
     placement.position.set(...entry.position); placement.rotation.y = entry.yaw;
     placement.add(model.group); group.add(placement);
 
-    const canvas = document.createElement("canvas"); canvas.width = 768; canvas.height = 160;
-    const c = canvas.getContext("2d")!;
-    c.fillStyle = "#10151de8"; c.fillRect(0, 0, 768, 160);
-    c.strokeStyle = "#b27669"; c.lineWidth = 3; c.strokeRect(5, 5, 758, 150);
-    c.fillStyle = "#e6d6c9"; c.font = "500 43px Arial"; c.textAlign = "center"; c.fillText(entry.name.toUpperCase(), 384, 75);
-    c.fillStyle = "#adbac8"; c.font = "21px monospace"; c.fillText("PRÉSENCE IMPÉRIALE", 384, 121);
-    const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(2.15, .45), new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false }));
-    plaque.position.set(0, .22, 1.55); plaque.rotation.x = -.4; placement.add(plaque);
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(entry.radius * .82, 32), new THREE.MeshBasicMaterial({ color: 0x040508, transparent: true, opacity: .4, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2; shadow.scale.y = .65; shadow.position.y = .014; placement.add(shadow);
     model.tick(0, true);

@@ -5,6 +5,7 @@ import { createStandingHuman } from "../humanFigure";
 import { createSandtrooper } from "../stormtrooperModel";
 import { createShipModel } from "../shipModel";
 import { createSurfaceNavigator } from "../surfaceNavigation";
+import { createDarkLord } from "../jedi/vaderModel";
 import { education, experiences, identity, skillTree, statusLabel } from "./cvData";
 import { createStationPresences } from "./stationPresences";
 
@@ -1047,7 +1048,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   interact("projects", "Vue d’ensemble des projets", "command", 102, 1.3, -42.5, 4.4, screen);
   block(102, -42.5, 2.8);
   sign("ASCENSEUR", "▼ RETOUR AU NIVEAU PRINCIPAL", 102, 3.75, -30.38, Math.PI, 3);
-  // The viewport onto space, and a familiar dark silhouette watching through it.
+  // The viewport onto space, and Darth Vader watching through it.
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), new THREE.MeshPhysicalMaterial({ color: 0x9fb8d8, transparent: true, opacity: 0.08, roughness: 0.05, metalness: 0, side: THREE.DoubleSide }));
   owned.push(glass.material as THREE.Material);
   glass.position.set(124.05, 4.2, -46);
@@ -1058,29 +1059,15 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   kit.plane(strip, 0.12, 6.6, 123.97, 4.2, -40, 0, -Math.PI / 2);
   kit.plane(strip, 12, 0.12, 123.97, 7.5, -46, 0, -Math.PI / 2);
   kit.plane(strip, 12, 0.12, 123.97, 0.9, -46, 0, -Math.PI / 2);
-  const vader = new THREE.Group();
-  const black = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.18, metalness: 0.4 });
-  const cape = new THREE.MeshStandardMaterial({ color: 0x060607, roughness: 0.75, side: THREE.DoubleSide });
-  owned.push(black, cape);
-  const piece = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number, s = 1) => {
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(x, y, z);
-    mesh.scale.setScalar(s);
-    vader.add(mesh);
-    return mesh;
-  };
-  piece(new THREE.CylinderGeometry(0.62, 0.95, 1.95, 24, 1, true), cape, 0, 1.0, 0);
-  piece(new THREE.CylinderGeometry(0.3, 0.42, 0.75, 18), black, 0, 1.75, 0);
-  piece(new THREE.SphereGeometry(0.17, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), black, 0, 2.22, 0);
-  piece(new THREE.CylinderGeometry(0.17, 0.26, 0.2, 20, 1, true), black, 0, 2.13, 0);
-  piece(new THREE.BoxGeometry(0.62, 0.12, 0.36), black, 0, 2.02, 0);
+  // Darth Vader, the model of the Chosen One's scene, hands behind his back before the viewport.
+  const vader = createDarkLord("watch").group;
   vader.position.set(121.6, 0, -46);
   vader.rotation.y = Math.PI / 2;
   root.add(vader);
   const vaderHit = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 2.4, 10), new THREE.MeshBasicMaterial({ visible: false }));
   vaderHit.position.set(121.6, 1.2, -46);
   root.add(vaderHit);
-  interact("vader", "Observer la silhouette", "command", 121.6, 1.4, -46, 3.4, vaderHit);
+  interact("vader", "Observer Dark Vador", "command", 121.6, 1.4, -46, 3.4, vaderHit);
   block(121.6, -46, 1.2);
   // Two officers at work at the consoles.
   const officers: ReturnType<typeof createStandingHuman>[] = [];
