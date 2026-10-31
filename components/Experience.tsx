@@ -215,7 +215,7 @@ export default function Experience() {
   }, [soundscape, sound, combat]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (document.querySelector(".hoth-defense")) { lastSix.current = 0; return; }
+      if (document.querySelector(".hoth-defense, .arcade-game, .arcade")) { lastSix.current = 0; return; }
       // Escape is taken by an overlay or the mission journal first when one is open.
       if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(OVERLAYS)) {
         timers.current.forEach(clearTimeout);

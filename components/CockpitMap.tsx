@@ -27,6 +27,16 @@ import { holoMatrix } from "./jedi/holoProjection";
 import { OVERLAYS, setSithMode, unlockSecret, useJediProgression } from "./jediProgression";
 import { createStarfield } from "./spaceAmbience";
 import { destinations, landings, planetReferenceStyle } from "./universe";
+import { createArcadeConsole } from "./arcade/arcadeConsole3D";
+import { ArcadeHologram } from "./arcade/ArcadeHologram";
+import { createArcadeAudio, type ArcadeAudio } from "./arcade/arcadeAudio";
+import { equippedValue, recordResult, useArcade, type GameResult, type ResultSummary } from "./arcade/arcadeStore";
+import { gameById, type ArcadeGameId } from "./arcade/catalog";
+import { hush } from "./arcade/droid";
+import type { CockpitGameKind, CockpitGameRuntime, CockpitGameView } from "./arcade/cockpitGames";
+const ArcadeGameHUD = dynamic(() => import("./arcade/ArcadeGameHUD"), { ssr: false });
+const ImperialHacking = dynamic(() => import("./arcade/ImperialHacking"), { ssr: false });
+const SpeederRace = dynamic(() => import("./arcade/SpeederRace"), { ssr: false });
 
 type Props = {
   initialSelection: number;
@@ -67,6 +77,26 @@ export default function CockpitMap({
   const defenseRuntime = useRef<HothDefenseRuntime | null>(null);
   const defenseRequest = useRef(0);
   const defenseApi = useRef<{ load: () => Promise<void>; stop: () => void } | null>(null);
+  // Galactic Arcade: the console hologram, the simulation being played and its last result.
+  const { data: arcadeData } = useArcade();
+  const [arcade, setArcade] = useState(false);
+  const [arcadeGame, setArcadeGame] = useState<ArcadeGameId | null>(null);
+  const [arcadeResult, setArcadeResult] = useState<ResultSummary | null>(null);
+  const [gameView, setGameView] = useState<CockpitGameView | null>(null);
+  const [gameLoading, setGameLoading] = useState(false);
+  const [gameError, setGameError] = useState<string | null>(null);
+  const [arcadeToast, setArcadeToast] = useState<ResultSummary["achievements"] | null>(null);
+  const arcadeButton = useRef<HTMLButtonElement>(null);
+  const arcadeScreen = useRef<HTMLElement>(null);
+  const arcadeAudio = useRef<ArcadeAudio | null>(null);
+  const gameRuntime = useRef<CockpitGameRuntime | null>(null);
+  const arcadeApi = useRef<{ load: (kind: CockpitGameKind) => Promise<void>; stop: () => void; press: () => void; hover: (on: boolean) => void } | null>(null);
+  const defenseFromArcade = useRef(false);
+  const finishTimer = useRef(0);
+  const toastTimer = useRef(0);
+  const holoColor = equippedValue(arcadeData, "holo"),
+    accent = equippedValue(arcadeData, "accent"),
+    trail = equippedValue(arcadeData, "engine");
   // Narrow screens get the journal as a flat panel; wide ones get it as a hologram in the cockpit.
   const [compact, setCompact] = useState(false);
   const journalButton = useRef<HTMLButtonElement>(null);
@@ -77,14 +107,24 @@ export default function CockpitMap({
   const dialog = useRef<HTMLElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const markers = useRef<(HTMLButtonElement | null)[]>([]);
-  const live = useRef({ selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange });
-  live.current = { selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange };
+  const onGameFinish = useRef<(result: GameResult) => void>(() => undefined);
+  const live = useRef({ selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange, arcade, arcadeGame, holoColor, accent, trail });
+  live.current = { selected, reduced, onClose, journal, progress, coverOpen, compact, defense, defenseView, sound, defenseVolume, onCombatChange, arcade, arcadeGame, holoColor, accent, trail };
   const closeJournal = () => {
     setJournal(false);
     requestAnimationFrame(() => journalButton.current?.focus());
   };
   const closeRef = useRef(closeJournal);
   closeRef.current = closeJournal;
+  const closeArcade = () => {
+    hush();
+    arcadeAudio.current?.ui("back");
+    setArcade(false);
+    setArcadeResult(null);
+    requestAnimationFrame(() => (arcadeButton.current ?? close.current)?.focus());
+  };
+  const closeArcadeRef = useRef(closeArcade);
+  closeArcadeRef.current = closeArcade;
 
   // Opening the star map completes the cartographer's mission.
   useEffect(() => {
@@ -97,18 +137,27 @@ export default function CockpitMap({
     const previous = document.activeElement as HTMLElement | null;
     close.current?.focus();
     const keyboard = (event: KeyboardEvent) => {
-      if (live.current.defense) {
+      if (live.current.defense || live.current.arcadeGame) {
         if (event.key !== "Tab") return;
       }
       if (event.key === "Escape") {
         if (document.querySelector(OVERLAYS)) return;
         event.preventDefault();
-        if (live.current.journal) closeRef.current();
+        if (live.current.arcade) closeArcadeRef.current();
+        else if (live.current.journal) closeRef.current();
         else live.current.onClose();
       }
       if (event.key !== "Tab") return;
       // While the journal is open, focus stays inside it.
-      const scope = live.current.defense ? dialog.current?.querySelector<HTMLElement>(".hoth-defense") : live.current.journal && terminal.current ? terminal.current : dialog.current;
+      const scope = live.current.defense
+        ? dialog.current?.querySelector<HTMLElement>(".hoth-defense")
+        : live.current.arcadeGame
+          ? dialog.current?.querySelector<HTMLElement>(".arcade-game")
+          : live.current.arcade && arcadeScreen.current
+            ? arcadeScreen.current
+            : live.current.journal && terminal.current
+              ? terminal.current
+              : dialog.current;
       const elements = Array.from(
         scope?.querySelectorAll<HTMLElement>(
           'button:not([disabled]):not([tabindex="-1"]),a[href],input:not([disabled]),[tabindex="0"]',
@@ -169,6 +218,8 @@ export default function CockpitMap({
     const defenseConsole = createDefenseConsole();
     scene.add(defenseConsole.group);
     const pilotEye = new THREE.Vector3(0, 1.55, 2.9);
+    const arcadeConsole = createArcadeConsole(pilotEye);
+    scene.add(arcadeConsole.group);
     const controls = createMissionConsole(pilotEye);
     controlsApi.current = controls;
     scene.add(cockpit, projection.group, stars.points, controls.group);
@@ -241,6 +292,41 @@ export default function CockpitMap({
       },
       stop: stopDefense,
     };
+    // The arcade's cockpit simulations take over the view the same way, keeping the starfield.
+    let gameGeneration = 0;
+    const stopGame = () => {
+      gameGeneration++;
+      gameRuntime.current?.dispose();
+      gameRuntime.current = null;
+      projection.group.visible = stars.points.visible = controls.group.visible = defenseConsole.group.visible = true;
+      beam.visible = true;
+      camera.fov = camera.aspect < 0.8 ? 58 : 52;
+      camera.updateProjectionMatrix();
+    };
+    arcadeApi.current = {
+      load: async (kind) => {
+        const token = ++gameGeneration;
+        const module = await import("./arcade/cockpitGames");
+        if (removed || token !== gameGeneration) return;
+        projection.group.visible = controls.group.visible = defenseConsole.group.visible = false;
+        beam.visible = false;
+        gameRuntime.current = module.createCockpitGame({
+          kind,
+          scene,
+          camera,
+          reduced: live.current.reduced,
+          audio: arcadeAudio.current,
+          trail: live.current.trail,
+          onView: setGameView,
+          onFinish: (result) => onGameFinish.current(result),
+        });
+      },
+      stop: stopGame,
+      press: () => arcadeConsole.press(),
+      hover: (on) => arcadeConsole.setHover(on),
+    };
+    let consoleTint = "",
+      cabinTint = "";
     const look = new THREE.Vector3(0, 1.35, -3.4);
     const head = { x: 0, y: 0 },
       lean = { x: 0, y: 0 };
@@ -248,6 +334,7 @@ export default function CockpitMap({
     const pointerMove = (event: PointerEvent) => {
       if (
         live.current.defense ||
+        live.current.arcadeGame ||
         event.pointerType !== "mouse" ||
         (event.target as HTMLElement).closest("button,a")
       )
@@ -327,7 +414,8 @@ export default function CockpitMap({
       age = 0,
       last = performance.now(),
       activated = false,
-      openedAt = -1;
+      openedAt = -1,
+      openedFor = "";
     const anchor = new THREE.Vector3(),
       corner = new THREE.Vector3(),
       from = new THREE.Vector3(),
@@ -345,6 +433,11 @@ export default function CockpitMap({
     const animate = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
+      // The speeder race draws its own forest: the cockpit rests underneath.
+      if (live.current.arcadeGame === "speeder-racing") {
+        frame = requestAnimationFrame(animate);
+        return;
+      }
       age += dt;
       const enter = live.current.reduced
         ? 1
@@ -382,18 +475,29 @@ export default function CockpitMap({
       placeOver(guardButton.current, controls.guardAnchor, 76, 70);
       placeOver(defenseButton.current, defenseConsole.anchor, 172, 52);
       defenseConsole.tick(age, live.current.reduced, live.current.defense);
-      // The hologram unfolds upward from the module, then holds, following the head's movement.
-      if (journalOpen && !flat) {
-        if (openedAt < 0) openedAt = age;
+      placeOver(arcadeButton.current, arcadeConsole.anchor, 124, 54);
+      if (consoleTint !== live.current.holoColor) arcadeConsole.setAccent((consoleTint = live.current.holoColor));
+      if (cabinTint !== live.current.accent && !live.current.defense) fill.color.set((cabinTint = live.current.accent));
+      arcadeConsole.setActive(live.current.arcade || !!live.current.arcadeGame, age);
+      arcadeConsole.tick(dt, age, live.current.reduced);
+      // A hologram (the journal, or the arcade) unfolds upward from its module, then holds,
+      // following the head's movement.
+      const panel = flat ? null : journalOpen ? { id: "journal", element: terminal.current, origin: controls.journalAnchor as THREE.Object3D, color: "#4aaaf4" } : live.current.arcade ? { id: "arcade", element: arcadeScreen.current, origin: arcadeConsole.anchor as THREE.Object3D, color: live.current.holoColor } : null;
+      if (panel) {
+        if (openedFor !== panel.id) {
+          openedFor = panel.id;
+          openedAt = age;
+          beam.material.color.set(panel.color);
+        }
         const unfold = live.current.reduced ? 1 : THREE.MathUtils.smootherstep((age - openedAt) / 0.65, 0, 1);
-        controls.journalAnchor.getWorldPosition(from);
+        panel.origin.getWorldPosition(from);
         across.copy(quad[1]).sub(quad[0]).normalize().multiplyScalar(0.18);
         const points = quad.map((target, i) => {
           const base = from.clone().addScaledVector(across, i % 2 ? 1 : -1);
           const k = i < 2 ? unfold : Math.min(1, unfold * 1.35);
           return base.lerp(target, k);
         });
-        const screen = terminal.current;
+        const screen = panel.element;
         if (screen) {
           const projected = points.map(toScreen);
           screen.style.width = `${screenSize.w}px`;
@@ -407,11 +511,13 @@ export default function CockpitMap({
         beam.material.opacity = 0.05 + (1 - unfold) * 0.2 + (live.current.reduced ? 0 : Math.sin(age * 3) * 0.01);
       } else {
         openedAt = -1;
+        openedFor = "";
         beam.material.opacity = 0;
         // Back to the flat panel (the window got narrower): drop the hologram's projection.
-        const screen = terminal.current;
-        if (screen?.style.transform) {
-          screen.style.transform = screen.style.opacity = screen.style.width = screen.style.height = "";
+        for (const screen of [terminal.current, arcadeScreen.current]) {
+          if (screen?.style.transform) {
+            screen.style.transform = screen.style.opacity = screen.style.width = screen.style.height = "";
+          }
         }
       }
       projectorLight.intensity = live.current.reduced
@@ -437,6 +543,7 @@ export default function CockpitMap({
         marker.style.transform = `translate(${(projected.x * 0.5 + 0.5) * width - diameter / 2}px,${(-projected.y * 0.5 + 0.5) * height - diameter / 2}px)`;
       });
       defenseRuntime.current?.tick(document.hidden ? 0 : dt, live.current.reduced);
+      gameRuntime.current?.tick(document.hidden ? 0 : dt, live.current.reduced);
       renderer.render(scene, camera);
       if (!activated) {
         activated = true;
@@ -448,6 +555,7 @@ export default function CockpitMap({
     return () => {
       removed = true;
       stopDefense(); defenseApi.current = null;
+      stopGame(); arcadeApi.current = null;
       live.current.onCombatChange?.(false);
       cancelAnimationFrame(frame);
       observer.disconnect();
@@ -508,7 +616,11 @@ export default function CockpitMap({
     defenseApi.current?.stop();
     setDefense(false); setDefenseLoading(false); setDefenseError(null); setDefenseView(null);
     onCombatChange?.(false);
-    requestAnimationFrame(() => defenseButton.current?.focus());
+    // Launched from Galactic Arcade: back to its console, with the report if a run finished.
+    if (defenseFromArcade.current) {
+      defenseFromArcade.current = false;
+      setArcade(true);
+    } else requestAnimationFrame(() => defenseButton.current?.focus());
   };
   useEffect(() => { defenseRuntime.current?.setSound(sound); }, [sound]);
   useEffect(() => { defenseRuntime.current?.setVolume(defenseVolume); }, [defenseVolume]);
@@ -543,7 +655,106 @@ export default function CockpitMap({
     return () => { window.removeEventListener("keydown", key, true); window.removeEventListener("keyup", key, true); defenseRuntime.current?.setFiring(false); };
   }, [defense]);
 
+  // --- Galactic Arcade ---
+  const ensureArcadeAudio = () => {
+    if (!arcadeAudio.current) arcadeAudio.current = createArcadeAudio();
+    arcadeAudio.current.setEnabled(sound);
+    return arcadeAudio.current;
+  };
+  const showAchievements = (summary: ResultSummary) => {
+    if (!summary.achievements.length) return;
+    window.clearTimeout(toastTimer.current);
+    setArcadeToast(summary.achievements);
+    toastTimer.current = window.setTimeout(() => setArcadeToast(null), 5000);
+  };
+  const openArcade = () => {
+    if (arcade) {
+      closeArcade();
+      return;
+    }
+    ensureArcadeAudio().ui("select");
+    arcadeApi.current?.press();
+    setJournal(false);
+    setArcadeResult(null);
+    window.setTimeout(() => setArcade(true), reduced ? 0 : 200);
+  };
+  const loadCockpitGame = async (kind: CockpitGameKind) => {
+    setGameLoading(true);
+    try {
+      if (!graphics || !arcadeApi.current) throw new Error("WebGL");
+      await arcadeApi.current.load(kind);
+    } catch {
+      setGameError("La simulation n’a pas pu se charger. Revenez à la console puis réessayez.");
+    } finally {
+      setGameLoading(false);
+    }
+  };
+  const launchArcade = (id: ArcadeGameId) => {
+    const game = gameById(id);
+    hush();
+    ensureArcadeAudio();
+    setArcade(false);
+    setArcadeResult(null);
+    if (game.mode === "defense") {
+      defenseFromArcade.current = true;
+      enterDefense();
+      return;
+    }
+    setArcadeGame(id);
+    setGameView(null);
+    setGameError(null);
+    onCombatChange?.(true);
+    if (game.mode === "cockpit") void loadCockpitGame(id as CockpitGameKind);
+  };
+  const endArcadeGame = (summary: ResultSummary | null) => {
+    window.clearTimeout(finishTimer.current);
+    arcadeApi.current?.stop();
+    setArcadeGame(null);
+    setGameView(null);
+    setGameLoading(false);
+    setGameError(null);
+    onCombatChange?.(false);
+    setArcadeResult(summary);
+    setArcade(true);
+  };
+  // A finished run is saved at once; the end banner stays up a moment before the report.
+  onGameFinish.current = (result: GameResult) => {
+    const summary = recordResult(result);
+    showAchievements(summary);
+    window.clearTimeout(finishTimer.current);
+    finishTimer.current = window.setTimeout(() => endArcadeGame(summary), reduced ? 900 : 2600);
+  };
+  // Defense of Hoth keeps its own simulator; its runs count in the arcade wherever it was launched.
+  const defensePhase = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = defenseView?.phase ?? null;
+    const previous = defensePhase.current;
+    defensePhase.current = phase;
+    if (!defenseView || phase === previous || !previous || previous === "victory" || previous === "defeat") return;
+    if (phase !== "victory" && phase !== "defeat") return;
+    const won = phase === "victory";
+    const summary = recordResult({ gameId: "defense-of-hoth", score: defenseView.score, won, perfect: won && defenseView.totalDamage === 0, seconds: Math.round(defenseView.time) });
+    showAchievements(summary);
+    if (defenseFromArcade.current) setArcadeResult(summary);
+    // Only the phase change matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defenseView]);
+  useEffect(() => {
+    arcadeAudio.current?.setEnabled(sound);
+    if (!sound) hush();
+  }, [sound]);
+  useEffect(
+    () => () => {
+      window.clearTimeout(finishTimer.current);
+      window.clearTimeout(toastTimer.current);
+      hush();
+      arcadeAudio.current?.dispose();
+    },
+    [],
+  );
+
   const openJournal = () => {
+    setArcade(false);
     controlsApi.current?.press();
     onSelectionCue();
     window.setTimeout(() => setJournal(true), reduced ? 0 : 180);
@@ -569,14 +780,15 @@ export default function CockpitMap({
   return (
     <motion.section
       ref={dialog}
-      className={`cockpit-map ${defense ? defenseStyles.combat : ""}`}
+      className={`cockpit-map ${defense || arcadeGame ? defenseStyles.combat : ""}`}
       data-graphics={graphics}
       data-journal={journal}
+      data-arcade={arcade}
       data-sith={progress.sith}
       role="dialog"
       aria-modal="true"
-      aria-labelledby={defense ? undefined : "cockpit-title"}
-      aria-label={defense ? "Défense de Hoth" : undefined}
+      aria-labelledby={defense || arcadeGame ? undefined : "cockpit-title"}
+      aria-label={defense ? "Défense de Hoth" : arcadeGame ? gameById(arcadeGame).name : undefined}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -586,7 +798,54 @@ export default function CockpitMap({
       <div className="cockpit-fallback" aria-hidden="true" />
       <div ref={mount} className="cockpit-canvas" />
       <div className="cockpit-vignette" aria-hidden="true" />
-      {!defense && <button ref={defenseButton} className={defenseStyles.defenseButton} onClick={enterDefense} disabled={!graphics} aria-label="Lancer DEFENSE OF HOTH" aria-haspopup="dialog"><span>DEFENSE OF HOTH</span></button>}
+      {!defense && !arcadeGame && graphics && (
+        <button
+          ref={arcadeButton}
+          className="cockpit-arcade-button"
+          onClick={openArcade}
+          onPointerEnter={() => arcadeApi.current?.hover(true)}
+          onPointerLeave={() => arcadeApi.current?.hover(false)}
+          onFocus={() => arcadeApi.current?.hover(true)}
+          onBlur={() => arcadeApi.current?.hover(false)}
+          aria-haspopup="dialog"
+          aria-expanded={arcade}
+          aria-label="Galactic Arcade, centre de simulation"
+        >
+          <span>GALACTIC ARCADE</span>
+        </button>
+      )}
+      {arcadeGame && gameById(arcadeGame).mode === "cockpit" && (
+        <ArcadeGameHUD
+          view={gameView}
+          loading={gameLoading}
+          error={gameError}
+          onAim={(x, y) => gameRuntime.current?.setAim(x, y)}
+          onRelease={() => gameRuntime.current?.releaseAim()}
+          onFire={(held) => gameRuntime.current?.setFiring(held)}
+          onTorpedo={() => gameRuntime.current?.torpedo()}
+          onDodge={() => gameRuntime.current?.dodge()}
+          onKey={(key, pressed) => gameRuntime.current?.key(key, pressed)}
+          onTogglePause={() => gameRuntime.current?.togglePause()}
+          onResume={() => gameRuntime.current?.resume()}
+          onRestart={() => gameRuntime.current?.restart()}
+          onExtract={() => gameRuntime.current?.extract()}
+          onQuit={() => endArcadeGame(null)}
+        />
+      )}
+      {arcadeGame === "imperial-hacking" && <ImperialHacking reduced={reduced} audio={arcadeAudio.current} onFinish={(result) => onGameFinish.current(result)} onQuit={() => endArcadeGame(null)} />}
+      {arcadeGame === "speeder-racing" && (
+        <SpeederRace reduced={reduced} audio={arcadeAudio.current} trail={trail.startsWith("#") ? trail : "#ffb36b"} best={arcadeData.stats["speeder-racing"].bestTime} onFinish={(result) => onGameFinish.current(result)} onQuit={() => endArcadeGame(null)} />
+      )}
+      {arcadeToast && (
+        <div className="arcade-toast" role="status">
+          <span aria-hidden="true">{arcadeToast[0].icon}</span>
+          <div>
+            <small>SUCCÈS DÉBLOQUÉ</small>
+            <strong>{arcadeToast.map((item) => item.name).join(" · ")}</strong>
+          </div>
+        </div>
+      )}
+      {!defense && !arcadeGame && !arcade && <button ref={defenseButton} className={defenseStyles.defenseButton} onClick={enterDefense} disabled={!graphics} aria-label="Lancer DEFENSE OF HOTH" aria-haspopup="dialog"><span>DEFENSE OF HOTH</span></button>}
       {defense && <HothDefenseHUD view={defenseView} loading={defenseLoading} error={defenseError} sound={sound} volume={defenseVolume}
         onStart={() => defenseRuntime.current?.start()} onPause={() => defenseRuntime.current?.pause()} onResume={() => defenseRuntime.current?.resume()}
         onRestart={restartDefense} onExit={leaveDefense}
@@ -623,6 +882,11 @@ export default function CockpitMap({
                 <span>JOURNAL DE MISSIONS</span>
                 {progress.unseen.length > 0 && <i className="jedi-alert-dot" aria-label="nouvelle mission terminée" />}
               </button>
+              {!graphics && (
+                <button className="cockpit-arcade-flat" onClick={openArcade} aria-haspopup="dialog">
+                  <span>ARCADE</span>
+                </button>
+              )}
             </>
           )}
           <button
@@ -733,6 +997,31 @@ export default function CockpitMap({
               reduced={reduced}
               onClose={closeJournal}
               onLaunch={onExperience}
+              style={compact || !graphics ? undefined : { opacity: 0 }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {arcade && (
+          <motion.div
+            key="arcade"
+            className={`cockpit-arcade-layer ${compact || !graphics ? "flat" : "holo"}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? 0.1 : 0.25 }}
+          >
+            <ArcadeHologram
+              ref={arcadeScreen}
+              mode={compact || !graphics ? "flat" : "holo"}
+              reduced={reduced}
+              sound={sound}
+              audio={arcadeAudio.current}
+              result={arcadeResult}
+              onLaunch={launchArcade}
+              onClose={closeArcade}
+              onDismissResult={() => setArcadeResult(null)}
               style={compact || !graphics ? undefined : { opacity: 0 }}
             />
           </motion.div>
