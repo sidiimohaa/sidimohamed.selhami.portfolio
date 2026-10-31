@@ -7,7 +7,8 @@ import { createShipModel } from "../shipModel";
 import { createSurfaceNavigator } from "../surfaceNavigation";
 import { createDarkLord } from "../jedi/vaderModel";
 import { education, experiences, identity, skillTree, statusLabel } from "./cvData";
-import { createStationPresences } from "./stationPresences";
+import { createStationPresences, type Performance } from "./stationPresences";
+import type { ImperialPresenceId } from "./imperialRoster";
 
 // The inside of the Death Star, built for the professional record: a hangar that welcomes the
 // visitor, a main corridor to a hub, and from it the archives (experience), the training centre
@@ -1060,7 +1061,8 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   kit.plane(strip, 12, 0.12, 123.97, 7.5, -46, 0, -Math.PI / 2);
   kit.plane(strip, 12, 0.12, 123.97, 0.9, -46, 0, -Math.PI / 2);
   // Darth Vader, the model of the Chosen One's scene, hands behind his back before the viewport.
-  const vader = createDarkLord("watch").group;
+  const lord = createDarkLord("watch");
+  const vader = lord.group;
   vader.position.set(121.6, 0, -46);
   vader.rotation.y = Math.PI / 2;
   root.add(vader);
@@ -1086,6 +1088,8 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     block(x, z, 0.6);
   }
 
+  const VADER: Performance = { kind: "choke", duration: 3.4, line: "« Ce dossier mérite d’être lu jusqu’au bout. »" };
+  let choke: { start: number } | null = null;
   // Physical encounters: the court's robes, joints and weapons keep their articulated groups.
   const presences = createStationPresences();
   root.add(presences.group);
@@ -1094,7 +1098,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     const hit = new THREE.Mesh(new THREE.CylinderGeometry(actor.radius, actor.radius, 2.5, 10), new THREE.MeshBasicMaterial({ visible: false }));
     hit.position.set(actor.position[0], actor.position[1] + 1.2, actor.position[2]);
     presences.group.add(hit);
-    interact(`presence:${actor.id}`, `Rencontrer ${actor.name}`, actor.room, actor.position[0], 1.35, actor.position[2], 4, hit);
+    interact(`presence:${actor.id}`, `Rencontrer ${actor.name}`, actor.room, actor.position[0], 1.35, actor.position[2], 4.6, hit);
     block(actor.position[0], actor.position[2], actor.radius);
   }
   presences.guards.forEach((guard) => {
@@ -1231,6 +1235,25 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     tick: (dt: number, time: number, player: THREE.Vector3, room: RoomId | null, reduced: boolean, liftDoors: { a: number; b: number }) => {
       if (room) lightRoom(room);
       presences.tick(time, reduced, player, room);
+      // Vader's easter egg: he turns from the viewport, raises his hand, and the visitor chokes.
+      if (choke) {
+        if (choke.start < 0) choke.start = time;
+        const t = time - choke.start,
+          { duration } = VADER;
+        const face = THREE.MathUtils.smootherstep(t, 0, 0.6) * (1 - THREE.MathUtils.smootherstep(t, duration - 0.6, duration));
+        const raise = THREE.MathUtils.smootherstep(t, 0.5, 0.9) * (1 - THREE.MathUtils.smootherstep(t, duration - 0.8, duration - 0.3));
+        const toward = Math.atan2(player.x - vader.position.x, player.z - vader.position.z);
+        const delta = Math.atan2(Math.sin(toward - Math.PI / 2), Math.cos(toward - Math.PI / 2));
+        vader.rotation.y = Math.PI / 2 + delta * face;
+        lord.head.rotation.x = -0.12 * face;
+        lord.arms.left.root.rotation.set(THREE.MathUtils.lerp(0.32, -1.45, raise), 0.2 * raise, THREE.MathUtils.lerp(0.16, -0.08, raise));
+        lord.arms.left.elbow.rotation.x = THREE.MathUtils.lerp(1.05, -0.1, raise);
+        if (t >= duration) {
+          choke = null;
+          vader.rotation.y = Math.PI / 2;
+          lord.head.rotation.x = 0;
+        }
+      }
       pool.forEach((item) => (item.light.intensity = THREE.MathUtils.damp(item.light.intensity, item.goal, 4, dt)));
       let opened = false;
       for (const door of doors) {
@@ -1276,7 +1299,14 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
       docMeshes.forEach((mesh, i) => (mesh.position.y = docMeshes[i].position.y + (reduced ? 0 : Math.sin(time * 1.2 + i) * 0.0015)));
       return { opened };
     },
+    /** Plays a presence's (or Vader's) easter egg; returns what to show and for how long. */
+    perform: (id: ImperialPresenceId | "vader"): Performance | null => {
+      if (id !== "vader") return presences.perform(id);
+      choke = { start: -1 };
+      return VADER;
+    },
     dispose: () => {
+      presences.dispose();
       const geometries = new Set<THREE.BufferGeometry>();
       root.traverse((object) => {
         const mesh = object as THREE.Mesh;

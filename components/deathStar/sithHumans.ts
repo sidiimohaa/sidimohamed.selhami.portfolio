@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { bakePart, part, pipe, rounded } from "../tatooineCharacters";
 
 type XYZ = [number, number, number];
-export type SithFigure = { group: THREE.Group; tick: (time: number, reduced: boolean) => void };
+export type SithFigure = { group: THREE.Group; tick: (time: number, reduced: boolean) => void; rig: { head: THREE.Object3D; upper: THREE.Object3D; weapon: THREE.Object3D } };
 
 const material = (color: number, roughness = .8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 const sphere = (parent: THREE.Object3D, at: XYZ, scale: XYZ, mat: THREE.Material, segments = 20) => {
@@ -207,7 +207,7 @@ export function createDarthMaul(): SithFigure {
   part(weapon, rounded(.036, .025, .027, .004), crimson, [0, .028, .004]);
   bakePart(base); bakePart(head); bakePart(weapon);
   head.removeFromParent(); weapon.removeFromParent(); bakePart(upper); upper.add(head, weapon);
-  return { group, tick: (time, reduced) => {
+  return { group, rig: { head, upper, weapon }, tick: (time, reduced) => {
     const breath = reduced ? 0 : Math.sin(time * 1.45) * .0035;
     upper.position.y = breath;
     head.rotation.y = reduced ? 0 : Math.sin(time * .27) * .07;
@@ -314,7 +314,7 @@ export function createCountDooku(): SithFigure {
 
   bakePart(legs); bakePart(head); bakePart(weapon);
   head.removeFromParent(); weapon.removeFromParent(); coat.removeFromParent(); bakePart(upper); upper.add(coat, head, weapon);
-  return { group, tick: (time, reduced) => {
+  return { group, rig: { head, upper, weapon }, tick: (time, reduced) => {
     upper.position.y = reduced ? 0 : Math.sin(time * 1.2 + .9) * .003;
     head.rotation.y = reduced ? -.045 : -.045 + Math.sin(time * .22 + 1.1) * .065;
     coat.rotation.z = reduced ? 0 : Math.sin(time * .53) * .006;

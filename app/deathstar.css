@@ -1007,3 +1007,61 @@
   background: #ff2a2a14;
   color: #ffd6d6;
 }
+
+/* The presences' easter eggs: the line they speak, and what it does to the view. */
+.ds-act {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 96px;
+  z-index: 5;
+  width: fit-content;
+  max-width: min(640px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 10px 18px;
+  border-top: 1px solid #ff6b6b88;
+  border-bottom: 1px solid #ff6b6b88;
+  background: linear-gradient(90deg, transparent, #1a0508e0, transparent);
+  color: #ffe1e4;
+  font-size: 15px;
+  text-align: center;
+  text-shadow: 0 0 14px #ff2a3577;
+  pointer-events: none;
+  animation: ds-act 0.4s ease-out both;
+}
+@keyframes ds-act {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.ds-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.ds-fx-lightning {
+  background: radial-gradient(ellipse at 50% 60%, rgba(140, 200, 255, 0.28), rgba(40, 90, 200, 0.12) 55%, transparent 80%);
+  animation: ds-lightning 0.18s steps(2) 0.35s infinite;
+  opacity: 0;
+}
+@keyframes ds-lightning {
+  0% { opacity: 0.15; }
+  50% { opacity: 0.85; }
+  100% { opacity: 0.3; }
+}
+.ds-fx-choke {
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(60, 0, 6, 0.75) 80%, rgba(0, 0, 0, 0.92) 100%);
+  animation: ds-choke 0.9s ease-in-out infinite alternate;
+}
+@keyframes ds-choke {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-fx-lightning,
+  .ds-fx-choke,
+  .ds-act {
+    animation: none;
+    opacity: 0.6;
+  }
+}

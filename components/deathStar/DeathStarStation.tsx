@@ -10,7 +10,8 @@ import RecruiterMode from "./RecruiterMode";
 import StationPanel, { type PanelId } from "./StationPanels";
 import { SECTIONS, identity, type Section } from "./cvData";
 import { loadDossier as load, saveDossier as save } from "./dossierProgress";
-import { IMPERIAL_PRESENCES } from "./imperialRoster";
+import { IMPERIAL_PRESENCES, type ImperialPresenceId } from "./imperialRoster";
+import type { PerformanceKind } from "./stationPresences";
 
 // The Death Star, inside: a professional record to explore in the first person. The approach and
 // landing in the hangar play first (skippable), then the visitor walks the station; the Recruiter
@@ -74,6 +75,9 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
   const keys = useRef(new Set<string>());
   const stick = useRef({ x: 0, y: 0 });
   const route = useRef<{ points: THREE.Vector3[]; then?: () => void } | null>(null);
+  // A presence's easter egg under way: the camera shakes or is lifted, a line is shown.
+  const acting = useRef<{ kind: PerformanceKind; start: number; duration: number } | null>(null);
+  const [act, setAct] = useState<{ kind: PerformanceKind; line: string } | null>(null);
   const facing = useRef<[number, number] | null>(null);
   const ride = useRef<{ to: "A" | "B"; t: number; then?: () => void } | null>(null);
   const skip = useRef(false);
@@ -128,6 +132,32 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
     if (id === "lift-up" || id === "lift-down") {
       startRide(id === "lift-up" ? "B" : "A");
       return;
+    }
+    // The Sith and Vader first play their easter egg; their record opens once it is over.
+    const actor = id === "vader" ? "vader" : id.startsWith("presence:") ? (id.slice(9) as ImperialPresenceId) : null;
+    if (actor && station.current) {
+      if (acting.current) return;
+      const show = station.current.perform(actor);
+      if (show) {
+        // Face whoever is performing.
+        const where = actor === "vader" ? [121.6, -46] : IMPERIAL_PRESENCES.find((entry) => entry.id === actor)?.position;
+        if (where) facing.current = [where[0], actor === "vader" ? where[1] : where[2]];
+        acting.current = { kind: show.kind, start: -1, duration: show.duration };
+        setAct({ kind: show.kind, line: show.line });
+        const sound = audio.current;
+        if (show.kind === "lightning") sound?.lightning(show.duration);
+        if (show.kind === "spin") (sound?.spin(show.duration - 0.6), sound?.cough(show.duration - 0.45));
+        if (show.kind === "twirl") sound?.twirl(show.duration);
+        if (show.kind === "salute") sound?.salute();
+        if (show.kind === "choke") sound?.choke(show.duration);
+        const after = panelFor(id);
+        window.setTimeout(() => {
+          acting.current = null;
+          setAct(null);
+          if (after) setPanel(after);
+        }, show.duration * 1000 + 150);
+        return;
+      }
     }
     const target = panelFor(id);
     if (!target) return;
@@ -231,7 +261,7 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
         }
         // --- Walking: keys or the thumb stick, or a route to follow after a click.
         const exploring = live.current.phase === "explore";
-        const busy = !!(live.current.panel || live.current.recruiter || live.current.menu);
+        const busy = !!(live.current.panel || live.current.recruiter || live.current.menu || acting.current);
         const held = keys.current;
         let forward = 0,
           strafe = 0,
@@ -328,6 +358,18 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
           const bob = reduced ? 0 : Math.sin(p.walked * 6.5) * 0.035;
           camera.position.set(p.x, 1.7 + bob, p.z);
           camera.quaternion.setFromEuler(firstPerson.set(p.pitch, p.yaw, 0));
+          const a = acting.current;
+          if (a && !reduced) {
+            if (a.start < 0) a.start = time;
+            const t = time - a.start;
+            // Lightning jolts the view; the choke lifts the visitor off the floor.
+            if (a.kind === "lightning" && t > 0.35 && t < a.duration - 0.35) camera.position.add(tmp.set((Math.random() - 0.5) * 0.05, (Math.random() - 0.5) * 0.04, 0));
+            if (a.kind === "choke") {
+              const lift = THREE.MathUtils.smootherstep(t, 0.8, 1.5) * (1 - THREE.MathUtils.smootherstep(t, a.duration - 0.9, a.duration - 0.3));
+              camera.position.y += lift * 0.32 + Math.sin(t * 38) * 0.008 * lift;
+              camera.rotateX(lift * 0.08);
+            }
+          }
         }
         const here = exploring ? s.roomAt(p.x, p.z) : "hangar";
         const events = s.tick(dt, time, exploring ? camera.position : tmp.set(0, 0, -200), here, reduced, doors);
@@ -573,6 +615,14 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
     <div ref={shell} className="death-star-station" role="dialog" aria-modal="true" aria-label={`Étoile de la Mort · dossier professionnel de ${identity.name}`} tabIndex={-1}>
       <div ref={mount} className="ds-canvas" onPointerLeave={() => setHover(null)} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onContextMenu={(event) => event.preventDefault()} />
       <div className="ds-vignette" aria-hidden="true" />
+      {act && (
+        <>
+          <div className={`ds-fx ds-fx-${act.kind}`} aria-hidden="true" />
+          <p className="ds-act" role="status">
+            {act.line}
+          </p>
+        </>
+      )}
       {hover && !panel && !recruiter && (
         <span className="ds-tooltip mono" style={{ left: hover.x, top: hover.y }} aria-hidden="true">
           {hover.text}
@@ -647,7 +697,7 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
             </svg>
           )}
           <AnimatePresence>
-            {prompt && !panel && !recruiter && !menu && (
+            {prompt && !panel && !recruiter && !menu && !act && (
               <motion.button key={prompt.id} className="ds-prompt" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} onClick={() => open(prompt.id)}>
                 <kbd>E</kbd> {prompt.label}
               </motion.button>

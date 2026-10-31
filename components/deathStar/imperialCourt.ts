@@ -2,7 +2,9 @@ import * as THREE from "three";
 import { bakePart, part, pipe, rounded } from "../tatooineCharacters";
 
 type XYZ = [number, number, number];
-export type ImperialFigure = { group: THREE.Group; tick: (time: number, reduced: boolean) => void };
+// `rig` exposes the parts the station's easter eggs move: heads, arms, weapons, hands.
+export type FigureRig = { head?: THREE.Object3D; body?: THREE.Object3D; upper?: THREE.Object3D; arms?: THREE.Object3D[]; weapon?: THREE.Object3D; hands?: THREE.Vector3[] };
+export type ImperialFigure = { group: THREE.Group; tick: (time: number, reduced: boolean) => void; rig?: FigureRig };
 const standard = (color: number, roughness = .75, metalness = 0, side: THREE.Side = THREE.FrontSide) => new THREE.MeshStandardMaterial({ color, roughness, metalness, side });
 const emissive = (color: number) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
 const ball = (g: THREE.Object3D, p: XYZ, size: XYZ, m: THREE.Material, segments = 18) => {
@@ -161,7 +163,7 @@ export function createGeneralGrievous(): ImperialFigure {
     arms.push(arm); group.add(arm);
   }
   group.userData.character = "General Grievous";
-  return { group, tick: (time, reduced) => {
+  return { group, rig: { head, arms }, tick: (time, reduced) => {
     head.rotation.y = reduced ? 0 : Math.sin(time * .31) * .055;
     head.rotation.x = -.055 + (reduced ? 0 : Math.sin(time * .7) * .012);
     cloak.rotation.x = reduced ? 0 : Math.sin(time * .5) * .009;
@@ -241,7 +243,9 @@ export function createEmperorPalpatine(): ImperialFigure {
   pipe(head, [[-.037, -.112, .163], [0, -.118, .175], [.037, -.112, .163]], .004, crease);
   bakePart(head); group.add(head);
   group.userData.character = "Palpatine";
-  return { group, tick: (time, reduced) => {
+  // The finger tips, where the lightning leaves.
+  const hands = [new THREE.Vector3(-.335, .965, .40), new THREE.Vector3(.39, 1.145, .39)];
+  return { group, rig: { head, body, hands }, tick: (time, reduced) => {
     body.scale.y = reduced ? 1 : 1 + Math.sin(time * 1.05) * .0018;
     head.rotation.y = reduced ? 0 : Math.sin(time * .27) * .045;
     head.rotation.x = .06 + (reduced ? 0 : Math.sin(time * .53) * .012);

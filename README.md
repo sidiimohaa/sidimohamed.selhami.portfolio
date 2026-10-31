@@ -155,7 +155,7 @@ En orbite de l’Étoile de la Mort, la transmission propose **Accoster la stati
 - **Salle de commandement** (par ascenseur) : grand écran, consoles par projet (ORBITAL, « Mes passions »).
 - **Archives confidentielles** (depuis le hangar) : le CV complet, téléchargement, LinkedIn, e-mail, retour à la galaxie.
 
-Quatre présences impériales se rencontrent dans la station (`imperialRoster.ts`) : le général Grievous au hangar, le comte Dooku aux archives, Dark Maul au centre de formation et Palpatine, entre deux gardes royaux, en salle de commandement. Le plan les liste sous « Présences impériales ».
+Quatre présences impériales se rencontrent dans la station (`imperialRoster.ts`) : le général Grievous au hangar, le comte Dooku aux archives, Dark Maul au centre de formation et Palpatine, entre deux gardes royaux, en salle de commandement. Le plan les liste sous « Présences impériales ». Chacun a son easter egg à l’interaction, avant sa fiche : Palpatine lance des éclairs de Force sur le visiteur, Grievous fait tournoyer ses quatre sabres puis tousse, Maul fait tourner son sabre double, Dooku adresse le salut des duellistes, et Dark Vador, devant la baie, se retourne et étrangle le visiteur par la Force (vue soulevée, vignette rouge, respiration). Les effets restent sobres avec le mouvement réduit.
 
 Déplacements : ZQSD/WASD et flèches, souris glissée pour regarder, clic pour aller vers un point ou une console, E pour interagir, M pour le plan ; sur téléphone, pouce gauche pour avancer, glisser à droite pour regarder. Le **Mode Recruteur** reste accessible partout et remplace la station sans WebGL. Qualité graphique réglable ; mouvements réduits respectés.
 

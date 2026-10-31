@@ -82,7 +82,63 @@ export function createStationAudio() {
     source.stop(at + seconds + 0.05);
     source.onended = () => gain.disconnect();
   };
+  // A lightsaber's hum, swelling and fading with each pass of the blade.
+  const saber = (seconds: number, passes: number, level: number) => {
+    if (!ctx || !master || !enabled) return;
+    const osc = ctx.createOscillator(),
+      buzz = ctx.createOscillator(),
+      gain = ctx.createGain(),
+      at = ctx.currentTime;
+    osc.type = "sawtooth";
+    osc.frequency.value = 92;
+    buzz.type = "square";
+    buzz.frequency.value = 184;
+    gain.gain.setValueAtTime(0, at);
+    for (let i = 0; i < passes; i++) {
+      const p = at + (i / passes) * seconds;
+      gain.gain.linearRampToValueAtTime(level, p + seconds / passes / 2);
+      gain.gain.linearRampToValueAtTime(level * 0.35, p + seconds / passes);
+      osc.frequency.setValueAtTime(92, p);
+      osc.frequency.linearRampToValueAtTime(128, p + seconds / passes / 2);
+      osc.frequency.linearRampToValueAtTime(92, p + seconds / passes);
+    }
+    gain.gain.linearRampToValueAtTime(0, at + seconds + 0.2);
+    const low = ctx.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.value = 900;
+    osc.connect(low);
+    buzz.connect(low);
+    low.connect(gain).connect(master);
+    osc.start(at);
+    buzz.start(at);
+    osc.stop(at + seconds + 0.3);
+    buzz.stop(at + seconds + 0.3);
+    osc.onended = () => gain.disconnect();
+  };
   return {
+    // Easter eggs of the station's presences.
+    lightning(seconds: number) {
+      for (let t = 0; t < seconds; t += 0.04 + Math.random() * 0.07) hiss(0.06 + Math.random() * 0.08, 0.12 + Math.random() * 0.14, 5200, 1400, t);
+      tone(70, 52, seconds, 0.08, "sawtooth");
+    },
+    spin(seconds: number) {
+      saber(seconds, Math.round(seconds * 3), 0.07);
+      for (let t = 0.2; t < seconds - 0.4; t += 0.32) hiss(0.25, 0.08, 1800, 600, t);
+    },
+    twirl(seconds: number) {
+      saber(seconds, Math.round(seconds * 2.5), 0.08);
+    },
+    salute() {
+      saber(2.2, 3, 0.06);
+    },
+    cough(delay = 0) {
+      [0, 0.32, 0.58].forEach((d) => hiss(0.18, 0.22, 900, 300, delay + d));
+    },
+    choke(seconds: number) {
+      [0, 1.6].forEach((d) => (hiss(0.9, 0.2, 380, 900, d), hiss(0.9, 0.16, 900, 300, d + 0.85)));
+      tone(48, 40, seconds, 0.1, "sine");
+      hiss(0.5, 0.18, 2600, 4200, seconds - 0.4);
+    },
     setEnabled(value: boolean) {
       enabled = value;
       if (value && ctx?.state === "suspended") void ctx.resume().catch(() => undefined);

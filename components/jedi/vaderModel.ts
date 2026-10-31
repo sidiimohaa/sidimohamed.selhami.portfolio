@@ -178,5 +178,5 @@ export function createDarkLord(pose: "confront" | "watch" = "confront") {
   }
   cape.computeVertexNormals();
   add(group, cape, cloth, [0, 0.75, -0.04]);
-  return { group, blade, head, chest: torso };
+  return { group, blade, head, chest: torso, arms: { left, right } };
 }
