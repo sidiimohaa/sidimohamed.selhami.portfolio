@@ -5,6 +5,7 @@
 @import "./arcade.css";
 @import "./deathstar.css";
 @import "./flightlog.css";
+@import "./taxi.css";
 :root {
   --cream: #e9e9de;
   --muted: #858b82;
@@ -1389,6 +1390,15 @@ button svg {
 .surface-fade.is-quiet {
   animation: none;
   opacity: 0;
+}
+/* Boarding the air taxi: a dark fade, and the pad fading back in on the way back. */
+.surface-fade.is-boarding {
+  animation: surface-leave 0.8s ease forwards;
+  background: #05050a;
+}
+.surface-fade.is-return {
+  animation: surface-enter 1.2s ease forwards;
+  background: #05050a;
 }
 .surface-entry {
   position: absolute;

@@ -13,12 +13,14 @@ import {
   type Reveal,
   type Spot,
   type Zone,
+  type ZoneAction,
 } from "./landingKit";
 import { createForgottenConsole } from "./zoneSecrets";
 import type { Landing } from "./universe";
+import { createTaxiStand, STAND } from "./coruscantTaxi/taxiModel";
 
 const PAD_RADIUS = 16;
-const HAZE_LOW = new THREE.Color(0.44, 0.2, 0.105),
+export const HAZE_LOW = new THREE.Color(0.44, 0.2, 0.105),
   HAZE_HIGH = new THREE.Color(0.135, 0.12, 0.22);
 const FOG_DENSITY = 0.0021;
 
@@ -69,12 +71,13 @@ const buildingFragment = `
   haze=mix(haze,hazeHigh,smoothstep(-160.0,140.0,vWorld.y)*.35);
   gl_FragColor=vec4(mix(color,haze,fog),1.0);
  }`;
-function buildingMaterial() {
+// Also lights the city the air taxi crosses, with thinner haze for its longer views.
+export function buildingMaterial(fogDensity = FOG_DENSITY) {
   return new THREE.ShaderMaterial({
     uniforms: {
       hazeLow: { value: HAZE_LOW },
       hazeHigh: { value: HAZE_HIGH },
-      fogDensity: { value: FOG_DENSITY },
+      fogDensity: { value: fogDensity },
     },
     vertexShader: buildingVertex,
     fragmentShader: buildingFragment,
@@ -106,7 +109,7 @@ function skyDome() {
   );
 }
 // Top-cap UVs map world z to the canvas width and world x to its height, hence the turn.
-function padTexture(label: string) {
+export function padTexture(label: string) {
   const size = 1024,
     canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
@@ -413,6 +416,19 @@ export function createCoruscantZone(
   group.add(parking.ship);
   const life = createPadLife({ glow, engines: parking.exhausts, notify });
   group.add(life.group);
+  // The air taxi post at the edge of the pad: calling the taxi leads to Coruscant's monuments.
+  const stand = createTaxiStand(glow);
+  group.add(stand.group);
+  circles.push({ x: STAND.x, z: STAND.z, r: 0.45 });
+  const taxiCall: ZoneAction = {
+    id: "taxi",
+    label: "Taxi aérien",
+    position: new THREE.Vector3(STAND.x, 1.2, STAND.z),
+    objects: [...stand.pickables, ...life.taxi.objects],
+    approach: { position: new THREE.Vector3(0.9, 0, -12.3), lookAt: new THREE.Vector3(0, 1.2, -18.8) },
+    boards: true,
+    activate: () => life.taxi.summon(),
+  };
   // Mission 04: a forgotten console tucked behind the west cargo, turned towards the pad.
   const archive = createForgottenConsole(reveal, { x: -13.9, z: -3.6, facing: Math.atan2(13.9, 3.6) });
   group.add(archive.group);
@@ -425,7 +441,8 @@ export function createCoruscantZone(
     exposure: 1.15,
     walkRadius: PAD_RADIUS - 1.1,
     terminals: stations.terminals,
-    actions: [archive.action],
+    actions: [taxiCall, archive.action],
+    board: { ready: life.taxi.ready, seat: life.taxi.seat, release: life.taxi.release },
     ship: parking.ship,
     shipRest: parking.shipRest,
     colliders: { circles, footprint: parking.footprint, movers: life.movers },
@@ -444,6 +461,8 @@ export function createCoruscantZone(
     ) => {
       life.tick(dt, elapsed, reduced, walker);
       archive.tick(dt, elapsed, reduced);
+      stand.setState(life.taxi.phase());
+      stand.tick(elapsed, reduced);
       const motion = reduced ? 0 : 1;
       lights.forEach((light, i) => {
         const lane = lanes[light.lane];

@@ -48,6 +48,7 @@ import {
 const TempleRoom = dynamic(() => import("./jedi/TempleRoom"), { ssr: false });
 const FinalVaderExperience = dynamic(() => import("./jedi/FinalVaderExperience"), { ssr: false });
 const DeathStarStation = dynamic(() => import("./deathStar/DeathStarStation"), { ssr: false });
+const CoruscantTaxi = dynamic(() => import("./coruscantTaxi/CoruscantTaxi"), { ssr: false, loading: () => <div className="coruscant-taxi" /> });
 
 function OrbitalLogo() {
   return (
@@ -90,7 +91,9 @@ export default function Experience() {
     [jumping, setJumping] = useState(false),
     [transmission, setTransmission] = useState<"order-66" | "archives" | null>(null),
     // Inside the Death Star: the professional record, walked through or in Recruiter mode.
-    [station, setStation] = useState<"explore" | "recruiter" | null>(null);
+    [station, setStation] = useState<"explore" | "recruiter" | null>(null),
+    // The air taxi ride from Coruscant's pad to the Jedi Temple and the Senate.
+    [taxi, setTaxi] = useState(false);
   const { progress } = useJediProgression();
   const audio = useRef<FlightAudio | null>(null),
     timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -236,7 +239,7 @@ export default function Experience() {
   }, [soundscape, sound, combat]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (document.querySelector(".hoth-defense, .arcade-game, .arcade, .death-star-station")) { lastSix.current = 0; return; }
+      if (document.querySelector(".hoth-defense, .arcade-game, .arcade, .death-star-station, .coruscant-taxi")) { lastSix.current = 0; return; }
       // Escape is taken by an overlay or the mission journal first when one is open.
       if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(OVERLAYS)) {
         timers.current.forEach(clearTimeout);
@@ -370,6 +373,15 @@ export default function Experience() {
     setCombat(false);
     setArrived(true);
   };
+  const boardTaxi = useCallback(() => {
+    setHelpOpen(false);
+    setTaxi(true);
+    setCombat(true);
+  }, []);
+  const leaveTaxi = () => {
+    setTaxi(false);
+    setCombat(false);
+  };
   const replayArrival = () => {
     reset();
     setLoading(true);
@@ -414,11 +426,12 @@ export default function Experience() {
           planet={ground.name}
           landing={groundLanding}
           reduced={reduced}
-          paused={mapOpen || helpOpen || reward !== null}
-          hidden={mapOpen || reward !== null}
+          paused={mapOpen || helpOpen || reward !== null || taxi}
+          hidden={mapOpen || reward !== null || taxi}
           onCue={onSurfaceCue}
           onMusic={onSurfaceMusic}
           onSecret={onSecret}
+          onBoard={boardTaxi}
           onTakeoff={takeOff}
         />
       )}
@@ -711,6 +724,7 @@ export default function Experience() {
         {reward === "destiny" && <FinalVaderExperience key="destiny" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
       </AnimatePresence>
       {station && <DeathStarStation key="station" start={station} reduced={reduced} sound={sound} onClose={leaveStation} />}
+      {taxi && <CoruscantTaxi reduced={reduced} sound={sound} onClose={leaveTaxi} />}
       <div className="jedi-toasts">
         <AnimatePresence>
           {toasts[0] && !combat && <SecretDiscoveryToast key={toasts[0].mission.id} mission={toasts[0].mission} total={toasts[0].total} reduced={reduced} onDone={dismissToast} />}

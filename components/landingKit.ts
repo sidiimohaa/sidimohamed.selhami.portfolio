@@ -115,6 +115,8 @@ export type ZoneAction = {
   story?: { at?: number; title: string };
   // A secret: usable by clicking it in the scene, and offered as a button only up close.
   hidden?: boolean;
+  // Calls the zone's vehicle: once it is ready the visitor climbs aboard (see Zone.board).
+  boards?: boolean;
   activate: (reduced: boolean) => void;
 };
 export type Zone = {
@@ -138,6 +140,9 @@ export type Zone = {
   music?: (walker: { x: number; z: number }) => { level: number; inside: boolean };
   // 2 is full detail; lower levels trade shadow quality for frame rate.
   setQuality?: (level: number) => void;
+  // A vehicle to board (Coruscant's air taxi): whether it waits with its door open, where the
+  // passenger sits, and letting it go once they are aboard or have walked away.
+  board?: { ready: () => boolean; seat: () => { position: THREE.Vector3; target: THREE.Vector3 }; release: () => void };
   terminals: ZoneTerminal[];
   ship: THREE.Group;
   shipRest: THREE.Vector3;

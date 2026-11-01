@@ -72,6 +72,26 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 - « Décoller » ramène en orbite. En mouvement réduit, les cinématiques sont coupées, les déplacements automatiques deviennent instantanés, la vapeur et les étincelles disparaissent, l'équipe et les droids restent immobiles et le taxi attend à quai.
 - Les textes sont provisoires : ils se remplacent dans `landings` de `components/universe.ts`. L'Étoile de la Mort suivra le même modèle.
 
+## Taxi aérien de Coruscant
+
+- Sur la plateforme 3-7, une borne « TAXI » appelle un taxi aérien : bouton « Taxi aérien », ou clic sur la borne ou sur le taxi. Le taxi reprend la silhouette du taxi aérien de Coruscant : coque ambrée, habitacle ouvert à deux rangées de sièges sous un petit pare-brise bombé, ailes galbées le long des flancs, deux bosses ovales sur le pont arrière, ailerons sombres à pointe rouge, barre de feux rouges, turbines apparentes sous le nez, grilles chromées et bande en damier. Il quitte le trafic, se met à quai et lève sa verrière, puis la caméra monte à bord. L'expérience prend alors le relais en plein écran (`components/coruscantTaxi/`).
+- À bord, un hologramme cliquable du tableau de bord propose les destinations : Temple Jedi, Sénat galactique ou retour à la plateforme. Un droïde pilote annonce le départ, les points de vue et l'arrivée en sous-titres, et avec la voix française du navigateur quand le son est activé (le bouton VOIX la coupe).
+- Six trajets traversent la ville : canyons de tours, courants de trafic qui passent au-dessus ou en dessous, passerelles, enseignes holographiques, puis une approche propre à chaque monument.
+  - Vue cabine : regard libre, et le regard se tourne vers ce que le droïde annonce.
+  - Vue cinéma (V) : poursuite, travelling latéral, plans fixes au passage, plongée, contrechamp et révélation finale.
+  - « Arriver maintenant » saute le trajet.
+- La ville compte environ 15 000 tours instanciées, dont le shader dessine les fenêtres. Elle s'écarte autour de chaque trajet et de chaque voie de trafic, si bien que rien ne traverse un immeuble.
+- Environ 1 300 véhicules circulent, répartis en trois modèles instanciés, avec des phares en points lumineux. Une vingtaine accompagnent le taxi : ils le doublent ou le croisent dans un souffle stéréo.
+- Temple Jedi : un socle à colonnade éclairée porte un bloc massif aux façades inclinées et rainurées, entre des pylônes d'angle et une arête centrale sur chaque face. Le toit plat porte cinq flèches regroupées, la plus haute au milieu, face au soleil couchant. Le taxi se pose sur la plateforme du Conseil ; on descend, on traverse la passerelle et on entre dans la salle. Elle offre un sol en mosaïque, douze sièges et des baies sur la ville.
+  - Le Conseil y apparaît en hologrammes.
+  - Quatre holocrons présentent Vision, La quête, Orientation et Projets majeurs.
+  - « Contempler » mène à la baie du couchant.
+- Sénat galactique : une soucoupe très plate coiffe un large tambour, avec fenêtres éclairées, contreforts et une couronne de lumières sous le surplomb. L'ensemble repose sur une esplanade circulaire, avec ses anneaux de lumière et ses pavillons. La Grande Place passe sous la soucoupe jusqu'aux portes ; elle est bordée de statues élancées et encadrée par deux grands mâts. On entre dans la Rotonde : des centaines de nacelles et le podium sous un puits de lumière.
+  - La nacelle ORBITAL se détache pour prendre la parole : Expériences, Compétences, Projets structurés.
+  - « Soumettre la motion » fait voter l'hémicycle, dont les nacelles s'allument en vert, puis donne le CV et les contacts.
+- Tous les contenus viennent de `components/deathStar/cvData.ts` ; rien n'est inventé.
+- En mouvement réduit, il n'y a ni trajet ni travelling : un fondu mène directement à destination. Sans WebGL, une liste donne accès aux mêmes contenus. La qualité baisse d'elle-même si l'image ralentit.
+
 ## Atterrissage sur Tatooine
 
 - En orbite de Tatooine, « Atterrir » (ou E) pose le X-wing dans la baie d'amarrage 94 de Mos Eisley : un cercle de sable tassé entouré d'un mur d'adobe, avec un grand portail par lequel on voit les deux soleils se coucher sur les dunes.

@@ -37,9 +37,11 @@ type Props = {
   onMusic?: (level: number, inside: boolean) => void;
   // A secret mission the visitor has just completed here, once per landing.
   onSecret?: (id: MissionId) => void;
+  // The visitor has climbed into the zone's vehicle (Coruscant's air taxi).
+  onBoard?: () => void;
   onTakeoff: () => void;
 };
-type Phase = "arrival" | "explore" | "takeoff";
+type Phase = "arrival" | "explore" | "takeoff" | "board";
 const EYE = 1.7,
   ARRIVAL = 6.2,
   TAKEOFF = 3,
@@ -64,6 +66,7 @@ export default function LandingScene({
   onCue,
   onMusic,
   onSecret,
+  onBoard,
   onTakeoff,
 }: Props) {
   const mount = useRef<HTMLDivElement>(null),
@@ -73,6 +76,8 @@ export default function LandingScene({
   const [active, setActive] = useState<number | null>(null);
   const [hint, setHint] = useState(true);
   const [leaving, setLeaving] = useState(false);
+  // Boarding fades to black; coming back from the ride fades the pad back in.
+  const [boarding, setBoarding] = useState<"off" | "on" | "return">("off");
   // The descent through the atmosphere plays over the start of the arrival, unless motion is reduced.
   const [entering, setEntering] = useState(!reduced);
   const [quietFade] = useState(!reduced);
@@ -94,11 +99,28 @@ export default function LandingScene({
   const cue = useRef(onCue),
     music = useRef(onMusic),
     secret = useRef(onSecret),
-    leave = useRef(onTakeoff);
+    leave = useRef(onTakeoff),
+    aboard = useRef(onBoard);
+  aboard.current = onBoard;
   cue.current = onCue;
   music.current = onMusic;
   secret.current = onSecret;
   leave.current = onTakeoff;
+  // Back from the taxi ride: once the scene shows again, fade the pad back in.
+  const away = useRef(false);
+  useEffect(() => {
+    if (boarding !== "on") return;
+    if (hidden) away.current = true;
+    else if (away.current) {
+      away.current = false;
+      setBoarding("return");
+    }
+  }, [hidden, boarding]);
+  useEffect(() => {
+    if (boarding !== "return") return;
+    const id = window.setTimeout(() => setBoarding("off"), 1300);
+    return () => window.clearTimeout(id);
+  }, [boarding]);
   const controls = useRef<{
     walkTo: (index: number) => void;
     skip: () => void;
@@ -206,7 +228,9 @@ export default function LandingScene({
       clock = 0,
       nearest: number | null = null,
       walked = false,
-      footfall = 0;
+      footfall = 0,
+      // Where the visitor called a vehicle from, while they wait for it.
+      waitingFrom: { x: number; z: number } | null = null;
     // Stand far enough back for the whole hologram to fit, which needs more room in portrait.
     const standOff = () =>
       Math.max(
@@ -387,6 +411,10 @@ export default function LandingScene({
         if (still) setBounty(index);
         else bountyTimer = window.setTimeout(() => setBounty(index), 1500);
       } else action.activate(still);
+      if (action.boards && zone.board) {
+        cue.current("terminal");
+        waitingFrom = { x: walker.x, z: walker.z };
+      }
     };
     const act = (id: string) => {
       const action = zone.actions?.find((item) => item.id === id);
@@ -697,6 +725,23 @@ export default function LandingScene({
           leave.current();
           return;
         }
+      } else if (current === "board") {
+        // Up over the rail and into the passenger seat, then the ride takes over.
+        const seat = zone.board!.seat();
+        const k = ease(clock / 2.2);
+        camera.position.lerpVectors(fromPosition, seat.position, k);
+        camera.position.y += Math.sin(k * Math.PI) * 0.45;
+        viewer.position.copy(seat.position);
+        viewer.lookAt(seat.target);
+        camera.quaternion.slerpQuaternions(fromQuaternion, viewer.quaternion, k);
+        if (clock > 1.4) setBoarding("on");
+        if (clock >= 2.35) {
+          zone.board!.release();
+          aboard.current?.();
+          walker.yaw = Math.atan2(-(seat.target.x - walker.x), -(seat.target.z - walker.z));
+          placeEye();
+          begin("explore");
+        }
       } else if (!frozen) {
         const fast = keys.has("shift");
         const turn = THREE.MathUtils.clamp(
@@ -806,6 +851,26 @@ export default function LandingScene({
           walker.z -= Math.cos(walker.yaw) * speed * dt;
         }
         collide();
+        if (waitingFrom && zone.board) {
+          if (Math.hypot(walker.x - waitingFrom.x, walker.z - waitingFrom.z) > 4.5) {
+            // Walked away: the taxi will leave again.
+            waitingFrom = null;
+            zone.board.release();
+          } else if (zone.board.ready()) {
+            waitingFrom = null;
+            route = [];
+            keys.clear();
+            if (still) {
+              setBoarding("on");
+              zone.board.release();
+              aboard.current?.();
+            } else {
+              fromPosition.copy(camera.position);
+              fromQuaternion.copy(camera.quaternion);
+              begin("board");
+            }
+          }
+        }
         if (moving && !still) {
           walker.stride += dt * (fast || route.length ? 11 : 8);
           const step = Math.floor(walker.stride / Math.PI);
@@ -936,7 +1001,7 @@ export default function LandingScene({
         <i ref={thumb} />
       </div>
       <div
-        className={`surface-fade ${leaving ? "is-leaving" : quietFade ? "is-quiet" : ""}`}
+        className={`surface-fade ${boarding === "on" ? "is-boarding" : boarding === "return" ? "is-return" : leaving ? "is-leaving" : quietFade ? "is-quiet" : ""}`}
         aria-hidden="true"
       />
       {entering && phase === "arrival" && <AtmosphereEntry planet={planet} onDone={() => setEntering(false)} />}

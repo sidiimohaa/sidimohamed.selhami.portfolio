@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createProbeDroid } from "./probeDroid";
 import { createDroidKit } from "./droidModels";
+import { createAirTaxi } from "./coruscantTaxi/taxiModel";
 
 export type PadEvent = "droid" | "speeder-arrive" | "speeder-leave";
 type Point = [number, number];
@@ -498,46 +499,17 @@ export function createPadLife(options: {
   });
   let parkedFor = -1;
 
-  // An air taxi drops down to the edge of the pad, waits, then rejoins the traffic.
-  const taxi = new THREE.Group();
-  taxi.rotation.order = "YXZ";
-  const hull = mesh(new THREE.CapsuleGeometry(0.55, 2.4, 6, 18).rotateX(Math.PI / 2), paint);
-  hull.scale.set(1.05, 0.6, 1);
-  const canopy = mesh(new THREE.SphereGeometry(0.5, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), visor, [
-    0,
-    0.2,
-    0.35,
-  ]);
-  canopy.scale.set(0.85, 0.75, 1.5);
-  taxi.add(
-    hull,
-    canopy,
-    mesh(new THREE.BoxGeometry(1.17, 0.05, 2.2), dark, [0, -0.06, 0]),
-    mesh(new THREE.BoxGeometry(0.06, 0.4, 0.6), paint, [0, 0.42, -1.2]),
-  );
-  [-1, 1].forEach((side) => {
-    taxi.add(
-      mesh(new THREE.CylinderGeometry(0.2, 0.24, 1.7, 14).rotateX(Math.PI / 2), dark, [
-        side * 0.78,
-        -0.1,
-        -0.45,
-      ]),
-      mesh(new THREE.ConeGeometry(0.2, 0.4, 14).rotateX(Math.PI / 2), paint, [side * 0.78, -0.1, 0.6]),
-    );
-    const head = glowSprite(glow, 0xfff1d6, 0.55);
-    head.position.set(side * 0.32, 0, 1.78);
-    const tail = glowSprite(glow, 0xff4a3a, 0.4);
-    tail.position.set(side * 0.5, 0.02, -1.78);
-    const thrust = glowSprite(glow, 0xffa868, 0.5);
-    thrust.position.set(side * 0.78, -0.1, -1.32);
-    taxi.add(head, tail, thrust);
-  });
-  const taxiGlow = mesh(new THREE.PlaneGeometry(1.2, 2.6), hover, [0, -0.36, 0]);
-  taxiGlow.rotation.x = Math.PI / 2;
-  taxi.add(taxiGlow);
+  // An air taxi drops down to the edge of the pad, waits, then rejoins the traffic. Called from
+  // the post at the edge of the pad, it comes straight in and waits, door open, for the visitor.
+  const air = createAirTaxi({ glow });
+  const taxi = air.group;
+  // An invisible shell makes the whole taxi easy to click.
+  const taxiHit = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.0, 6.4), new THREE.MeshBasicMaterial({ visible: false }));
+  taxiHit.position.y = 1.0;
+  taxi.add(taxiHit);
   taxi.visible = false;
   group.add(taxi);
-  const dock = new THREE.Vector3(0, 0.6, -18.8);
+  const dock = new THREE.Vector3(0, 0.22, -18.8);
   const inbound = [new THREE.Vector3(-240, 40, -120), new THREE.Vector3(-55, 12, -34), dock];
   const outbound = [dock, new THREE.Vector3(60, 5, -34), new THREE.Vector3(260, 60, -160)];
   const curve = (points: THREE.Vector3[], t: number, at: THREE.Vector3, slope: THREE.Vector3) => {
@@ -548,7 +520,9 @@ export function createPadLife(options: {
   };
   let taxiPhase: "away" | "inbound" | "docked" | "outbound" = "away",
     taxiClock = 0,
-    taxiWait = 6;
+    taxiWait = 6,
+    summoned = false,
+    door = 0;
 
   const at = new THREE.Vector3(),
     slope = new THREE.Vector3(),
@@ -556,6 +530,34 @@ export function createPadLife(options: {
   return {
     group,
     movers,
+    taxi: {
+      objects: [taxiHit],
+      dock,
+      // The visitor calls the taxi: it comes in now, or as soon as it has turned round.
+      summon: () => {
+        summoned = true;
+        if (taxiPhase === "away") {
+          taxiPhase = "inbound";
+          taxiClock = 0;
+          notify("speeder-arrive");
+        } else if (taxiPhase === "outbound") taxiWait = 0;
+      },
+      ready: () => taxiPhase === "docked" && door > 0.95,
+      // Once the visitor is aboard (or has walked away), the taxi leaves again after a while.
+      release: () => {
+        summoned = false;
+        if (taxiPhase === "docked") taxiClock = 0;
+      },
+      phase: () => (summoned ? (taxiPhase === "docked" ? "docked" : "called") : "idle") as "idle" | "called" | "docked",
+      // The passenger's seat, and a point ahead of it, in world space.
+      seat: () => {
+        taxi.updateWorldMatrix(true, false);
+        return {
+          position: new THREE.Vector3(-0.45, 1.88, -0.6).applyMatrix4(taxi.matrixWorld),
+          target: new THREE.Vector3(-0.3, 1.55, 6).applyMatrix4(taxi.matrixWorld),
+        };
+      },
+    },
     setViewport: (height: number) => {
       steam.uniforms.viewport.value = height;
       sparks.uniforms.viewport.value = height;
@@ -755,10 +757,15 @@ export function createPadLife(options: {
 
       // Air taxi.
       if (!has.taxi) return;
+      door += THREE.MathUtils.clamp((summoned && taxiPhase === "docked" ? 1 : 0) - door, -dt * 1.4, dt * 1.4);
+      air.setDoor(reduced ? (summoned ? 1 : 0) : door);
+      air.setThrust(taxiPhase === "docked" ? 0.2 : 0.8);
       if (reduced) {
         taxi.visible = true;
         taxi.position.copy(dock);
         taxi.rotation.set(0, Math.PI / 2, 0);
+        taxiPhase = "docked";
+        door = summoned ? 1 : 0;
         return;
       }
       taxiClock += dt;
@@ -770,7 +777,7 @@ export function createPadLife(options: {
           notify("speeder-arrive");
         }
       } else if (taxiPhase === "inbound" || taxiPhase === "outbound") {
-        const duration = taxiPhase === "inbound" ? 7 : 6,
+        const duration = taxiPhase === "inbound" ? (summoned ? 5 : 7) : 6,
           k = Math.min(1, taxiClock / duration);
         curve(
           taxiPhase === "inbound" ? inbound : outbound,
@@ -789,14 +796,14 @@ export function createPadLife(options: {
           if (taxiPhase === "inbound") taxiPhase = "docked";
           else {
             taxiPhase = "away";
-            taxiWait = 10 + Math.random() * 8;
+            taxiWait = summoned ? 0.3 : 10 + Math.random() * 8;
           }
         }
       } else {
         taxi.position.copy(dock).setY(dock.y + Math.sin(elapsed * 2) * 0.05);
         taxi.rotation.y = turnTowards(taxi.rotation.y, Math.PI / 2, 1 - Math.exp(-dt * 2));
         taxi.rotation.x *= 1 - Math.min(1, dt * 3);
-        if (taxiClock > 6) {
+        if (taxiClock > 6 && !summoned && door < 0.05) {
           taxiPhase = "outbound";
           taxiClock = 0;
           notify("speeder-leave");

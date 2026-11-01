@@ -30,7 +30,7 @@ export type Mission = {
 
 export const XP_PER_MISSION = 100;
 // Full-screen progression screens that handle their own Escape key before anything else.
-export const OVERLAYS = ".rank-cinematic, .holo-transmission, .reward-scene, .hoth-defense, .arcade-game, .death-star-station";
+export const OVERLAYS = ".rank-cinematic, .holo-transmission, .reward-scene, .hoth-defense, .arcade-game, .death-star-station, .coruscant-taxi";
 
 export const missions: Mission[] = [
   {
