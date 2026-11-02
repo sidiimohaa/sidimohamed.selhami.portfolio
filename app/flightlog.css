@@ -1,0 +1,279 @@
+/* The flight log: the readout on the centre console and the pilot's log it opens. */
+
+.cockpit-log-button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 27;
+  width: 172px;
+  height: 52px;
+  border-radius: 3px;
+  background: transparent;
+  touch-action: manipulation;
+}
+.cockpit-log-button span {
+  position: absolute;
+  left: 50%;
+  bottom: -15px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: #b9ffd2;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  text-shadow: 0 0 8px #3fdc7fcc;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.cockpit-log-button:hover span,
+.cockpit-log-button:focus-visible span {
+  opacity: 1;
+}
+.cockpit-log-button:hover,
+.cockpit-log-button:focus-visible {
+  background: radial-gradient(ellipse at 50% 50%, #3fdc7f22, transparent 70%);
+}
+.cockpit-map[data-arcade="true"] .cockpit-log-button {
+  pointer-events: none;
+}
+.cockpit-log-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+}
+.cockpit-log-layer.holo {
+  pointer-events: none;
+}
+.cockpit-log-layer.holo .flight-log {
+  pointer-events: auto;
+}
+.cockpit-log-layer.flat {
+  display: grid;
+  place-items: center;
+  padding: 64px 10px 12px;
+  background: #020610d9;
+  backdrop-filter: blur(3px);
+  overflow: auto;
+}
+
+.flight-log {
+  --log: #6fe39a;
+  display: flex;
+  flex-direction: column;
+  color: #dcfbe6;
+  border: 1px solid #6fe39a77;
+  border-radius: 4px;
+  background:
+    repeating-linear-gradient(180deg, rgba(111, 227, 154, 0.05) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 0%, rgba(111, 227, 154, 0.14), transparent 60%),
+    linear-gradient(180deg, #06150ee6, #040c08f2);
+  box-shadow: 0 0 40px #3fdc7f30, inset 0 0 80px #3fdc7f10;
+  overflow: hidden;
+  text-shadow: 0 0 10px #3fdc7f40;
+}
+.flight-log-holo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.flight-log-flat {
+  width: min(900px, 100%);
+  max-height: calc(100svh - 80px);
+}
+.flight-log-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #6fe39a33;
+}
+.flight-log-head span {
+  font-size: 8px;
+  letter-spacing: 1.6px;
+  color: var(--log);
+}
+.flight-log-head h3 {
+  margin: 4px 0 2px;
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+.flight-log-head p {
+  margin: 0;
+  font-size: 12px;
+  color: #9fd8b4;
+}
+.flight-log-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #6fe39a66;
+  border-radius: 2px;
+  color: #dcfbe6;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+}
+.flight-log-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px 20px 20px;
+  overflow: auto;
+}
+.flight-log-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.flight-log-figures div {
+  padding: 10px 12px;
+  border: 1px solid #6fe39a2e;
+  background: #0a1f1499;
+}
+.flight-log-figures dt {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  color: #8fd4a8;
+  text-transform: uppercase;
+}
+.flight-log-figures dd {
+  margin: 4px 0 0;
+  font-size: 20px;
+  color: #ecfff2;
+}
+.flight-log-figures small {
+  display: block;
+  font-size: 11px;
+  color: #9fd8b4;
+}
+.flight-log-next {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 12px 14px;
+  border-left: 2px solid var(--log);
+  background: #0d2618aa;
+}
+.flight-log-next span {
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  color: var(--log);
+}
+.flight-log-next strong {
+  font-size: 18px;
+  font-weight: 400;
+}
+.flight-log-next p {
+  margin: 0;
+  font-size: 13px;
+  color: #b9e8cb;
+}
+.flight-log-next button,
+.flight-log-places button,
+.flight-log-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1px solid #6fe39a88;
+  border-radius: 2px;
+  background: #0f3020;
+  color: #ecfff2;
+  font-size: 12px;
+}
+.flight-log-next button:hover,
+.flight-log-places button:hover,
+.flight-log-actions button:hover {
+  box-shadow: 0 0 14px #3fdc7f55;
+}
+.flight-log h4 {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 1.4px;
+  color: var(--log);
+  text-transform: uppercase;
+}
+.flight-log-places,
+.flight-log-records {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.flight-log-places li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid #6fe39a22;
+}
+.flight-log-places li[data-state="done"] {
+  border-color: #6fe39a66;
+}
+.flight-log-places li span {
+  display: grid;
+  gap: 2px;
+}
+.flight-log-places strong {
+  font-size: 14px;
+  font-weight: 400;
+}
+.flight-log-places small {
+  font-size: 11px;
+  color: #9fd8b4;
+}
+.flight-log-places li[data-state="todo"] strong {
+  color: #a9c4b3;
+}
+.flight-log-places button {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.flight-log-records li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.flight-log-records b {
+  font-weight: 400;
+  color: #ecfff2;
+  font-family: var(--mono);
+}
+.flight-log-records small {
+  color: #9fd8b4;
+  font-size: 11px;
+}
+.flight-log-note {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #b9e8cb;
+}
+.flight-log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .flight-log-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .flight-log-head h3 {
+    font-size: 20px;
+  }
+}
