@@ -6,6 +6,7 @@
 @import "./deathstar.css";
 @import "./flightlog.css";
 @import "./taxi.css";
+@import "./lostsector.css";
 :root {
   --cream: #e9e9de;
   --muted: #858b82;

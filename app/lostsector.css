@@ -1,0 +1,277 @@
+/* The 404 page: a failed hyperspace jump, then the asteroid field seen from the cockpit. */
+
+.lost-sector {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #02060b;
+  color: #e9f4ff;
+}
+.lost-stage {
+  position: absolute;
+  inset: 0;
+}
+.lost-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.lost-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(2, 4, 8, 0.7) 100%);
+}
+.lost-sector[data-phase="briefing"] .lost-vignette,
+.lost-sector[data-phase="result"] .lost-vignette {
+  background: radial-gradient(ellipse at 50% 45%, rgba(2, 4, 8, 0.35) 20%, rgba(2, 4, 8, 0.82) 100%);
+}
+.lost-head {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  right: 20px;
+  z-index: 40;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+.lost-sector[data-phase="playing"] .lost-head {
+  display: none;
+}
+.lost-head > * {
+  pointer-events: auto;
+}
+.lost-logo {
+  color: #e9f4ff;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-decoration: none;
+}
+.lost-logo sup {
+  margin-left: 6px;
+  color: #ff7b6b;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.lost-sound {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(143, 228, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(6, 12, 20, 0.6);
+  color: #e9f4ff;
+  cursor: pointer;
+}
+
+/* The failed jump. */
+.lost-jump {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: #02060b;
+}
+.lost-jump canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.lost-jump-alarm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 18px 26px;
+  border: 1px solid rgba(255, 110, 90, 0.6);
+  background: rgba(30, 6, 6, 0.72);
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.96);
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+}
+.lost-jump-alarm.is-on {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  animation: lost-blink 0.9s steps(2) 3;
+}
+.lost-jump-alarm span,
+.lost-jump-alarm em {
+  font-size: 11px;
+  font-style: normal;
+  letter-spacing: 0.2em;
+  color: #ffb3a8;
+}
+.lost-jump-alarm strong {
+  font-size: clamp(26px, 5vw, 42px);
+  letter-spacing: 0.12em;
+  color: #fff;
+}
+.lost-skip {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  padding: 8px 14px;
+  border: 1px solid rgba(143, 228, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(6, 12, 20, 0.6);
+  color: #e9f4ff;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+@keyframes lost-blink {
+  50% {
+    border-color: rgba(255, 110, 90, 0.15);
+  }
+}
+
+/* The briefing and the result. */
+.lost-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 30;
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100% - 100px);
+  overflow-y: auto;
+  padding: 26px 28px;
+  border: 1px solid rgba(143, 228, 255, 0.28);
+  border-radius: 16px;
+  background: rgba(6, 12, 22, 0.78);
+  backdrop-filter: blur(10px);
+  transform: translate(-50%, -46%);
+}
+.lost-card > span {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: #ff9f8f;
+}
+.lost-card h1 {
+  margin: 10px 0 12px;
+  font-size: clamp(22px, 3.4vw, 30px);
+  line-height: 1.2;
+  font-weight: 600;
+}
+.lost-card p {
+  margin: 0 0 18px;
+  line-height: 1.6;
+  color: rgba(233, 244, 255, 0.82);
+}
+.lost-card code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(143, 228, 255, 0.12);
+  color: #bfeeff;
+  overflow-wrap: anywhere;
+}
+.lost-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.lost-actions a,
+.lost-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(143, 228, 255, 0.4);
+  border-radius: 999px;
+  background: rgba(10, 20, 32, 0.7);
+  color: #e9f4ff;
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.lost-actions .is-primary {
+  border-color: #ffb35c;
+  background: rgba(150, 80, 20, 0.75);
+}
+.lost-actions a:hover,
+.lost-actions button:hover {
+  border-color: #bfeeff;
+}
+.lost-card a:focus-visible,
+.lost-card button:focus-visible,
+.lost-head a:focus-visible,
+.lost-head button:focus-visible,
+.lost-skip:focus-visible {
+  outline: 2px solid #8fe4ff;
+  outline-offset: 3px;
+}
+.lost-hint {
+  margin: 14px 0 0 !important;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: rgba(233, 244, 255, 0.55) !important;
+}
+.lost-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(143, 228, 255, 0.15);
+}
+.lost-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #bfeeff;
+  font-size: 13px;
+  text-decoration: none;
+}
+.lost-links a:hover {
+  text-decoration: underline;
+}
+.lost-score {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 0 0 14px;
+}
+.lost-score div {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(143, 228, 255, 0.08);
+}
+.lost-score dt {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(233, 244, 255, 0.6);
+}
+.lost-score dd {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.lost-note {
+  font-size: 13px;
+}
+@media (max-width: 560px) {
+  .lost-card {
+    padding: 20px;
+  }
+  .lost-actions a,
+  .lost-actions button {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lost-jump-alarm,
+  .lost-jump-alarm.is-on {
+    animation: none;
+    transition: none;
+  }
+}

@@ -180,3 +180,10 @@ Quatre présences impériales se rencontrent dans la station (`imperialRoster.ts
 Déplacements : ZQSD/WASD et flèches, souris glissée pour regarder, clic pour aller vers un point ou une console, E pour interagir, M pour le plan ; sur téléphone, pouce gauche pour avancer, glisser à droite pour regarder. Le **Mode Recruteur** reste accessible partout et remplace la station sans WebGL. Qualité graphique réglable ; mouvements réduits respectés.
 
 Toutes les données viennent de `components/deathStar/cvData.ts`, tirées du CV `public/cv/CV_Sidi_Mohamed_Selhami_Alternance_2026.pdf`. Les certifications restent masquées tant que leurs intitulés réels n’y sont pas ajoutés.
+
+## Page 404 · secteur non cartographié
+
+- Une adresse inconnue lance un saut en hyperespace qui tourne court : traînées d'étoiles qui freinent, alerte « Saut interrompu · Erreur 404 ». Le bouton « Passer » abrège l'animation, réduite à un fondu en mouvement réduit (`components/notFound/LostSector.tsx`, exporté en `404.html`).
+- Le visiteur se retrouve dans le cockpit du X-wing, lumières d'alerte allumées. Le briefing rappelle l'adresse introuvable et propose de traverser le champ d'astéroïdes ou de rentrer sur ORBITAL. Le CV et le contact restent à un clic.
+- Le jeu est l'Asteroid Survival de la Galactic Arcade, avec son HUD, sa pause et ses règles. Chaque vol compte dans l'arcade (score, record, crédits). À la fin, on peut rejouer ou rentrer.
+- Sans WebGL, la page garde le briefing et les liens, sans le jeu.

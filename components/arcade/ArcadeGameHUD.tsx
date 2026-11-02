@@ -22,6 +22,8 @@ type Props = {
   onRestart: () => void;
   onExtract: () => void;
   onQuit: () => void;
+  // Where quitting leads, for the pause screen (the arcade console by default).
+  quitLabel?: string;
 };
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
@@ -41,7 +43,7 @@ function Meter({ label, value }: { label: string; value: number }) {
   );
 }
 
-export default function ArcadeGameHUD({ view, loading, error, onAim, onRelease, onFire, onTorpedo, onDodge, onKey, onTogglePause, onResume, onRestart, onExtract, onQuit }: Props) {
+export default function ArcadeGameHUD({ view, loading, error, onAim, onRelease, onFire, onTorpedo, onDodge, onKey, onTogglePause, onResume, onRestart, onExtract, onQuit, quitLabel = "RETOUR À LA CONSOLE" }: Props) {
   const area = useRef<HTMLDivElement>(null);
   const live = useRef({ onKey, onTogglePause });
   live.current = { onKey, onTogglePause };
@@ -191,7 +193,7 @@ export default function ArcadeGameHUD({ view, loading, error, onAim, onRelease, 
                     <RotateCcw size={13} /> RECOMMENCER
                   </button>
                   <button className="arcade-button" onClick={onQuit}>
-                    <X size={13} /> RETOUR À LA CONSOLE
+                    <X size={13} /> {quitLabel}
                   </button>
                 </div>
               </section>
@@ -206,7 +208,7 @@ export default function ArcadeGameHUD({ view, loading, error, onAim, onRelease, 
             {error && <p>{error}</p>}
             {error && (
               <button className="arcade-button" onClick={onQuit}>
-                RETOUR À LA CONSOLE
+                {quitLabel}
               </button>
             )}
           </section>
