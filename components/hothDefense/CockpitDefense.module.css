@@ -1,0 +1,7 @@
+.defenseButton{position:absolute;left:0;top:0;width:172px;height:52px;z-index:27;border:1px solid transparent;border-radius:3px;background:transparent;cursor:pointer;color:#fff1e7;font:9px monospace;letter-spacing:1px;touch-action:manipulation}
+.defenseButton span{opacity:0;display:block;padding:10px 6px;background:#2a131de8;border:1px solid #ed868773;transition:opacity .15s}
+.defenseButton:hover span,.defenseButton:focus-visible span{opacity:1}
+.defenseButton:focus-visible{outline:2px solid #ffbd9b;outline-offset:3px}
+.defenseButton:disabled{cursor:wait}
+.combat :global(.cockpit-titlebar),.combat :global(.cockpit-targets),.combat :global(.cockpit-instruments),.combat :global(.cockpit-readout-shell),.combat :global(.cockpit-journal-layer){visibility:hidden;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.defenseButton span{transition:none}}
