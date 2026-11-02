@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 640">
+  <!-- Original cover drawn for the online version: a wall of ice under a winter night. -->
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#05080f"/>
+      <stop offset=".6" stop-color="#1b2a3d"/>
+      <stop offset="1" stop-color="#3c5168"/>
+    </linearGradient>
+    <linearGradient id="ice" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8f3fb"/>
+      <stop offset="1" stop-color="#7d9bb5"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="640" fill="url(#night)"/>
+  <g fill="#dfe9f2" opacity=".8">
+    <circle cx="60" cy="250" r="1.4"/><circle cx="130" cy="210" r="1"/><circle cx="210" cy="240" r="1.6"/>
+    <circle cx="290" cy="205" r="1.1"/><circle cx="350" cy="262" r="1.3"/><circle cx="96" cy="300" r="1"/>
+  </g>
+  <path d="M0 340 L400 322 L400 470 L0 488 Z" fill="url(#ice)"/>
+  <path d="M0 340 L400 322" stroke="#ffffff" stroke-width="3" opacity=".8"/>
+  <g stroke="#9fb7cc" stroke-width="1.2" opacity=".7">
+    <path d="M40 360 V480"/><path d="M118 352 V476"/><path d="M190 350 V470"/><path d="M262 344 V466"/><path d="M336 338 V462"/>
+  </g>
+  <path d="M0 488 L400 470 V640 H0 Z" fill="#f2f6f9"/>
+  <path d="M0 520 C120 500 260 530 400 505 V640 H0 Z" fill="#dbe5ec"/>
+  <path d="M198 486 l4 -14 l4 14 z" fill="#1a1f26"/>
+  <text x="200" y="102" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="23" letter-spacing="3" fill="#c9d6e2">GEORGE R. R. MARTIN</text>
+  <text x="200" y="166" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="46" font-weight="bold" letter-spacing="2" fill="#f3f6f8">LE TRÔNE</text>
+  <text x="200" y="216" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="46" font-weight="bold" letter-spacing="2" fill="#f3f6f8">DE FER</text>
+  <text x="200" y="600" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="18" letter-spacing="5" fill="#4d6175">TOME 1</text>
+</svg>
