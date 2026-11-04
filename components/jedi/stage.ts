@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { chosenTier, createPipeline, type Pipeline } from "../render/pipeline";
+import { looks, type LookId } from "../render/looks";
 
 // A self-contained Three.js stage for the full-screen reward scenes: renderer, camera, resize,
 // frame loop and full disposal. Returns null when WebGL is unavailable.
@@ -7,10 +9,12 @@ export type Stage = {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
+  // The post-processing chain, for stages given a look (see render/pipeline).
+  pipeline: Pipeline | null;
   dispose: () => void;
 };
 
-export function createStage(mount: HTMLElement, tick: (dt: number, time: number) => void, options: { fov?: number; exposure?: number } = {}): Stage | null {
+export function createStage(mount: HTMLElement, tick: (dt: number, time: number) => void, options: { fov?: number; exposure?: number; look?: LookId } = {}): Stage | null {
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -25,12 +29,14 @@ export function createStage(mount: HTMLElement, tick: (dt: number, time: number)
   mount.append(renderer.domElement);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(options.fov ?? 50, 1, 0.05, 200);
+  const pipeline = options.look ? createPipeline(renderer, scene, camera, looks[options.look].grade, chosenTier()) : null;
   const resize = () => {
     const w = mount.clientWidth || window.innerWidth,
       h = mount.clientHeight || window.innerHeight;
     camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
+    pipeline?.setSize(w, h);
   };
   const observer = new ResizeObserver(resize);
   observer.observe(mount);
@@ -43,7 +49,8 @@ export function createStage(mount: HTMLElement, tick: (dt: number, time: number)
     last = now;
     time += dt;
     tick(dt, time);
-    renderer.render(scene, camera);
+    if (pipeline) pipeline.render();
+    else renderer.render(scene, camera);
     frame = requestAnimationFrame(loop);
   };
   frame = requestAnimationFrame(loop);
@@ -51,6 +58,7 @@ export function createStage(mount: HTMLElement, tick: (dt: number, time: number)
     scene,
     camera,
     renderer,
+    pipeline,
     dispose: () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
@@ -65,6 +73,7 @@ export function createStage(mount: HTMLElement, tick: (dt: number, time: number)
         });
       });
       textures.forEach((texture) => texture.dispose());
+      pipeline?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

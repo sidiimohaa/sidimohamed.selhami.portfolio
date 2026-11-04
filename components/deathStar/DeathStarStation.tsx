@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { Briefcase, Gauge, LogOut, Map as MapIcon } from "lucide-react";
 import * as THREE from "three";
 import { createStage } from "../jedi/stage";
+import { enrichMaterials } from "../render/materialDetail";
+import { looks } from "../render/looks";
 import { LIFT_A, LIFT_B, SPAWN, createStation, roomNames, type RoomId, type Station } from "./stationWorld";
 import { createStationAudio, type StationAudio } from "./stationAudio";
 import RecruiterMode from "./RecruiterMode";
@@ -69,6 +71,8 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
   const [progress, setProgress] = useState(() => (typeof window === "undefined" ? { seen: [] as Section[], secret: false } : load()));
   const station = useRef<Station | null>(null);
   const renderer = useRef<THREE.WebGLRenderer | null>(null);
+  const stagePipeline = useRef<import("../render/pipeline").Pipeline | null>(null),
+    stageTier = useRef<import("../render/pipeline").Tier>(0);
   const view = useRef<THREE.PerspectiveCamera | null>(null);
   const audio = useRef<StationAudio | null>(null);
   const player = useRef({ x: SPAWN.x, z: SPAWN.z, yaw: SPAWN.yaw, pitch: -0.04, walked: 0, step: 0 });
@@ -407,7 +411,7 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
           }
         }
       },
-      { fov: 62, exposure: 1.05 },
+      { fov: 62, exposure: 1.05, look: "deathstar" },
     );
     if (!stage) {
       setFallback(true);
@@ -415,6 +419,8 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
       return;
     }
     renderer.current = stage.renderer;
+    stagePipeline.current = stage.pipeline;
+    stageTier.current = stage.pipeline?.tier() ?? 0;
     view.current = stage.camera;
     stage.camera.far = 1600;
     stage.camera.near = 0.08;
@@ -425,6 +431,10 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
     station.current = s;
     s.setLight(light);
     if (light) stage.renderer.setPixelRatio(1);
+    // Imperial steel: panel joints, worn roughness and grime on the station's walls and floors.
+    // The visitor's X-wing, added just below, keeps its own modelled detail.
+    enrichMaterials(stage.scene, looks.deathstar.detail, light ? 0 : (stage.pipeline?.tier() ?? 0));
+    if (light) stage.pipeline?.setTier(0);
     setPlan(s.plan());
     // The visitor's X-wing: flown in during the approach, then parked by the console.
     s.root.add(holder);
@@ -466,6 +476,8 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
   }, [sound]);
   useEffect(() => {
     station.current?.setLight(quality === "light");
+    // The light profile also drops post-processing; the full one restores the visitor's setting.
+    stagePipeline.current?.setTier(quality === "light" ? 0 : stageTier.current);
     renderer.current?.setPixelRatio(quality === "light" ? 1 : Math.min(window.devicePixelRatio, 2));
   }, [quality]);
 

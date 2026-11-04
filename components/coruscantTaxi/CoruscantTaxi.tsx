@@ -3,6 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Clapperboard, DoorOpen, Eye, FastForward, LogOut, MessageSquare, MessageSquareOff, Navigation, Sunset } from "lucide-react";
 import * as THREE from "three";
+import { chosenTier, createPipeline } from "../render/pipeline";
+import { enrichMaterials } from "../render/materialDetail";
+import { looks, skies } from "../render/looks";
+import { skyEnvironment } from "../render/skyLight";
 import { glowTexture } from "../landingKit";
 import { createAirTaxi } from "./taxiModel";
 import { COUNCIL_FLOOR, PLAZA, SENATE, SENATE_FACING, SENATE_STOP, TRIP_KEYS, places, tripBetween, type PlaceId, type Trip } from "./taxiPlaces";
@@ -119,6 +123,16 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
     const taxi = createAirTaxi({ glow, holo: true });
     const world = [city.group, temple.group, senate.group, traffic.group, chamber.group, taxi.group];
     scene.add(...world, hall.group);
+    // Art direction: dusk sky as image-based light (polished stone and glass of the Council and
+    // the Senate reflect it), surface detail on the architecture, and the city's colour grade.
+    const tier = chosenTier();
+    const environment = tier > 0 ? skyEnvironment(renderer, { ...skies.coruscant, intensity: 0.32 }) : null;
+    if (environment) {
+      scene.environment = environment.texture;
+      scene.environmentIntensity = 0.32;
+    }
+    enrichMaterials(scene, looks.taxi.detail, tier);
+    const pipeline = createPipeline(renderer, scene, camera, looks.taxi.grade, tier);
     // The plaza, from the portal of the rotunda out to its far edge.
     const plaza = createWalkArea(SENATE, Math.atan2(SENATE_FACING.x, SENATE_FACING.z), [{ kind: "rect", x: 0, z: (PLAZA.from + PLAZA.to) / 2, hx: PLAZA.half - 1, hz: (PLAZA.to - PLAZA.from) / 2 - 2 }]);
     plaza.setBlocks([{ x: 0, z: SENATE_STOP, hx: 1.5, hz: 3.4 }]);
@@ -129,6 +143,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       camera.fov = camera.aspect < 0.8 ? 74 : 62;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      pipeline.setSize(w, h);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(el);
@@ -775,7 +790,13 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       average += (dt - average) * 0.05;
       if (elapsed < 4 || (sampled += dt) < 2.5) return;
       sampled = 0;
-      if (average < 1 / 45 || ratio <= 0.75) return;
+      if (average < 1 / 45) return;
+      // Bloom and ambient occlusion go before resolution does.
+      if (pipeline.tier() > 1) {
+        pipeline.setTier(pipeline.tier() === 3 ? 2 : 1);
+        return;
+      }
+      if (ratio <= 0.75) return;
       ratio = Math.max(0.75, ratio - 0.25);
       renderer.setPixelRatio(ratio);
       resize();
@@ -970,7 +991,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
         if (ride.place === "temple" || mode === "flight") chamber.tick(dt, elapsed, still);
       }
       camera.updateMatrixWorld();
-      renderer.render(scene, camera);
+      pipeline.render();
       raf = requestAnimationFrame(animate);
     };
     raf = requestAnimationFrame(animate);
@@ -998,6 +1019,8 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
         });
       });
       textures.forEach((texture) => texture.dispose());
+      pipeline.dispose();
+      environment?.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();

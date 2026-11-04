@@ -12,6 +12,10 @@ import AtmosphereEntry, { ENTRY_SECONDS } from "./AtmosphereEntry";
 import BountyProjectPanel from "./BountyProjectPanel";
 import PassionsViewer from "./PassionsViewer";
 import { createEndorZone } from "./endorZone";
+import { chosenTier, createPipeline } from "./render/pipeline";
+import { enrichMaterials } from "./render/materialDetail";
+import { lookFor, looks, skies } from "./render/looks";
+import { skyEnvironment } from "./render/skyLight";
 import type { PadEvent } from "./coruscantLife";
 import type { Reveal, Zone, ZoneAction } from "./landingKit";
 import type { MissionId } from "./jediProgression";
@@ -153,11 +157,20 @@ export default function LandingScene({
     el.prepend(renderer.domElement);
     const scene = new THREE.Scene();
     let environment:THREE.WebGLRenderTarget|undefined;
-    if(planet==="Tatooine"||planet==="Hoth"||planet==="Endor"){
-      if(planet!=="Hoth"){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
-      const generator=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment();
-      environment=generator.fromScene(room,.02);scene.environment=environment.texture;scene.environmentIntensity=.45;
-      generator.dispose();room.dispose();
+    // Art direction for this world: its colour grade and the detail added to its surfaces.
+    const worldLook = looks[lookFor(planet)],
+      tier = chosenTier();
+    if(planet==="Tatooine"||planet==="Hoth"||planet==="Endor"||tier>0){
+      if(planet!=="Hoth"&&planet!=="Coruscant"){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
+      if(tier>0){
+        // The world's own sky as image-based light, so reflections and bounce match it.
+        const sky=skies[lookFor(planet) as keyof typeof skies];
+        environment=skyEnvironment(renderer,sky);scene.environment=environment.texture;scene.environmentIntensity=sky.intensity;
+      }else{
+        const generator=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment();
+        environment=generator.fromScene(room,.02);scene.environment=environment.texture;scene.environmentIntensity=.45;
+        generator.dispose();room.dispose();
+      }
     }
     const build = zones[planet] ?? createCoruscantZone;
     const seen = new Set<MissionId>();
@@ -173,6 +186,28 @@ export default function LandingScene({
     scene.add(zone.group);
     scene.fog = zone.fog;
     const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 2600);
+    // The ship keeps its own modelled detail; everything else gets the world's surface treatment.
+    enrichMaterials(zone.group, worldLook.detail, tier, [zone.ship]);
+    const pipeline = createPipeline(renderer, scene, camera, worldLook.grade, tier);
+    // Development only: what adaptive quality has settled on, for performance checks.
+    if (process.env.NODE_ENV !== "production")
+      (window as unknown as { __orbitalRender?: object }).__orbitalRender = { tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
+        // Milliseconds per frame, CPU and GPU, measured synchronously (works in a hidden tab).
+        bench: (frames = 30, at?: 0 | 1 | 2 | 3) => {
+          const before = pipeline.tier(), gl = renderer.getContext(), pixel = new Uint8Array(4);
+          if (at !== undefined) pipeline.setTier(at);
+          pipeline.render();
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+          const start = performance.now();
+          for (let i = 0; i < frames; i++) {
+            pipeline.render();
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+          }
+          const ms = (performance.now() - start) / frames;
+          const result = { ms: +ms.toFixed(2), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, size: `${renderer.domElement.width}x${renderer.domElement.height}` };
+          pipeline.setTier(before);
+          return result;
+        } };
     const viewer = new THREE.PerspectiveCamera();
     const { ship, shipRest, colliders } = zone;
     const pickable: THREE.Object3D[] = [];
@@ -608,6 +643,7 @@ export default function LandingScene({
       const w = el.clientWidth,
         h = el.clientHeight;
       renderer.setSize(w, h);
+      pipeline.setSize(w, h);
       camera.aspect = w / h;
       camera.fov = w / h < 0.8 ? (actionFov ?? 72) : 60;
       camera.updateProjectionMatrix();
@@ -635,6 +671,11 @@ export default function LandingScene({
       sampled = 0;
       if (average < 1 / 45) return;
       if (ratio > 1) ratio = Math.max(1, ratio - 0.25);
+      // Then the costliest effects: ambient occlusion, then bloom; the grade itself stays.
+      else if (pipeline.tier() > 1) {
+        pipeline.setTier(pipeline.tier() === 3 ? 2 : 1);
+        return;
+      }
       else if (quality > 0 && zone.setQuality) zone.setQuality(--quality);
       else if (ratio > 0.75) ratio = 0.75;
       else return;
@@ -918,7 +959,7 @@ export default function LandingScene({
           ((index === nearest ? 1 : 0) - terminal.focus) *
           (1 - Math.exp(-dt * 5));
       });
-      renderer.render(scene, camera);
+      pipeline.render();
       frame = requestAnimationFrame(animate);
     };
     frame = requestAnimationFrame(animate);
@@ -955,6 +996,7 @@ export default function LandingScene({
           });
         }
       });
+      pipeline.dispose();
       renderer.dispose();
       environment?.dispose();
       renderer.domElement.remove();

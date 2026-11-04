@@ -473,6 +473,19 @@ export default function Experience() {
       url.searchParams.delete("cap");
       window.history.replaceState(null, "", url);
     }
+    // Development only: ?sol=hoth lands straight on a world, to compare renders at a fixed view.
+    const sol = process.env.NODE_ENV !== "production" ? url.searchParams.get("sol") : null;
+    const solIndex = sol ? destinations.findIndex((world) => world.name.toLowerCase() === sol.toLowerCase()) : -1;
+    if (solIndex >= 0) {
+      try {
+        window.sessionStorage.setItem("orbital-welcome", "1");
+      } catch {
+        // Nothing to remember without storage.
+      }
+      setLoading(false);
+      setDestination(solIndex);
+      setSurface(solIndex);
+    }
     if (url.searchParams.has("recruteur") || url.hash === "#recruteur") {
       try {
         window.sessionStorage.setItem("orbital-welcome", "1");
