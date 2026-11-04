@@ -6,9 +6,11 @@ const vertex = `
  varying vec3 worldNormal;
  varying vec3 viewNormal;
  varying vec3 viewPosition;
+ varying vec3 worldPosition;
  void main(){
   localNormal=normal;
   worldNormal=normalize(mat3(modelMatrix)*normal);
+  worldPosition=(modelMatrix*vec4(position,1.0)).xyz;
   viewNormal=normalize(normalMatrix*normal);
   vec4 positionInView=modelViewMatrix*vec4(position,1.0);
   viewPosition=positionInView.xyz;
@@ -27,6 +29,7 @@ const referenceSampling = `
  varying vec3 worldNormal;
  varying vec3 viewNormal;
  varying vec3 viewPosition;
+ varying vec3 worldPosition;
  vec3 sampleSurface(){
   vec3 n=normalize(localNormal);
   vec2 disk=vec2(dot(n,referenceRight),dot(n,referenceUp));
@@ -84,6 +87,14 @@ export function createPlanetLayers(
     float day=smoothstep(-.3,.55,dot(normalize(worldNormal),sunDirection));
     float contrast=${index === 2 ? ".55" : ".34"};
     color*=mix(1.0-contrast,1.06,day);
+    // Sunlight glints on Hoth's ice fields and on Endor's oceans, never on dust or city.
+    vec3 n=normalize(worldNormal),toEye=normalize(cameraPosition-worldPosition);
+    float glint=pow(max(0.0,dot(n,normalize(sunDirection+toEye))),${index === 4 ? "38.0" : "70.0"});
+    float shine=${index === 4 ? "smoothstep(.55,.9,dot(color,vec3(.3,.4,.3)))*.32" : index === 1 ? "smoothstep(.02,.12,color.b-color.g*.85)*.45" : "0.0"};
+    color+=vec3(.92,.96,1.0)*glint*shine*day;
+    // A faint warm band along the terminator, where the light grazes the atmosphere.
+    float dusk=exp(-pow(dot(n,sunDirection)/.16,2.0));
+    color+=${index === 3 ? "vec3(0.0)" : "vec3(.16,.07,.03)*dusk*.35"};
     gl_FragColor=vec4(color,1.0);
     #include <colorspace_fragment>
    }`,
@@ -111,7 +122,14 @@ export function createPlanetLayers(
         },
         vertexShader: vertex,
         fragmentShader: `uniform vec3 sunDirection;uniform vec3 color;varying vec3 worldNormal;varying vec3 viewNormal;varying vec3 viewPosition;
-       void main(){float rim=pow(1.0-max(0.0,dot(normalize(viewNormal),normalize(-viewPosition))),4.0);float day=.25+.75*max(0.0,dot(normalize(worldNormal),sunDirection));gl_FragColor=vec4(color,rim*day*.16);}`,
+       void main(){
+        float rim=pow(1.0-max(0.0,dot(normalize(viewNormal),normalize(-viewPosition))),4.0);
+        float light=dot(normalize(worldNormal),sunDirection);
+        float day=.2+.8*max(0.0,light);
+        // The limb reddens where it crosses the terminator, as sunlight scatters through thick air.
+        vec3 tint=mix(color,vec3(1.0,.55,.34),exp(-pow(light/.22,2.0))*.45);
+        gl_FragColor=vec4(tint,rim*day*.2);
+       }`,
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,

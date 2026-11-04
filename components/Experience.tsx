@@ -13,8 +13,25 @@ import {
   Map,
   PlaneLanding,
   Briefcase,
+  Radar,
+  Camera,
+  SlidersHorizontal,
+  FastForward,
 } from "lucide-react";
 import Preloader from "./Preloader";
+import BridgeWelcome from "./bridge/BridgeWelcome";
+import BridgeSettings from "./bridge/BridgeSettings";
+import GalacticScanner from "./bridge/GalacticScanner";
+import { CopilotComm, PhotoBar } from "./bridge/BridgeHud";
+import { copilotInOrbit, copilotOnCourse, type CopilotMessage } from "./bridge/copilot";
+import {
+  getBridgeSettings,
+  guessQuality,
+  lowerQuality,
+  updateBridgeSettings,
+  useBridgeSettings,
+  type QualityId,
+} from "./graphicsQuality";
 import { createFlightAudio, type FlightAudio } from "./flightAudio";
 import type { FlightTelemetry } from "./SpaceScene";
 import type { HyperspacePhase } from "./spaceTraffic";
@@ -50,25 +67,8 @@ const FinalVaderExperience = dynamic(() => import("./jedi/FinalVaderExperience")
 const DeathStarStation = dynamic(() => import("./deathStar/DeathStarStation"), { ssr: false });
 const CoruscantTaxi = dynamic(() => import("./coruscantTaxi/CoruscantTaxi"), { ssr: false, loading: () => <div className="coruscant-taxi" /> });
 
-function OrbitalLogo() {
-  return (
-    <svg viewBox="0 0 46 46" fill="none" aria-hidden="true">
-      <circle cx="23" cy="23" r="12" stroke="currentColor" strokeWidth="1.5" />
-      <ellipse
-        cx="23"
-        cy="23"
-        rx="23"
-        ry="7"
-        transform="rotate(-45 23 23)"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <circle cx="35" cy="10" r="2.4" fill="currentColor" />
-    </svg>
-  );
-}
 export default function Experience() {
-  const reduced = !!useReducedMotion(),
+  const systemReduced = !!useReducedMotion(),
     [ready, setReady] = useState(false),
     [loading, setLoading] = useState(true),
     [boost, setBoost] = useState(false),
@@ -93,7 +93,28 @@ export default function Experience() {
     // Inside the Death Star: the professional record, walked through or in Recruiter mode.
     [station, setStation] = useState<"explore" | "recruiter" | null>(null),
     // The air taxi ride from Coruscant's pad to the Jedi Temple and the Senate.
-    [taxi, setTaxi] = useState(false);
+    [taxi, setTaxi] = useState(false),
+    // The bridge: welcome on arrival, settings, the sector scanner, copilot messages, photo mode.
+    [welcome, setWelcome] = useState(false),
+    [settingsOpen, setSettingsOpen] = useState(false),
+    [scan, setScan] = useState<number[] | null>(null),
+    [comm, setComm] = useState<CopilotMessage | null>(null),
+    [photo, setPhoto] = useState(false),
+    [photoFov, setPhotoFov] = useState(50),
+    [captureKey, setCaptureKey] = useState(0),
+    [capturing, setCapturing] = useState(false),
+    [skipKey, setSkipKey] = useState(0),
+    // The flight primer fades once the visitor has flown for a moment.
+    [flown, setFlown] = useState(false),
+    // The automatic profile starts from the hardware and steps down if frames run slow.
+    [autoQuality, setAutoQuality] = useState<QualityId>(() => (typeof window === "undefined" ? "high" : guessQuality()));
+  const bridge = useBridgeSettings();
+  const reduced = systemReduced || bridge.reduceMotion,
+    quality = bridge.quality === "auto" ? autoQuality : bridge.quality;
+  const flownTimer = useRef<number | null>(null);
+  const distances = useRef<number[]>([]),
+    stationFromOrbit = useRef(false),
+    greeted = useRef(new Set<number>());
   const { progress } = useJediProgression();
   const audio = useRef<FlightAudio | null>(null),
     timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -110,6 +131,8 @@ export default function Experience() {
   const boostSince = useRef<number | null>(null);
   const onFlight = useCallback((flight: FlightTelemetry) => {
     guidance.current = flight.target;
+    distances.current = flight.distances;
+    if (flight.manual && flownTimer.current === null) flownTimer.current = window.setTimeout(() => setFlown(true), 1500);
     if (flight.boost && flight.manual) {
       const now = performance.now();
       boostSince.current ??= now;
@@ -167,14 +190,54 @@ export default function Experience() {
   }, []);
   const onReady = useCallback(() => setReady(true), []),
     onUnsupported = useCallback(() => setUnsupported(true), []);
-  const completeArrival = useCallback(() => setLoading(false), []);
+  // After the drop out of hyperspace, the bridge welcome plays once per visit.
+  const completeArrival = useCallback(() => {
+    setLoading(false);
+    let seen = false;
+    try {
+      seen = window.sessionStorage.getItem("orbital-welcome") === "1";
+    } catch {
+      seen = false;
+    }
+    if (!seen) setWelcome(true);
+  }, []);
+  const closeWelcome = useCallback(() => {
+    setWelcome(false);
+    try {
+      window.sessionStorage.setItem("orbital-welcome", "1");
+    } catch {
+      // The welcome simply shows again on the next load.
+    }
+  }, []);
+  const onPerformance = useCallback((fps: number) => {
+    if (getBridgeSettings().quality === "auto" && fps < 38) setAutoQuality((current) => lowerQuality(current));
+  }, []);
+  const onCapture = useCallback((image: Blob | null) => {
+    setCapturing(false);
+    if (!image) return;
+    const url = URL.createObjectURL(image),
+      link = document.createElement("a");
+    link.href = url;
+    link.download = `orbital-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }, []);
   const completeApproach = useCallback(() => {
     setTravel(false);
     setArrived(true);
   }, []);
   // The flight log: worlds reached in orbit, landings, and time spent flying with the page open.
   useEffect(() => {
-    if (arrived) logOrbit(destinations[destination].name);
+    if (!arrived) return;
+    logOrbit(destinations[destination].name);
+    // The copilot describes a world the first time the ship reaches its orbit in this visit.
+    if (getBridgeSettings().copilot && !greeted.current.has(destination)) {
+      greeted.current.add(destination);
+      setComm(copilotInOrbit(destination));
+      audio.current?.droid();
+    }
   }, [arrived, destination]);
   useEffect(() => {
     if (surface !== null) logLanding(destinations[surface].name);
@@ -201,6 +264,8 @@ export default function Experience() {
       setMapOpen(false);
       setArrived(false);
       setTravel(true);
+      setScan(null);
+      if (getBridgeSettings().copilot) setComm(copilotOnCourse(index));
       // The flight animation signals arrival after braking, rather than a wall-clock timer.
       if (unsupported) timers.current.push(setTimeout(completeApproach, 650));
     },
@@ -239,7 +304,7 @@ export default function Experience() {
   }, [soundscape, sound, combat]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (document.querySelector(".hoth-defense, .arcade-game, .arcade, .death-star-station, .coruscant-taxi")) { lastSix.current = 0; return; }
+      if (document.querySelector(".hoth-defense, .arcade-game, .arcade, .death-star-station, .coruscant-taxi, .bridge-welcome, .galactic-scanner, .photo-bar, .bridge-settings")) { lastSix.current = 0; return; }
       // Escape is taken by an overlay or the mission journal first when one is open.
       if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(OVERLAYS)) {
         timers.current.forEach(clearTimeout);
@@ -264,9 +329,11 @@ export default function Experience() {
             : (guidance.current ?? destination);
         // In orbit of a world with a landing zone, E takes the ship down; at the Death Star, E docks.
         if (arrivedRef.current && landing && aimed === destination) land();
-        else if (arrivedRef.current && destination === 3 && aimed === destination) enterStation("explore");
+        else if (arrivedRef.current && destination === 3 && aimed === destination) enterStation("explore", true);
         else launch(aimed);
       }
+      // R sweeps the sector with the galactic scanner.
+      if (e.key.toLowerCase() === "r" && !e.repeat && !loading && !travel && !mapOpen && !helpOpen && surface === null) openScanner();
       if (e.key === "Shift") setBoost(true);
       // Typing the two sixes of the order opens an Imperial transmission (mission 08).
       // The physical 6 key, so it works with or without Shift on any keyboard layout.
@@ -360,8 +427,13 @@ export default function Experience() {
     setDestination(0);
     setResetKey((key) => key + 1);
   };
-  const enterStation = (start: "explore" | "recruiter") => {
+  // From orbit, leaving the station returns to the Death Star; from anywhere else, to free flight.
+  const enterStation = (start: "explore" | "recruiter", fromOrbit = false) => {
+    stationFromOrbit.current = fromOrbit;
     timers.current.forEach(clearTimeout);
+    setWelcome(false);
+    setScan(null);
+    setPhoto(false);
     setHelpOpen(false);
     setBoost(false);
     setCombat(true);
@@ -371,8 +443,35 @@ export default function Experience() {
   const leaveStation = () => {
     setStation(null);
     setCombat(false);
-    setArrived(true);
+    if (stationFromOrbit.current) setArrived(true);
   };
+  const openScanner = () => {
+    if (unsupported) return;
+    setHelpOpen(false);
+    audio.current?.chime();
+    setScan([...distances.current]);
+  };
+  const startPhoto = () => {
+    setArrived(false);
+    setScan(null);
+    setComm(null);
+    setPhotoFov(50);
+    setPhoto(true);
+  };
+  // A direct link for recruiters: ?recruteur or #recruteur opens the record at once.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("recruteur") || url.hash === "#recruteur") {
+      try {
+        window.sessionStorage.setItem("orbital-welcome", "1");
+      } catch {
+        // Nothing to remember without storage.
+      }
+      enterStation("recruiter");
+    }
+    // Runs once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const boardTaxi = useCallback(() => {
     setHelpOpen(false);
     setTaxi(true);
@@ -390,12 +489,14 @@ export default function Experience() {
     timers.current.forEach(clearTimeout);
     setTravel(false);
   };
-  const paused = loading || mapOpen || helpOpen || surface !== null || reward !== null || station !== null;
+  const paused =
+    loading || mapOpen || helpOpen || surface !== null || reward !== null || station !== null || welcome || settingsOpen || scan !== null;
+  const cruising = !loading && !mapOpen && surface === null && station === null && !photo && !unsupported;
   return (
     <main
       aria-busy={loading}
       data-side={progress.sith ? "sith" : "light"}
-      className={`experience open-space ${travel ? "is-travelling" : ""} ${ground ? "on-surface" : ""}`}
+      className={`experience open-space ${travel ? "is-travelling" : ""} ${ground ? "on-surface" : ""} ${photo ? "photo-mode" : ""}`}
     >
       <div className="space-haze" />
       <div className="star-backup" />
@@ -412,7 +513,15 @@ export default function Experience() {
           hidden: surface !== null || mapOpen || station !== null,
           resetKey,
           droidSignal,
+          quality,
+          sway: bridge.shipSway,
+          photo,
+          fov: photo ? photoFov : null,
+          captureKey,
+          skipKey,
         }}
+        onPerformance={onPerformance}
+        onCapture={onCapture}
         onSelect={launch}
         onFlight={onFlight}
         onApproachComplete={completeApproach}
@@ -457,54 +566,76 @@ export default function Experience() {
         inert={loading || mapOpen || station !== null}
         style={mapOpen || station ? { visibility: "hidden" } : undefined}
       >
-        <button
-          className="brand"
-          onClick={reset}
-          aria-label="Orbital, revenir au départ"
-        >
-          <OrbitalLogo />
-          <span>
-            ORBITAL<sup>®</sup>
-          </span>
-        </button>
-        <nav aria-label="Navigation principale" className="minimal-nav">
+        {/* Left: where to go. Right: the record for recruiters, then the ship's systems. */}
+        <nav aria-label="Navigation principale" className="bridge-nav">
           <JediProgressWidget onOpenJournal={() => openMap(true)} hidden={loading} />
           <button
-            className="map-trigger"
+            className="map-trigger bridge-pill"
             onClick={() => openMap()}
             aria-label="Ouvrir la carte stellaire"
           >
-            <Map size={15} />
+            <Map size={15} aria-hidden="true" />
             <span>CARTE STELLAIRE</span>
           </button>
-          <button
-            className="sound-button"
-            onClick={reset}
-            aria-label="Revenir au point de départ"
-          >
-            <RotateCcw size={15} />
-          </button>
-          <button
-            className={`sound-button ${sound ? "on" : ""}`}
-            aria-label={
-              sound ? "Couper l’ambiance sonore" : "Activer l’ambiance sonore"
-            }
-            aria-pressed={sound}
-            onClick={toggleSound}
-          >
-            {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
-          </button>
-          <button
-            className="sound-button"
-            aria-label="Afficher les commandes"
-            onClick={() => {
-              cancelApproach();
-              setHelpOpen(true);
-            }}
-          >
-            <CircleHelp size={16} />
-          </button>
+          {cruising && (
+            <button className="bridge-pill" onClick={openScanner} aria-label="Scanner galactique" aria-keyshortcuts="R">
+              <Radar size={15} aria-hidden="true" />
+              <span>SCANNER</span>
+            </button>
+          )}
         </nav>
+        <div className="bridge-actions">
+          <button
+            className="bridge-pill recruiter-trigger"
+            onClick={() => enterStation("recruiter")}
+            aria-label="Mode recruteur : CV, projets, compétences et contact"
+          >
+            <Briefcase size={15} aria-hidden="true" />
+            <span>MODE RECRUTEUR</span>
+          </button>
+          <div className="bridge-capsule" role="group" aria-label="Systèmes de bord">
+            {cruising && (
+              <button className="sound-button" data-tip="Mode photo" aria-label="Mode photo" onClick={startPhoto}>
+                <Camera size={16} aria-hidden="true" />
+              </button>
+            )}
+            <button className="sound-button" data-tip="Revenir au départ" onClick={reset} aria-label="Revenir au point de départ">
+              <RotateCcw size={15} aria-hidden="true" />
+            </button>
+            <button
+              className={`sound-button ${sound ? "on" : ""}`}
+              data-tip={sound ? "Couper le son" : "Activer le son"}
+              aria-label={sound ? "Couper l’ambiance sonore" : "Activer l’ambiance sonore"}
+              aria-pressed={sound}
+              onClick={toggleSound}
+            >
+              {sound ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
+            </button>
+            <button
+              className="sound-button"
+              data-tip="Réglages"
+              aria-label="Réglages du vaisseau"
+              aria-haspopup="dialog"
+              onClick={() => {
+                cancelApproach();
+                setSettingsOpen(true);
+              }}
+            >
+              <SlidersHorizontal size={16} aria-hidden="true" />
+            </button>
+            <button
+              className="sound-button"
+              data-tip="Commandes"
+              aria-label="Afficher les commandes"
+              onClick={() => {
+                cancelApproach();
+                setHelpOpen(true);
+              }}
+            >
+              <CircleHelp size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
       </header>
       <AnimatePresence>
         {travel && (
@@ -518,6 +649,11 @@ export default function Experience() {
           >
             <Navigation size={12} />
             <span>EN APPROCHE · {current.name.toUpperCase()}</span>
+            {!unsupported && (
+              <button className="course-skip mono" aria-label="Passer le voyage" onClick={() => setSkipKey((key) => key + 1)}>
+                <FastForward size={12} /> PASSER
+              </button>
+            )}
             <button aria-label="Annuler l’approche" onClick={cancelApproach}>
               <X size={13} />
             </button>
@@ -596,10 +732,10 @@ export default function Experience() {
             </span>
             {destination === 3 && (
               <div className="station-actions">
-                <button className="land-button mono" onClick={() => enterStation("explore")}>
+                <button className="land-button mono" onClick={() => enterStation("explore", true)}>
                   <PlaneLanding size={13} /> ACCOSTER LA STATION
                 </button>
-                <button className="land-button mono recruiter" onClick={() => enterStation("recruiter")}>
+                <button className="land-button mono recruiter" onClick={() => enterStation("recruiter", true)}>
                   <Briefcase size={13} /> MODE RECRUTEUR
                 </button>
               </div>
@@ -692,6 +828,14 @@ export default function Experience() {
                   <dd>Au sol, glisser à la souris, ou à droite au doigt</dd>
                 </div>
                 <div>
+                  <dt>Scanner</dt>
+                  <dd>R, ou le bouton Scanner en haut à gauche</dd>
+                </div>
+                <div>
+                  <dt>Photo</dt>
+                  <dd>Icône appareil photo en haut à droite : l’interface se masque, réglez la focale et capturez</dd>
+                </div>
+                <div>
                   <dt>Fermer</dt>
                   <dd>Échap</dd>
                 </div>
@@ -722,6 +866,97 @@ export default function Experience() {
       <AnimatePresence>
         {reward === "temple" && <TempleRoom key="temple" reduced={reduced} onClose={() => setReward(null)} />}
         {reward === "destiny" && <FinalVaderExperience key="destiny" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
+      </AnimatePresence>
+      {/* A flight primer until the visitor first takes the controls. */}
+      <AnimatePresence>
+        {cruising && !welcome && !flown && !arrived && !travel && (
+          <motion.p
+            className="flight-hint mono"
+            initial={{ opacity: 0, y: reduced ? 0 : 6 }}
+            animate={{ opacity: 1, y: 0, transition: { delay: reduced ? 0 : 0.6 } }}
+            exit={{ opacity: 0 }}
+            aria-hidden="true"
+          >
+            <span className="flight-hint-desktop">
+              <b>GLISSER</b> PILOTER <i /> <b>MAJ</b> ACCÉLÉRER <i /> <b>E</b> APPROCHER <i /> <b>R</b> SCANNER
+            </span>
+            <span className="flight-hint-touch">
+              <b>GLISSER</b> PILOTER <i /> <b>2 DOIGTS</b> ACCÉLÉRER
+            </span>
+          </motion.p>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {comm && cruising && !welcome && (
+          <CopilotComm
+            key={comm.id}
+            message={comm}
+            reduced={reduced}
+            onDone={() => setComm(null)}
+            onSilence={() => {
+              setComm(null);
+              updateBridgeSettings({ copilot: false });
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {scan && (
+          <GalacticScanner
+            key="scanner"
+            distances={scan}
+            reduced={reduced}
+            onApproach={(index) => {
+              setScan(null);
+              launch(index);
+            }}
+            onClose={() => setScan(null)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {photo && (
+          <PhotoBar
+            key="photo"
+            fov={photoFov}
+            onFov={setPhotoFov}
+            busy={capturing}
+            onCapture={() => {
+              setCapturing(true);
+              setCaptureKey((key) => key + 1);
+            }}
+            onClose={() => setPhoto(false)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {welcome && !loading && station === null && (
+          <BridgeWelcome
+            key="welcome"
+            reduced={reduced}
+            onExplore={closeWelcome}
+            onCockpit={() => {
+              closeWelcome();
+              openMap();
+            }}
+            onPortfolio={() => {
+              closeWelcome();
+              enterStation("recruiter");
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {settingsOpen && (
+          <BridgeSettings
+            key="settings"
+            applied={quality}
+            systemReduced={systemReduced}
+            sound={sound}
+            onToggleSound={toggleSound}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
       </AnimatePresence>
       {station && <DeathStarStation key="station" start={station} reduced={reduced} sound={sound} onClose={leaveStation} />}
       {taxi && <CoruscantTaxi reduced={reduced} sound={sound} onClose={leaveTaxi} />}

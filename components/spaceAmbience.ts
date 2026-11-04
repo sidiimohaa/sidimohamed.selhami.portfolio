@@ -126,9 +126,10 @@ const skyNoise = `
 
 const skyVertex = `varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
 
-// A faint sky dome at infinity: a milky band, cool teal drifts and warm dust towards Tatooine.
-// The noise is baked once into a cube map, so each frame only samples it.
-export function createNebula(renderer: THREE.WebGLRenderer) {
+// The sky dome at infinity: the milky band with its dust lanes, four nebulae of ionised gas
+// (magenta and violet, blue and cyan, a red emission cloud, a teal drift) and a few distant
+// galaxies. The noise is baked once into a cube map, so each frame only samples it.
+export function createNebula(renderer: THREE.WebGLRenderer, size = 768) {
   const bake = new THREE.Scene();
   const source = new THREE.Mesh(
     new THREE.SphereGeometry(10, 64, 32),
@@ -137,16 +138,46 @@ export function createNebula(renderer: THREE.WebGLRenderer) {
       vertexShader: skyVertex,
       fragmentShader: `${skyNoise}
        uniform vec3 bandNormal;varying vec3 direction;
+       float fbm6(vec3 p){float v=0.0,a=.5;for(int i=0;i<6;i++){v+=noise3(p)*a;p=p*2.07+vec3(3.1,7.7,1.3);a*=.5;}return v;}
+       // A cloud of gas around a direction: domain-warped noise, a bright core and dark filaments.
+       vec3 cloud(vec3 n,vec3 center,float spread,vec3 rim,vec3 core,float seed){
+        float reach=exp(-(1.0-dot(n,normalize(center)))/spread);
+        vec3 warp=vec3(fbm(n*2.2+seed),fbm(n*2.2+seed+5.2),fbm(n*2.2+seed+9.7));
+        float shape=fbm6(n*3.4+warp*1.6+seed);
+        float gas=smoothstep(.3,.76,shape)*reach;
+        float glow=pow(smoothstep(.48,.88,shape),2.0)*reach;
+        float veins=smoothstep(.5,.72,fbm6(n*13.0+warp*2.0+seed*1.7));
+        return (mix(rim,core,smoothstep(.2,.9,gas))*gas+core*glow*.8)*(1.0-veins*.6);
+       }
+       // A galaxy seen from far away: an inclined ellipse with a brighter bulge.
+       float galaxy(vec3 n,vec3 center,vec3 axis,float majorAxis,float minorAxis){
+        vec3 c=normalize(center);
+        if(dot(n,c)<.99)return 0.0;
+        vec3 u=normalize(cross(c,axis)),v=cross(c,u);
+        vec3 d=n-c*dot(n,c);
+        float x=dot(d,u)/majorAxis,y=dot(d,v)/minorAxis;
+        float r=x*x+y*y;
+        return exp(-r*3.0)*.5+exp(-r*40.0)*.9;
+       }
        void main(){
         vec3 n=normalize(direction);
-        float band=exp(-pow(dot(n,bandNormal)/.2,2.0));
-        float drift=fbm(n*2.3+vec3(4.0,1.0,7.0));
+        float band=exp(-pow(dot(n,bandNormal)/.19,2.0));
         float wisps=fbm(n*5.1+vec3(1.0,9.0,3.0));
-        float lanes=smoothstep(.48,.76,fbm(n*9.0+vec3(7.0,2.0,5.0)));
-        vec3 teal=vec3(.12,.25,.25)*smoothstep(.42,.82,drift)*(.55+band*.6);
-        vec3 ember=vec3(.32,.17,.12)*smoothstep(.46,.86,wisps)*smoothstep(-.1,.75,n.x)*smoothstep(-.6,.1,-n.z);
-        vec3 milk=vec3(.17,.18,.16)*band*(.3+wisps*.7)*(1.0-lanes*.75);
-        gl_FragColor=vec4((teal+ember+milk)*.55,1.0);
+        float lanes=smoothstep(.46,.74,fbm6(n*8.0+vec3(7.0,2.0,5.0)));
+        vec3 milk=vec3(.2,.2,.21)*band*(.32+wisps*.75)*(1.0-lanes*.82);
+        vec3 sky=milk;
+        vec3 gasClouds=vec3(0.0);
+        gasClouds+=cloud(n,vec3(.62,.34,-.71),.16,vec3(.26,.07,.3),vec3(.62,.24,.5),1.0);
+        gasClouds+=cloud(n,vec3(-.74,-.12,-.66),.14,vec3(.05,.13,.32),vec3(.18,.46,.62),4.0);
+        gasClouds+=cloud(n,vec3(.24,-.58,.78),.12,vec3(.3,.05,.05),vec3(.7,.24,.18),8.0);
+        gasClouds+=cloud(n,vec3(-.35,.82,.42),.2,vec3(.04,.16,.17),vec3(.14,.36,.36),12.0)*.8;
+        sky+=gasClouds*1.9;
+        float far=galaxy(n,vec3(-.42,.36,-.83),vec3(.3,1.0,.1),.011,.0038)
+          +galaxy(n,vec3(.81,.1,-.58),vec3(1.0,.4,.2),.007,.0045)
+          +galaxy(n,vec3(-.1,-.86,-.5),vec3(.6,.2,1.0),.009,.003)
+          +galaxy(n,vec3(.5,.62,.6),vec3(.1,.3,1.0),.006,.0022);
+        sky+=vec3(.95,.85,.72)*far*.5;
+        gl_FragColor=vec4(sky*.5,1.0);
        }`,
       side: THREE.BackSide,
       depthWrite: false,
@@ -154,7 +185,7 @@ export function createNebula(renderer: THREE.WebGLRenderer) {
     }),
   );
   bake.add(source);
-  const target = new THREE.WebGLCubeRenderTarget(768, {
+  const target = new THREE.WebGLCubeRenderTarget(size, {
     type: THREE.HalfFloatType,
   });
   new THREE.CubeCamera(1, 100, target).update(renderer, bake);

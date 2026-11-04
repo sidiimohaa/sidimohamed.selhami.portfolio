@@ -25,7 +25,7 @@ Next.js App Router, React, TypeScript, Tailwind CSS 4, Motion, Three.js et Lucid
 - Échap : fermer une interface. Le logo ORBITAL ou le bouton de retour réinitialise le voyage. Le bouton ? affiche les commandes.
 - Audio désactivé au départ ; le bouton sonore active une ambiance synthétisée localement.
 
-Les quatre visuels fournis par l’utilisateur sont conservés dans public/planets/, avec celui de Hoth (`hoth.png`), généré dans le même style, et projetés sur des sphères 3D sans étirement de leurs globes déjà éclairés. Ils servent aussi à la carte et aux aperçus de destination. Le filtrage anisotrope, les mipmaps et une résolution de rendu adaptée aux écrans Retina préservent les détails. La géométrie et les textures procédurales précédentes servent de repli si un visuel ne se charge pas. Le préloader attend la fin du chargement des images. La géométrie du vaisseau et la lueur de sortie d’hyperespace (en CSS) sont générées localement. Les textures procédurales de repli ne sont calculées que si une image échoue, et les shaders sont compilés avant la fin du chargement, pour que l’écran de chargement reste fluide. Aucun asset distant requis. Le mode mouvement réduit est respecté. Une vue simplifiée permet de naviguer sans WebGL.
+Les quatre visuels fournis par l’utilisateur sont conservés dans public/planets/, avec celui de Hoth (`hoth.jpg`), généré dans le même style, en JPEG qualité 88 (600 Ko pour les cinq, contre 3,2 Mo en PNG), et projetés sur des sphères 3D sans étirement de leurs globes déjà éclairés. Ils servent aussi à la carte et aux aperçus de destination. Le filtrage anisotrope, les mipmaps et une résolution de rendu adaptée aux écrans Retina préservent les détails. La géométrie et les textures procédurales précédentes servent de repli si un visuel ne se charge pas. Le préloader attend la fin du chargement des images. La géométrie du vaisseau et la lueur de sortie d’hyperespace (en CSS) sont générées localement. Les textures procédurales de repli ne sont calculées que si une image échoue, et les shaders sont compilés avant la fin du chargement, pour que l’écran de chargement reste fluide. Aucun asset distant requis. Le mode mouvement réduit est respecté. Une vue simplifiée permet de naviguer sans WebGL.
 
 Les noms de planètes sont des références à Star Wars ; il s’agit d’un portfolio conceptuel indépendant.
 
@@ -187,3 +187,20 @@ Toutes les données viennent de `components/deathStar/cvData.ts`, tirées du CV 
 - Le visiteur se retrouve dans le cockpit du X-wing, lumières d'alerte allumées. Le briefing rappelle l'adresse introuvable et propose de traverser le champ d'astéroïdes ou de rentrer sur ORBITAL. Le CV et le contact restent à un clic.
 - Le jeu est l'Asteroid Survival de la Galactic Arcade, avec son HUD, sa pause et ses règles. Chaque vol compte dans l'arcade (score, record, crédits). À la fin, on peut rejouer ou rentrer.
 - Sans WebGL, la page garde le briefing et les liens, sans le jeu.
+
+## Pont du vaisseau · accueil, instruments et réglages
+
+- **Accueil** (`components/bridge/BridgeWelcome.tsx`) : après la sortie d'hyperespace, les consoles s'allument une à une, puis trois accès réels : explorer la galaxie (vol libre), accéder au cockpit (carte stellaire) ou découvrir le portfolio (mode recruteur de l'Étoile de la Mort). L'accueil se passe (bouton ou Échap) et ne revient qu'une fois par visite.
+- **En-tête** : à gauche la navigation (rang Jedi, carte stellaire, scanner), à droite le mode recruteur puis une capsule des systèmes de bord (photo, retour au départ, son, réglages, commandes) avec infobulles. Toutes les commandes partagent la même forme de pilule en verre. Une aide de vol discrète reste en bas de l'écran jusqu'au premier pilotage.
+- **Mode recruteur direct** : bouton permanent dans l'en-tête, ou lien `/?recruteur` (ou `/#recruteur`) qui ouvre le dossier dès l'arrivée.
+- **Espace** (`components/deepSpace.ts`, `components/spaceAmbience.ts`) : trois couches d'étoiles à des profondeurs différentes (parallaxe), poussière autour du vaisseau, soleil avec reflets d'objectif dans l'axe de la lumière principale, et un ciel précalculé avec bande galactique, quatre nébuleuses et quelques galaxies lointaines.
+- **Planètes** (`components/planetMaterial.ts`) : reflets du soleil sur la glace de Hoth et les océans d'Endor, bande chaude au terminateur, limbe atmosphérique qui rougit au crépuscule.
+- **Instruments** : scanner galactique (touche R) avec distances, mondes explorés, accès et un signal mystérieux tiré des missions secrètes ; transmissions du copilote à l'approche et en orbite, construites à partir des données des destinations ; bouton « Passer » pendant les trajets ; mode photo (interface masquée, focale réglable, capture PNG).
+- **Réglages** (`components/graphicsQuality.ts`, `components/bridge/BridgeSettings.tsx`) : profils Ultra, Élevé, Moyen et Économie, ou automatique (estimation matérielle puis baisse d'un cran si la cadence mesurée passe sous 38 images/s) ; réduction des animations en plus de la préférence système ; roulis du vaisseau ; transmissions du copilote ; son.
+
+## Performances
+
+- **Premier chargement** : three.js n'est plus dans le JavaScript initial. La scène « Ordre 66 » et la scène 3D de la page 404 (`components/notFound/lostScene.ts`) se chargent à la demande ; l'interface de la 404 s'affiche avant elles. JavaScript initial : 0,83 Mo (264 Ko compressés), contre 1,44 Mo auparavant.
+- **Images** : les cinq planètes passent en JPEG (0,6 Mo au lieu de 3,2 Mo), et le préchargeur attend moins longtemps sur une connexion lente.
+- **Rendu** : canvas spatial opaque (moins de composition), ciel précalculé en 512 px sur le profil Élevé, reflets d'objectif réservés aux profils Élevé et Ultra.
+- **Mesure locale** (build statique, Mac, écran Retina, profil Élevé) : 1,0 Mo transféré à l'arrivée, 60 images/s au repos comme en vol, pire image 18 ms, 23 Mo de mémoire JavaScript.

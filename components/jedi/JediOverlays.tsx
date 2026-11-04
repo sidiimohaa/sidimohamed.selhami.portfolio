@@ -4,7 +4,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, X } from "lucide-react";
 import { XP_PER_MISSION, useJediProgression, type Mission, type Rank } from "../jediProgression";
 import { RankBadge } from "./RankBadge";
-import { OrderSixtySixScene } from "./OrderSixtySix";
+import dynamic from "next/dynamic";
+// The Order 66 scene needs three.js: it loads only when its transmission opens.
+const OrderSixtySixScene = dynamic(() => import("./OrderSixtySix").then((module) => module.OrderSixtySixScene), { ssr: false });
 
 // Everything the progression shows outside the cockpit terminal: the "mission accomplie" toast,
 // the rank ceremonies, the discreet widget, and the screens a few missions open.

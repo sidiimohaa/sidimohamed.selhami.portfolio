@@ -5,11 +5,9 @@ import { destinations } from "./universe";
 import { createPlanetLayers } from "./planetMaterial";
 import { createShipModel } from "./shipModel";
 import { equippedValue, getArcade, onArcadeChange } from "./arcade/arcadeStore";
-import {
-  createNebula,
-  createShootingStars,
-  createStarfield,
-} from "./spaceAmbience";
+import { createNebula, createShootingStars } from "./spaceAmbience";
+import { createSpaceDust, createStarLayers, createSun } from "./deepSpace";
+import { qualityProfiles, type QualityId } from "./graphicsQuality";
 import { createSpaceTraffic, type HyperspacePhase } from "./spaceTraffic";
 import { createApproachFlight } from "./approachFlight";
 export type FlightState = {
@@ -23,6 +21,16 @@ export type FlightState = {
   hidden: boolean;
   resetKey: number;
   droidSignal: number;
+  // The graphics profile in force (resolution, star density, dust, flare).
+  quality: QualityId;
+  // The slow idle sway of the ship, which the visitor can switch off.
+  sway: boolean;
+  // Photo mode: the interface is hidden and the field of view can be set by hand.
+  photo: boolean;
+  fov: number | null;
+  // Changing these keys asks for a capture of the frame, or ends the approach flight at once.
+  captureKey: number;
+  skipKey: number;
 };
 export type FlightTelemetry = {
   throttle: number;
@@ -30,6 +38,8 @@ export type FlightTelemetry = {
   manual: boolean;
   target: number | null;
   approachProgress: number;
+  // Distance from the ship to each world's surface, in scene units.
+  distances: number[];
 };
 type Props = {
   onFlight: (telemetry: FlightTelemetry) => void;
@@ -40,6 +50,9 @@ type Props = {
   onSelect: (index: number) => void;
   onReady: () => void;
   onUnsupported: () => void;
+  // Average frame rate over the last few seconds of drawing, for the automatic graphics profile.
+  onPerformance?: (fps: number) => void;
+  onCapture?: (image: Blob | null) => void;
 };
 function random(seed: number) {
   let s = seed;
@@ -307,6 +320,8 @@ export default function SpaceScene({
   onHyperspace,
   onReady,
   onUnsupported,
+  onPerformance,
+  onCapture,
 }: Props) {
   const mount = useRef<HTMLDivElement>(null),
     live = useRef(state);
@@ -319,7 +334,11 @@ export default function SpaceScene({
   const hovered = useRef<number | null>(null),
     flightCallback = useRef(onFlight),
     approachCallback = useRef(onApproachComplete),
-    hyperspaceCallback = useRef(onHyperspace);
+    hyperspaceCallback = useRef(onHyperspace),
+    performanceCallback = useRef(onPerformance),
+    captureCallback = useRef(onCapture);
+  performanceCallback.current = onPerformance;
+  captureCallback.current = onCapture;
   flightCallback.current = onFlight;
   approachCallback.current = onApproachComplete;
   hyperspaceCallback.current = onHyperspace;
@@ -330,8 +349,9 @@ export default function SpaceScene({
     const referenceTextures = new Set<THREE.Texture>();
     let renderer: THREE.WebGLRenderer;
     try {
+      // Opaque: the sky dome covers every pixel, so a transparent canvas only cost compositing.
       renderer = new THREE.WebGLRenderer({
-        alpha: true,
+        alpha: false,
         antialias: true,
         powerPreference: "high-performance",
       });
@@ -340,10 +360,10 @@ export default function SpaceScene({
       onReady();
       return;
     }
-    renderer.setPixelRatio(
-      Math.min(window.devicePixelRatio, window.innerWidth < 600 ? 2 : 2.25),
-    );
-    renderer.setClearColor(0x000000, 0);
+    let quality = state.quality,
+      profile = qualityProfiles[quality] ?? qualityProfiles.high;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, profile.pixelRatio));
+    renderer.setClearColor(0x020407, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.25;
@@ -360,11 +380,15 @@ export default function SpaceScene({
     rim.position.set(6, -5, 8);
     scene.add(rim);
     const rand = random(74);
-    const nebula = createNebula(renderer);
+    const nebula = createNebula(renderer, profile.sky);
     scene.add(nebula.dome);
-    const starfield = createStarfield(renderer.getPixelRatio()),
-      stars = starfield.points;
-    scene.add(stars);
+    // Three star shells at different depths, dust around the hull and the sun along the key light.
+    const starLayers = createStarLayers(renderer.getPixelRatio(), profile.stars);
+    scene.add(starLayers.group);
+    const dust = createSpaceDust(qualityProfiles.ultra.dust, renderer.getPixelRatio());
+    scene.add(dust.points);
+    const sunBody = createSun(sun.position);
+    scene.add(sunBody.group);
     const shootingStars = createShootingStars();
     scene.add(shootingStars.group);
     const planets: THREE.Group[] = [];
@@ -775,8 +799,15 @@ export default function SpaceScene({
       lastManual = false,
       lastTarget: number | null = null,
       lastBoost = false;
+    const distances = destinations.map(() => 0);
+    let lastCapture = state.captureKey,
+      lastSkip = state.skipKey;
+    // Frame-rate sampling for the automatic profile: only while space is actually being flown.
+    let sampleFrames = 0,
+      sampleTime = 0;
     const animate = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
+      const raw = now - last,
+        dt = Math.min(raw / 1000, 0.05);
       last = now;
       const s = live.current;
       // While the visitor is on a planet's surface, space keeps its state but stops drawing.
@@ -788,6 +819,24 @@ export default function SpaceScene({
         return;
       }
       elapsed += dt;
+      if (s.quality !== quality) {
+        quality = s.quality;
+        profile = qualityProfiles[quality] ?? qualityProfiles.high;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, profile.pixelRatio));
+        starLayers.setPixelRatio(renderer.getPixelRatio());
+        dust.setPixelRatio(renderer.getPixelRatio());
+        resize();
+      }
+      // A long gap (a background tab, a dropped frame burst) is not a measure of the GPU.
+      if (!s.paused && !document.hidden && raw < 250) {
+        sampleFrames++;
+        sampleTime += raw;
+        if (sampleTime > 5000) {
+          performanceCallback.current?.((sampleFrames * 1000) / sampleTime);
+          sampleFrames = 0;
+          sampleTime = 0;
+        }
+      } else sampleFrames = sampleTime = 0;
       if (s.resetKey !== lastReset) {
         camera.position.set(0, 0, baseZ);
         heading.yaw = view.yaw = 0;
@@ -821,6 +870,7 @@ export default function SpaceScene({
         release();
         velocity.set(0, 0, 0);
       }
+      if (!s.travel) lastSkip = s.skipKey;
       if (!s.travel && approach) {
         settling = !approach.completed && !s.reduced;
         approach = null;
@@ -846,7 +896,11 @@ export default function SpaceScene({
           settling = false;
         }
         const wasComplete = approach.completed;
-        if (!s.paused) approach.update(dt);
+        // Skipping the trip plays the rest of the approach in a single step.
+        if (s.skipKey !== lastSkip) {
+          lastSkip = s.skipKey;
+          approach.update(3600);
+        } else if (!s.paused) approach.update(dt);
         cameraAttitude.setFromQuaternion(camera.quaternion, "YXZ");
         heading.yaw = view.yaw = cameraAttitude.y;
         heading.pitch = view.pitch = cameraAttitude.x;
@@ -935,7 +989,14 @@ export default function SpaceScene({
         if (settling) ship.position.lerp(shipPosition, 1 - Math.exp(-dt * 9));
         else ship.position.copy(shipPosition);
         // Nose into the turn and bank about the flight axis, as the autopilot does.
-        modelRotation.set(stick.y * 0.1, -stick.x * 0.12, bank, "YXZ");
+        // At rest the craft rides a slow swell, unless the visitor switched it off.
+        const swell = s.sway && !s.reduced && !s.paused ? 1 : 0;
+        modelRotation.set(
+          stick.y * 0.1 + Math.sin(elapsed * 0.45) * 0.012 * swell,
+          -stick.x * 0.12,
+          bank + Math.sin(elapsed * 0.32 + 1.1) * 0.022 * swell,
+          "YXZ",
+        );
         modelQuaternion.setFromEuler(modelRotation).multiply(bodyBase);
         modelQuaternion.premultiply(flightQuaternion);
         if (settling) {
@@ -948,8 +1009,10 @@ export default function SpaceScene({
         } else ship.quaternion.copy(modelQuaternion);
         // The view widens a touch with speed, as on autopilot.
         const baseFov =
-          (camera.aspect < 0.8 ? 52 : 50) +
-          (s.reduced ? 0 : Math.min(1, velocity.length() / 16) * 3);
+          s.photo && s.fov
+            ? s.fov
+            : (camera.aspect < 0.8 ? 52 : 50) +
+              (s.reduced ? 0 : Math.min(1, velocity.length() / 16) * 3);
         if (camera.fov !== baseFov) {
           camera.fov = THREE.MathUtils.damp(camera.fov, baseFov, settling ? 9 : 3, dt);
           if (Math.abs(camera.fov - baseFov) < 0.001) camera.fov = baseFov;
@@ -998,7 +1061,9 @@ export default function SpaceScene({
       const lively = s.paused || s.reduced ? 0 : dt;
       placeDebris(lively);
       placePatrols(lively);
-      starfield.tick(elapsed, s.reduced);
+      starLayers.update(camera, elapsed, s.reduced);
+      dust.update(camera, s.reduced ? profile.dust * 0.5 : profile.dust);
+      sunBody.update(camera, profile.flare);
       nebula.dome.position.copy(camera.position);
       shootingStars.tick(
         lively,
@@ -1057,8 +1122,6 @@ export default function SpaceScene({
         button.style.transform = `translate(${(projected.x * 0.5 + 0.5) * el.clientWidth - 18}px,${(-projected.y * 0.5 + 0.5) * el.clientHeight - 18}px)`;
         button.dataset.active = String(droidActive);
       }
-      // Retain a little translational parallax while recycling the distant star volume.
-      stars.position.copy(camera.position).multiplyScalar(0.92);
       let aimed: number | null = null,
         closest = 0.42;
       if (!s.paused && !s.travel && s.flying) {
@@ -1124,6 +1187,7 @@ export default function SpaceScene({
             0,
             ship.position.distanceTo(planet.position) - radii[index],
           );
+          distances[index] = range;
           const text = `DISTANCE · ${distanceFormat.format(Math.round(range * 10) * 10)} km`;
           if (label.textContent !== text) label.textContent = text;
         }
@@ -1144,6 +1208,7 @@ export default function SpaceScene({
           manual: thrusting,
           target: aimed,
           approachProgress: approach?.progress ?? 0,
+          distances,
         });
         lastTelemetry = now;
         lastManual = thrusting;
@@ -1151,6 +1216,11 @@ export default function SpaceScene({
         lastBoost = fast;
       }
       renderer.render(scene, camera);
+      // The drawing buffer is read in the same task as the render, before the browser clears it.
+      if (s.captureKey !== lastCapture) {
+        lastCapture = s.captureKey;
+        renderer.domElement.toBlob((image) => captureCallback.current?.(image), "image/png");
+      }
       frame = requestAnimationFrame(animate);
     };
     frame = requestAnimationFrame(animate);
@@ -1159,6 +1229,7 @@ export default function SpaceScene({
       disposed = true;
       referenceTextures.forEach((texture) => texture.dispose());
       nebula.dispose();
+      sunBody.dispose();
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("pointermove", pointerMove);

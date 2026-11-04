@@ -15,7 +15,7 @@ export const destinations = [
     tag: "CRÉATION & EXPLORATION",
     number: "01",
     className: "sand",
-    image: "/planets/tatooine.png",
+    image: "/planets/tatooine.jpg",
     reference: {
       width: 894,
       height: 879,
@@ -33,7 +33,7 @@ export const destinations = [
     tag: "CURIOSITÉ & INSPIRATION",
     number: "02",
     className: "forest",
-    image: "/planets/endor.png",
+    image: "/planets/endor.jpg",
     reference: {
       width: 736,
       height: 736,
@@ -52,7 +52,7 @@ export const destinations = [
     tag: "RENCONTRES & CONNEXIONS",
     number: "03",
     className: "city",
-    image: "/planets/coruscant.png",
+    image: "/planets/coruscant.jpg",
     reference: {
       width: 1000,
       height: 1000,
@@ -70,7 +70,7 @@ export const destinations = [
     tag: "ARCHIVES IMPÉRIALES",
     number: "04",
     className: "death-star",
-    image: "/planets/death-star.png",
+    image: "/planets/death-star.jpg",
     reference: {
       width: 720,
       height: 700,
@@ -88,7 +88,7 @@ export const destinations = [
     tag: "FORMATIONS & DIPLÔMES",
     number: "05",
     className: "ice",
-    image: "/planets/hoth.png",
+    image: "/planets/hoth.jpg",
     reference: {
       width: 900,
       height: 900,

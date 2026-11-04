@@ -2,12 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { Download, Home, Mail, Play, RotateCcw, Volume2, VolumeX } from "lucide-react";
-import * as THREE from "three";
-import { createCockpitModel } from "../cockpitModel";
-import { createCockpitSystems } from "../cockpitSystems";
-import { createStarfield } from "../spaceAmbience";
 import { createArcadeAudio, type ArcadeAudio } from "../arcade/arcadeAudio";
-import { equippedValue, getArcade, recordResult, type GameResult, type ResultSummary } from "../arcade/arcadeStore";
+import { recordResult, type GameResult, type ResultSummary } from "../arcade/arcadeStore";
 import type { CockpitGameRuntime, CockpitGameView } from "../arcade/cockpitGames";
 import { CV_PDF, identity } from "../deathStar/cvData";
 
@@ -128,70 +124,20 @@ export default function LostSector() {
     setPath(decodeURIComponent(window.location.pathname));
   }, []);
 
-  // The cockpit and its starfield, loaded behind the failed jump.
+  // The cockpit and its starfield, loaded behind the failed jump. three.js comes with them, after
+  // the briefing is already readable.
   useEffect(() => {
     const el = mount.current;
     if (!el) return;
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    } catch {
-      setGraphics(false);
-      return;
-    }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 600 ? 1.75 : 2));
-    renderer.setClearColor(0x03080e, 1);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
-    renderer.domElement.setAttribute("aria-hidden", "true");
-    el.append(renderer.domElement);
-    const world = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 600);
-    const cockpit = createCockpitModel();
-    const systems = createCockpitSystems();
-    cockpit.add(systems.group);
-    const stars = createStarfield(renderer.getPixelRatio());
-    world.add(cockpit, stars.points);
-    world.add(new THREE.HemisphereLight(0x8da9c9, 0x151b26, 1.5));
-    const key = new THREE.DirectionalLight(0xd3c4ad, 2.6);
-    key.position.set(-2, 4, 4);
-    world.add(key);
-    // Warning lights: the cabin glows red until the visitor takes the controls.
-    const alert = new THREE.PointLight(0xff4a3a, 4, 7, 2);
-    alert.position.set(0, 2.2, 1.2);
-    world.add(alert);
-    const fill = new THREE.PointLight(0x709cc6, 4, 7, 2);
-    fill.position.set(1.6, 2.2, 1.4);
-    world.add(fill);
-    const eye = new THREE.Vector3(0, 1.55, 2.9),
-      look = new THREE.Vector3(0, 1.35, -3.4);
-    const resize = () => {
-      const w = el.clientWidth || window.innerWidth,
-        h = el.clientHeight || window.innerHeight;
-      camera.aspect = w / Math.max(h, 1);
-      if (!runtime.current) camera.fov = camera.aspect < 0.8 ? 58 : 52;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-    const observer = new ResizeObserver(resize);
-    observer.observe(el);
-    resize();
-    let generation = 0,
-      removed = false;
-    scene.current = {
-      start: async () => {
-        const token = ++generation;
-        const module = await import("../arcade/cockpitGames");
-        if (removed || token !== generation) return;
-        runtime.current?.dispose();
-        runtime.current = module.createCockpitGame({
-          kind: "asteroid-survival",
-          scene: world,
-          camera,
-          reduced: live.current.reduced,
-          audio: audio.current,
-          trail: equippedValue(getArcade(), "engine"),
+    let removed = false,
+      created: { dispose: () => void } | null = null;
+    import("./lostScene")
+      .then(({ createLostScene }) => {
+        if (removed) return;
+        const lost = createLostScene(el, {
+          runtime,
+          audio,
+          reduced: () => live.current.reduced,
           onView: setView,
           onFinish: (result: GameResult) => {
             const saved = recordResult(result);
@@ -206,51 +152,21 @@ export default function LostSector() {
             );
           },
         });
-      },
-      stop: () => {
-        generation++;
-        runtime.current?.dispose();
-        runtime.current = null;
-        setView(null);
-        resize();
-      },
-    };
-    let frame = 0,
-      last = performance.now(),
-      age = 0;
-    const animate = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
-      last = now;
-      age += dt;
-      const still = live.current.reduced;
-      // At rest the cockpit drifts a little; in the game the runtime moves the ship.
-      camera.position.set(still || runtime.current ? 0 : Math.sin(age * 0.4) * 0.03, eye.y, eye.z);
-      camera.lookAt(look);
-      camera.updateMatrixWorld();
-      alert.intensity = runtime.current ? 0 : still ? 2 : 2 + Math.max(0, Math.sin(age * 4)) * 4;
-      systems.tick(age, 0, still);
-      stars.tick(age, still);
-      runtime.current?.tick(dt, still);
-      renderer.render(world, camera);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
+        if (!lost) {
+          setGraphics(false);
+          return;
+        }
+        created = lost;
+        scene.current = lost;
+      })
+      .catch(() => {
+        if (!removed) setGraphics(false);
+      });
     return () => {
       removed = true;
-      cancelAnimationFrame(frame);
-      observer.disconnect();
       window.clearTimeout(finishTimer.current);
-      runtime.current?.dispose();
-      runtime.current = null;
+      created?.dispose();
       scene.current = null;
-      world.traverse((object) => {
-        const mesh = object as THREE.Mesh;
-        mesh.geometry?.dispose();
-        const material = mesh.material;
-        if (material) (Array.isArray(material) ? material : [material]).forEach((item) => item.dispose());
-      });
-      renderer.dispose();
-      renderer.domElement.remove();
     };
   }, []);
 

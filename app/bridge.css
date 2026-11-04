@@ -1,0 +1,799 @@
+/* The bridge interface: welcome, instruments dock, copilot, scanner, photo mode and settings.
+   Holographic cyan for systems, white for data, amber for the primary action and alerts. */
+
+:root {
+  --holo: #8fe4ff;
+  --holo-soft: rgba(143, 228, 255, 0.28);
+  --holo-faint: rgba(143, 228, 255, 0.1);
+  --glass: rgba(6, 12, 22, 0.74);
+  --amber: #ffb35c;
+}
+
+/* Header: navigation on the left, the recruiter record and the ship's systems on the right.
+   One shape for every control: a glass pill, cyan for systems, amber for the record. */
+.header .bridge-nav,
+.header .bridge-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+.header .bridge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  margin: 0;
+  padding: 0 15px;
+  border: 1px solid var(--holo-faint);
+  border-radius: 999px;
+  background: rgba(6, 12, 22, 0.5);
+  backdrop-filter: blur(6px);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #dff3ff;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    transform 0.15s;
+}
+.header .bridge-pill svg {
+  color: var(--holo);
+}
+.header .bridge-pill:hover,
+.header .bridge-pill:focus-visible {
+  border-color: var(--holo-soft);
+  background: rgba(16, 36, 54, 0.66);
+  color: #fff;
+}
+.header .bridge-pill:active {
+  transform: scale(0.97);
+}
+.header .bridge-pill.recruiter-trigger {
+  border-color: rgba(255, 179, 92, 0.45);
+  background: rgba(60, 32, 8, 0.45);
+  color: var(--amber);
+}
+.header .bridge-pill.recruiter-trigger svg {
+  color: var(--amber);
+}
+.header .bridge-pill.recruiter-trigger:hover,
+.header .bridge-pill.recruiter-trigger:focus-visible {
+  border-color: rgba(255, 179, 92, 0.8);
+  background: rgba(96, 52, 14, 0.6);
+  color: #ffd9a8;
+}
+/* The Jedi rank gauge takes the same pill shape as its neighbours. */
+.header .jedi-widget-chip {
+  height: 38px;
+  min-height: 0;
+  padding: 0 14px;
+  border-color: var(--holo-faint);
+  border-radius: 999px;
+  background: rgba(6, 12, 22, 0.5);
+  backdrop-filter: blur(6px);
+}
+.header .jedi-widget-chip:hover,
+.header .jedi-widget-chip:focus-visible {
+  border-color: var(--holo-soft);
+  background: rgba(16, 36, 54, 0.66);
+}
+.bridge-capsule {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 0 3px;
+  border: 1px solid var(--holo-faint);
+  border-radius: 999px;
+  background: rgba(6, 12, 22, 0.5);
+  backdrop-filter: blur(6px);
+}
+.header .bridge-capsule .sound-button {
+  position: relative;
+  width: 34px;
+  height: 32px;
+  border: 0;
+  color: #b9cfdd;
+}
+.header .bridge-capsule .sound-button:hover,
+.header .bridge-capsule .sound-button:focus-visible,
+.header .bridge-capsule .sound-button.on {
+  background: rgba(143, 228, 255, 0.12);
+  color: #fff;
+}
+.header .bridge-capsule .sound-button.on {
+  color: var(--holo);
+}
+/* The name of each system shows on hover and on keyboard focus. */
+.bridge-capsule [data-tip]:hover::after,
+.bridge-capsule [data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border: 1px solid var(--holo-faint);
+  border-radius: 6px;
+  background: rgba(6, 12, 22, 0.92);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: #e9f4ff;
+  pointer-events: none;
+}
+
+/* The flight primer, at the bottom centre until the visitor has flown. */
+.flight-hint {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 28px;
+  z-index: 11;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 9px 16px;
+  border: 1px solid var(--holo-faint);
+  border-radius: 999px;
+  background: rgba(6, 12, 22, 0.45);
+  backdrop-filter: blur(6px);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: rgba(233, 244, 255, 0.62);
+  pointer-events: none;
+  text-align: center;
+}
+.flight-hint b {
+  font-weight: 600;
+  color: var(--holo);
+}
+.flight-hint i {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 10px 2px;
+  border-radius: 50%;
+  background: rgba(143, 228, 255, 0.4);
+}
+.flight-hint-touch {
+  display: none;
+}
+@media (pointer: coarse) {
+  .flight-hint-desktop {
+    display: none;
+  }
+  .flight-hint-touch {
+    display: inline;
+  }
+}
+
+/* Welcome. */
+.bridge-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 96px 40px 40px;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(2, 5, 10, 0.72), rgba(2, 5, 10, 0.2) 55%, transparent);
+}
+.bridge-panel {
+  pointer-events: auto;
+  width: min(540px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 24px 26px 22px;
+  border: 1px solid var(--holo-soft);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(143, 228, 255, 0.06), transparent 40%),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(143, 228, 255, 0.025) 3px 4px),
+    var(--glass);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+.bridge-panel-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--holo);
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--holo-faint);
+}
+.bridge-skip {
+  padding: 6px 12px;
+  border: 1px solid var(--holo-soft);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #e9f4ff;
+}
+.bridge-skip:hover {
+  border-color: var(--holo);
+}
+.bridge-boot {
+  list-style: none;
+  margin: 14px 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+}
+.bridge-boot li {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(233, 244, 255, 0.35);
+  transition: color 0.25s;
+}
+.bridge-boot li::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: 4px 10px 0 0;
+  border-radius: 50%;
+  background: rgba(143, 228, 255, 0.2);
+  transition:
+    background 0.25s,
+    box-shadow 0.25s;
+}
+.bridge-boot li span {
+  flex: 1;
+}
+.bridge-boot li em {
+  font-style: normal;
+}
+.bridge-boot li[data-online="true"] {
+  color: #e9f4ff;
+}
+.bridge-boot li[data-online="true"]::before {
+  background: var(--holo);
+  box-shadow: 0 0 8px var(--holo);
+}
+.bridge-boot li[data-online="true"] em {
+  color: var(--holo);
+}
+.bridge-greeting h2 {
+  margin: 16px 0 8px;
+  font-size: clamp(24px, 3.2vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #f4f9ff;
+}
+.bridge-greeting p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(233, 244, 255, 0.78);
+}
+.bridge-greeting strong {
+  color: #fff;
+  font-weight: 600;
+}
+.bridge-choices {
+  display: grid;
+  gap: 8px;
+}
+.bridge-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 16px;
+  border: 1px solid var(--holo-soft);
+  border-radius: 10px;
+  background: rgba(10, 22, 36, 0.6);
+  color: #e9f4ff;
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    transform 0.2s;
+}
+.bridge-choice svg {
+  flex: none;
+  color: var(--holo);
+}
+.bridge-choice span {
+  display: grid;
+  gap: 3px;
+}
+.bridge-choice b {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+.bridge-choice small {
+  font-size: 12.5px;
+  color: rgba(233, 244, 255, 0.66);
+}
+.bridge-choice:hover:not(:disabled),
+.bridge-choice:focus-visible {
+  border-color: var(--holo);
+  background: rgba(24, 52, 72, 0.7);
+  transform: translateX(3px);
+}
+.bridge-choice:active:not(:disabled) {
+  transform: translateX(3px) scale(0.99);
+}
+.bridge-choice.is-primary {
+  border-color: rgba(255, 179, 92, 0.55);
+  background: rgba(70, 38, 10, 0.55);
+}
+.bridge-choice.is-primary svg {
+  color: var(--amber);
+}
+.bridge-choice.is-primary:hover:not(:disabled),
+.bridge-choice.is-primary:focus-visible {
+  border-color: var(--amber);
+  background: rgba(110, 60, 16, 0.65);
+}
+.bridge-choice:disabled {
+  cursor: default;
+}
+.bridge-cv {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: var(--holo);
+  text-decoration: none;
+}
+.bridge-cv:hover {
+  text-decoration: underline;
+}
+
+/* Copilot. */
+.copilot-comm {
+  position: absolute;
+  top: 92px;
+  left: 40px;
+  z-index: 11;
+  width: min(360px, calc(100% - 32px));
+  padding: 12px 14px 10px;
+  border: 1px solid var(--holo-soft);
+  border-left: 3px solid var(--holo);
+  border-radius: 8px;
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+}
+/* The approach badge sits at the top centre: on narrower screens the message steps below it. */
+@media (max-width: 1100px) {
+  .is-travelling .copilot-comm {
+    top: 136px;
+  }
+}
+.copilot-comm-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--holo);
+}
+.copilot-comm-top span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.copilot-comm-top button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: #c9dcea;
+}
+.copilot-comm p {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #e9f4ff;
+}
+.copilot-silence {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: rgba(233, 244, 255, 0.55);
+  padding: 4px 0;
+}
+.copilot-silence:hover {
+  color: var(--holo);
+}
+
+/* Skip the trip. */
+.course-badge .course-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  padding: 0 8px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+/* Scanner. */
+.galactic-scanner {
+  position: fixed;
+  inset: 0;
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: radial-gradient(circle at 50% 50%, rgba(4, 18, 28, 0.35), rgba(2, 5, 10, 0.78));
+}
+.scanner-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.scanner-sweep::before,
+.scanner-sweep::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+}
+.scanner-sweep::before {
+  width: 220vmax;
+  height: 220vmax;
+  border: 2px solid rgba(143, 228, 255, 0.7);
+  box-shadow:
+    0 0 40px rgba(143, 228, 255, 0.4),
+    inset 0 0 120px rgba(143, 228, 255, 0.18);
+  animation: scanner-ring 1.5s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+.scanner-sweep::after {
+  width: 160vmax;
+  height: 160vmax;
+  background: conic-gradient(from 0deg, rgba(143, 228, 255, 0.22), transparent 18%);
+  transform: translate(-50%, -50%) scale(1);
+  animation: scanner-turn 1.5s linear forwards;
+}
+@keyframes scanner-ring {
+  70% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+@keyframes scanner-turn {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+    opacity: 0;
+  }
+}
+.scanner-panel {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 22px 24px;
+  border: 1px solid var(--holo-soft);
+  border-radius: 14px;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  color: #e9f4ff;
+}
+.scanner-panel .modal-top {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--holo);
+  border-bottom-color: var(--holo-faint);
+}
+.scanner-panel .modal-top span {
+  gap: 8px;
+}
+.scanner-panel h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  font-weight: 500;
+}
+.scanner-contacts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.scanner-contact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--holo-faint);
+  border-radius: 10px;
+  background: rgba(143, 228, 255, 0.04);
+}
+.scanner-portrait {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-repeat: no-repeat;
+  box-shadow: 0 0 0 1px var(--holo-soft);
+}
+.scanner-contact > span {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.scanner-contact b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.scanner-contact small {
+  font-size: 12px;
+  color: rgba(233, 244, 255, 0.7);
+}
+.scanner-contact em {
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--holo);
+}
+.scanner-contact .text-button {
+  flex: none;
+  min-height: 40px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #e9f4ff;
+}
+.scanner-contact .text-button:hover {
+  color: var(--amber);
+}
+.scanner-signal {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--holo-faint);
+}
+.scanner-signal > span {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--holo);
+}
+.scanner-signal p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(233, 244, 255, 0.82);
+}
+.scanner-signal p b {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+}
+
+/* Photo mode: the interface steps aside. */
+.photo-mode .header,
+.photo-mode .planet-hit,
+.photo-mode .droid-hit,
+.photo-mode .orbit-card,
+.photo-mode .course-badge,
+.photo-mode .jedi-toasts,
+.photo-mode .grain {
+  display: none !important;
+}
+/* Centred with margins rather than a transform, which the entrance animation owns. */
+.photo-bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 24px;
+  z-index: 30;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  padding: 10px 14px;
+  border: 1px solid var(--holo-soft);
+  border-radius: 14px;
+  background: rgba(6, 12, 22, 0.6);
+  backdrop-filter: blur(8px);
+  color: #e9f4ff;
+}
+.photo-hint {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: rgba(233, 244, 255, 0.6);
+}
+.photo-fov {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--holo);
+}
+.photo-fov input {
+  width: 120px;
+  accent-color: var(--holo);
+}
+.photo-fov output {
+  min-width: 30px;
+  color: #e9f4ff;
+}
+.photo-shoot,
+.photo-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--holo-soft);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+.photo-shoot {
+  border-color: rgba(255, 179, 92, 0.6);
+  color: var(--amber);
+}
+.photo-shoot:hover,
+.photo-close:hover {
+  border-color: #e9f4ff;
+}
+
+/* Settings. */
+.bridge-settings {
+  width: min(520px, 100%);
+}
+.bridge-settings .modal-top {
+  margin-bottom: 18px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+}
+.bridge-settings h2 {
+  font-size: clamp(24px, 3vw, 32px);
+  letter-spacing: -0.02em;
+}
+.bridge-quality {
+  margin: 8px 0 18px;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 6px;
+}
+.bridge-quality legend,
+.bridge-toggles {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: #9fb0a0;
+}
+.bridge-quality legend {
+  margin-bottom: 8px;
+}
+.bridge-quality label,
+.bridge-toggles label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: normal;
+}
+.bridge-quality label[data-checked="true"] {
+  border-color: var(--holo-soft);
+  background: rgba(143, 228, 255, 0.05);
+}
+.bridge-quality input,
+.bridge-toggles input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--holo);
+}
+.bridge-quality span,
+.bridge-toggles span {
+  display: grid;
+  gap: 2px;
+}
+.bridge-quality b,
+.bridge-toggles b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cream);
+}
+.bridge-quality small,
+.bridge-toggles small {
+  font-size: 12px;
+  color: #9fa89a;
+}
+.bridge-toggles {
+  display: grid;
+  gap: 6px;
+}
+.bridge-toggles input:disabled + span {
+  opacity: 0.75;
+}
+
+@media (max-width: 600px) {
+  .header .bridge-nav,
+  .header .bridge-actions {
+    gap: 6px;
+  }
+  .header .bridge-pill {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .header .bridge-pill span {
+    display: none;
+  }
+  .bridge-capsule {
+    height: 36px;
+    padding: 0 2px;
+    gap: 0;
+  }
+  .header .bridge-capsule .sound-button {
+    width: 29px;
+    height: 32px;
+  }
+  .flight-hint {
+    bottom: 20px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+  .bridge-welcome {
+    padding: 80px 12px 12px;
+    align-items: flex-end;
+    background: linear-gradient(0deg, rgba(2, 5, 10, 0.85), rgba(2, 5, 10, 0.25) 60%, transparent);
+  }
+  .bridge-panel {
+    padding: 18px 16px 16px;
+  }
+  .bridge-boot {
+    font-size: 9.5px;
+  }
+  .copilot-comm {
+    top: 74px;
+    left: 16px;
+  }
+  .photo-hint {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scanner-sweep {
+    display: none;
+  }
+  .bridge-choice,
+  .bridge-choice:hover:not(:disabled) {
+    transform: none;
+    transition: none;
+  }
+}
