@@ -473,6 +473,7 @@ export default function SpaceScene({
           referenceTextures.add(texture);
           // Upload each image as it arrives rather than all of them on the first frame.
           renderer.initTexture(texture);
+          dirtyFrames = Math.max(dirtyFrames, 2);
           const layered = createPlanetLayers(
             texture,
             destination.reference,
@@ -745,10 +746,14 @@ export default function SpaceScene({
     window.addEventListener("blur", blur);
     window.addEventListener("keydown", keydown);
     window.addEventListener("keyup", keyup);
+    // On-demand drawing (software profile): a few frames after any change, then none at rest.
+    let dirtyFrames = 4;
     const resize = () => {
       const w = el.clientWidth,
         h = el.clientHeight;
       renderer.setSize(w, h);
+      // Resizing clears the canvas: draw again even when nothing moves.
+      dirtyFrames = Math.max(dirtyFrames, 2);
       camera.aspect = w / h;
       camera.fov = w / h < 0.8 ? 52 : 50;
       // On narrow screens, step back until every world fits inside the frame.
@@ -806,12 +811,40 @@ export default function SpaceScene({
     let sampleFrames = 0,
       sampleTime = 0;
     let lastDrawn = 0;
+    let lastSignature = "";
+    // Time spent preparing and drawing each frame: with a software renderer the draw call itself
+    // runs on the processor, so a slow average reveals it whatever the driver claims.
+    let workFrames = 0,
+      workTime = 0,
+      firstFrameAt = 0,
+      slowWindows = 0;
     const animate = (now: number) => {
       // The software profile draws about fifteen frames a second; the time step follows, so the
       // flight keeps its speed.
       if (profile.frameInterval && now - lastDrawn < profile.frameInterval) {
         frame = requestAnimationFrame(animate);
         return;
+      }
+      if (profile.onDemand) {
+        const s = live.current;
+        const signature = `${s.flying}|${s.boost}|${s.destination}|${s.travel}|${s.arrived}|${s.paused}|${s.hidden}|${s.photo}|${s.fov}|${s.resetKey}|${s.quality}|${s.droidSignal}|${s.captureKey}|${s.skipKey}|${hovered.current}`;
+        const moving =
+          keys.size > 0 ||
+          touches.size > 0 ||
+          dragging ||
+          velocity.lengthSq() > 1e-6 ||
+          s.travel ||
+          settling ||
+          Math.abs(stick.x) + Math.abs(stick.y) + Math.abs(bank) > 0.001 ||
+          elapsed - droidAt < 1.5;
+        if (signature !== lastSignature) dirtyFrames = Math.max(dirtyFrames, 3);
+        lastSignature = signature;
+        if (!moving && dirtyFrames <= 0) {
+          last = now;
+          frame = requestAnimationFrame(animate);
+          return;
+        }
+        dirtyFrames = Math.max(0, dirtyFrames - 1);
       }
       lastDrawn = now;
       const raw = now - last,
@@ -828,6 +861,7 @@ export default function SpaceScene({
       }
       elapsed += dt;
       if (s.quality !== quality) {
+        dirtyFrames = 4;
         quality = s.quality;
         profile = qualityProfiles[quality] ?? qualityProfiles.high;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, profile.pixelRatio));
@@ -1224,6 +1258,23 @@ export default function SpaceScene({
         lastBoost = fast;
       }
       renderer.render(scene, camera);
+      // The first second and a half (shader compilation, texture uploads) is not counted, and two
+      // slow windows in a row are needed, so a real graphics card is never mistaken for software.
+      firstFrameAt ||= now;
+      if (now - firstFrameAt > 1500) {
+        workFrames++;
+        workTime += performance.now() - now;
+        if (workFrames >= 6) {
+          const average = workTime / workFrames;
+          slowWindows = average > 80 ? slowWindows + 1 : 0;
+          // Report it as the frame rate it allows: under twelve the profile drops to Minimal.
+          if (slowWindows >= 2) {
+            performanceCallback.current?.(1000 / average);
+            slowWindows = 0;
+          }
+          workFrames = workTime = 0;
+        }
+      }
       // The drawing buffer is read in the same task as the render, before the browser clears it.
       if (s.captureKey !== lastCapture) {
         lastCapture = s.captureKey;

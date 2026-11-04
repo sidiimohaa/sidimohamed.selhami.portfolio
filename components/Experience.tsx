@@ -212,7 +212,10 @@ export default function Experience() {
     }
   }, []);
   const onPerformance = useCallback((fps: number) => {
-    if (getBridgeSettings().quality === "auto" && fps < 38) setAutoQuality((current) => lowerQuality(current));
+    if (getBridgeSettings().quality !== "auto") return;
+    // Under twelve frames a second the machine is drawing in software: straight to Minimal.
+    if (fps < 12) setAutoQuality("lite");
+    else if (fps < 38) setAutoQuality((current) => lowerQuality(current));
   }, []);
   const onCapture = useCallback((image: Blob | null) => {
     setCapturing(false);

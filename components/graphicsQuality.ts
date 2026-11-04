@@ -24,6 +24,9 @@ export type QualityProfile = {
   antialias: boolean;
   // Minimum time between two drawn frames, in milliseconds (0 draws every frame).
   frameInterval: number;
+  // Draw only when something moves (flight, a trip, input, a change of state): at rest the
+  // picture stays as it is and the processor is left alone.
+  onDemand: boolean;
 };
 
 export const qualityOrder: QualityId[] = ["ultra", "high", "medium", "eco"];
@@ -31,13 +34,13 @@ export const qualityOrder: QualityId[] = ["ultra", "high", "medium", "eco"];
 export const qualityProfiles: Record<QualityId, QualityProfile> = {
   // The nebula is soft enough that a 512 sky is indistinguishable from larger ones on High, and it
   // is baked faster. The flare reads the frame back for its occlusion test, so Medium goes without.
-  ultra: { label: "Ultra", pixelRatio: 2.25, stars: 1, dust: 900, flare: true, sky: 768, antialias: true, frameInterval: 0 },
-  high: { label: "Élevé", pixelRatio: 2, stars: 1, dust: 600, flare: true, sky: 512, antialias: true, frameInterval: 0 },
-  medium: { label: "Moyen", pixelRatio: 1.5, stars: 0.7, dust: 320, flare: false, sky: 384, antialias: true, frameInterval: 0 },
-  eco: { label: "Économie", pixelRatio: 1, stars: 0.45, dust: 0, flare: false, sky: 256, antialias: true, frameInterval: 0 },
-  // Software rendering: a quarter of the pixels, no multisampling, a tiny sky bake and about
-  // fifteen frames a second, so that no frame holds the page for long.
-  lite: { label: "Minimal", pixelRatio: 0.75, stars: 0.3, dust: 0, flare: false, sky: 128, antialias: false, frameInterval: 66 },
+  ultra: { label: "Ultra", pixelRatio: 2.25, stars: 1, dust: 900, flare: true, sky: 768, antialias: true, frameInterval: 0, onDemand: false },
+  high: { label: "Élevé", pixelRatio: 2, stars: 1, dust: 600, flare: true, sky: 512, antialias: true, frameInterval: 0, onDemand: false },
+  medium: { label: "Moyen", pixelRatio: 1.5, stars: 0.7, dust: 320, flare: false, sky: 384, antialias: true, frameInterval: 0, onDemand: false },
+  eco: { label: "Économie", pixelRatio: 1, stars: 0.45, dust: 0, flare: false, sky: 256, antialias: true, frameInterval: 0, onDemand: false },
+  // Software rendering: fewer pixels, no multisampling, a tiny sky bake, at most about fifteen
+  // frames a second, and none at all while nothing moves.
+  lite: { label: "Minimal", pixelRatio: 0.75, stars: 0.3, dust: 0, flare: false, sky: 128, antialias: false, frameInterval: 66, onDemand: true },
 };
 
 export type BridgeSettings = {

@@ -33,10 +33,7 @@
   font-size: 10px;
   letter-spacing: 0.14em;
   color: #dff3ff;
-  transition:
-    border-color 0.2s,
-    background 0.2s,
-    transform 0.15s;
+  transition: transform 0.15s;
 }
 .header .bridge-pill svg {
   color: var(--holo);
@@ -227,11 +224,14 @@
   font-size: 10.5px;
   letter-spacing: 0.12em;
 }
+/* Each system lights up through its opacity only, which the compositor animates without repainting
+   (a colour or shadow transition would repaint the line on every frame). */
 .bridge-boot li {
   display: flex;
   justify-content: space-between;
-  color: rgba(233, 244, 255, 0.35);
-  transition: color 0.25s;
+  color: #e9f4ff;
+  opacity: 0.35;
+  transition: opacity 0.25s;
 }
 .bridge-boot li::before {
   content: "";
@@ -239,10 +239,8 @@
   height: 6px;
   margin: 4px 10px 0 0;
   border-radius: 50%;
-  background: rgba(143, 228, 255, 0.2);
-  transition:
-    background 0.25s,
-    box-shadow 0.25s;
+  background: var(--holo);
+  box-shadow: 0 0 8px var(--holo);
 }
 .bridge-boot li span {
   flex: 1;
@@ -251,13 +249,9 @@
   font-style: normal;
 }
 .bridge-boot li[data-online="true"] {
-  color: #e9f4ff;
+  opacity: 1;
 }
-.bridge-boot li[data-online="true"]::before {
-  background: var(--holo);
-  box-shadow: 0 0 8px var(--holo);
-}
-.bridge-boot li[data-online="true"] em {
+.bridge-boot li em {
   color: var(--holo);
 }
 .bridge-greeting h2 {
@@ -294,10 +288,8 @@
   background: rgba(10, 22, 36, 0.6);
   color: #e9f4ff;
   text-align: left;
-  transition:
-    border-color 0.2s,
-    background 0.2s,
-    transform 0.2s;
+  /* Only the movement is animated; colours switch at once rather than repainting each frame. */
+  transition: transform 0.2s;
 }
 .bridge-choice svg {
   flex: none;
