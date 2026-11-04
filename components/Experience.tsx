@@ -39,7 +39,7 @@ import type { SurfaceCue } from "./LandingScene";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
 const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
 const CockpitMap = dynamic(() => import("./CockpitMap"), { ssr: false });
-import { destinations, landings, planetReferenceStyle } from "./universe";
+import { destinationSlug, destinations, landings, planetReferenceStyle } from "./universe";
 import { addFlightTime, logDocking, logLanding, logOrbit } from "./flightLog";
 import {
   getProgress,
@@ -112,6 +112,8 @@ export default function Experience() {
   const reduced = systemReduced || bridge.reduceMotion,
     quality = bridge.quality === "auto" ? autoQuality : bridge.quality;
   const flownTimer = useRef<number | null>(null);
+  // A course set from a link (?cap=hoth): flown as soon as the ship is out of hyperspace.
+  const pendingCap = useRef<number | null>(null);
   const distances = useRef<number[]>([]),
     stationFromOrbit = useRef(false),
     greeted = useRef(new Set<number>());
@@ -199,7 +201,7 @@ export default function Experience() {
     } catch {
       seen = false;
     }
-    if (!seen) setWelcome(true);
+    if (!seen && pendingCap.current === null) setWelcome(true);
   }, []);
   const closeWelcome = useCallback(() => {
     setWelcome(false);
@@ -461,6 +463,13 @@ export default function Experience() {
   // A direct link for recruiters: ?recruteur or #recruteur opens the record at once.
   useEffect(() => {
     const url = new URL(window.location.href);
+    const cap = destinations.findIndex((world) => destinationSlug(world) === url.searchParams.get("cap"));
+    if (cap >= 0) {
+      pendingCap.current = cap;
+      // Read once: a reload of the page should not fly the same course again.
+      url.searchParams.delete("cap");
+      window.history.replaceState(null, "", url);
+    }
     if (url.searchParams.has("recruteur") || url.hash === "#recruteur") {
       try {
         window.sessionStorage.setItem("orbital-welcome", "1");
@@ -489,6 +498,12 @@ export default function Experience() {
     timers.current.forEach(clearTimeout);
     setTravel(false);
   };
+  useEffect(() => {
+    if (loading || pendingCap.current === null) return;
+    const cap = pendingCap.current;
+    pendingCap.current = null;
+    launch(cap);
+  }, [loading, launch]);
   const paused =
     loading || mapOpen || helpOpen || surface !== null || reward !== null || station !== null || welcome || settingsOpen || scan !== null;
   const cruising = !loading && !mapOpen && surface === null && station === null && !photo && !unsupported;

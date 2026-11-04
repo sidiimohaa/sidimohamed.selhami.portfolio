@@ -102,6 +102,16 @@ export const destinations = [
   },
 ];
 
+// A destination's name in an address (?cap=etoile-de-la-mort sets course for it on arrival).
+export const destinationSlug = (destination: (typeof destinations)[number]) =>
+  destination.name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/^l’|^l'/, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
 // The supplied references are already rendered globes, not flat world maps.
 // Use the same framing for the 3D projection and the circular navigation previews.
 export function planetReferenceStyle(

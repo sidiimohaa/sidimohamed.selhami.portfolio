@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import LostSector from "../components/notFound/LostSector";
+import LostSectors from "../components/notFound/LostSectors";
 
 export const metadata: Metadata = {
   title: "Secteur non cartographié · ORBITAL",
   robots: { index: false },
 };
 
-// Exported as 404.html: a lost jump into an asteroid field, with the way home.
+// Exported as 404.html: one of several lost sectors, in rotation, always with the way home.
 export default function NotFound() {
-  return <LostSector />;
+  return <LostSectors />;
 }

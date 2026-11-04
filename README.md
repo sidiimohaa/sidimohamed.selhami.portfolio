@@ -188,6 +188,12 @@ Toutes les données viennent de `components/deathStar/cvData.ts`, tirées du CV 
 - Le jeu est l'Asteroid Survival de la Galactic Arcade, avec son HUD, sa pause et ses règles. Chaque vol compte dans l'arcade (score, record, crédits). À la fin, on peut rejouer ou rentrer.
 - Sans WebGL, la page garde le briefing et les liens, sans le jeu.
 
+
+### Secteurs perdus en alternance
+
+La 404 tire au sort un secteur parmi quatre, chacun chargé à la demande (`components/notFound/LostSectors.tsx`) : le champ d'astéroïdes, la **transmission perdue** (le droïde décode l'adresse puis perd le signal, et une mini-carte propose un cap vers chaque destination), les **Jawas** (la page se rachète pour 0 crédit, « Utinni ! », son synthétisé et coupé par défaut) et la **planète 404** (trois chiffres rocheux dans un anneau de débris qu'on fait tourner au glisser). Chaque secteur est montré une fois avant toute répétition, jamais deux fois de suite (`components/notFound/lostRotation.ts`). En haut à droite, quatre balises forment la collection : un secteur découvert se revoit d'un clic, un secteur inconnu reste verrouillé. La carte commune (`components/notFound/LostFrame.tsx`) affiche le code 404, l'adresse introuvable sous forme de coordonnées, l'action du secteur, le retour à l'accueil, le CV et le contact. `?secteur=asteroids|transmission|jawas|planet` force un secteur. Toutes les variantes gardent le retour à l'accueil, le CV et le contact.
+
+Le lien `/?cap=<destination>` (`tatooine`, `endor`, `coruscant`, `etoile-de-la-mort`, `hoth`) met le cap sur ce monde dès l'arrivée, sans l'écran de bienvenue.
 ## Pont du vaisseau · accueil, instruments et réglages
 
 - **Accueil** (`components/bridge/BridgeWelcome.tsx`) : après la sortie d'hyperespace, les consoles s'allument une à une, puis trois accès réels : explorer la galaxie (vol libre), accéder au cockpit (carte stellaire) ou découvrir le portfolio (mode recruteur de l'Étoile de la Mort). L'accueil se passe (bouton ou Échap) et ne revient qu'une fois par visite.

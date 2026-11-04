@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Download, Home, Mail, Play, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { Play, RotateCcw } from "lucide-react";
 import { createArcadeAudio, type ArcadeAudio } from "../arcade/arcadeAudio";
 import { recordResult, type GameResult, type ResultSummary } from "../arcade/arcadeStore";
 import type { CockpitGameRuntime, CockpitGameView } from "../arcade/cockpitGames";
-import { CV_PDF, identity } from "../deathStar/cvData";
+import { LostCard, LostHeader, type Collection } from "./LostFrame";
 
 const ArcadeGameHUD = dynamic(() => import("../arcade/ArcadeGameHUD"), { ssr: false });
 
@@ -14,7 +14,6 @@ const ArcadeGameHUD = dynamic(() => import("../arcade/ArcadeGameHUD"), { ssr: fa
 // back (the run counts in the arcade), or go straight home; the CV and contact stay one click away.
 
 type Phase = "jump" | "briefing" | "playing" | "result";
-const mail = `mailto:${identity.email}?subject=${encodeURIComponent("Contact depuis ORBITAL")}`;
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
 
 // The jump that fails: streaks rush outwards, stutter, then snap into still stars.
@@ -101,7 +100,7 @@ function JumpIntro({ reduced, onDone }: { reduced: boolean; onDone: () => void }
   );
 }
 
-export default function LostSector() {
+export default function LostSector({ collection }: { collection?: Collection }) {
   const mount = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<Phase>("jump");
   const [reduced, setReduced] = useState(false);
@@ -203,42 +202,24 @@ export default function LostSector() {
     <main className="lost-sector" data-phase={phase}>
       <div ref={mount} className="lost-stage" />
       <div className="lost-vignette" aria-hidden="true" />
-      <header className="lost-head">
-        <a className="lost-logo" href="/" aria-label="Revenir à l’accueil d’ORBITAL">
-          ORBITAL<sup>404</sup>
-        </a>
-        <button className="lost-sound" onClick={() => setSound((on) => !on)} aria-pressed={sound} aria-label={sound ? "Couper le son" : "Activer le son"}>
-          {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
-        </button>
-      </header>
+      <LostHeader sound={sound} onSound={() => setSound((on) => !on)} collection={collection} />
 
       {phase === "briefing" && (
-        <section className="lost-card" aria-labelledby="lost-title">
-          <span className="mono">ERREUR 404 · SECTEUR NON CARTOGRAPHIÉ</span>
-          <h1 id="lost-title">Cette page s’est perdue dans un champ d’astéroïdes.</h1>
-          <p>
-            Votre saut vers <code>{path || "cette adresse"}</code> n’a mené nulle part : la page n’existe pas, ou plus. Pour retrouver la route, traversez le champ… ou rentrez directement.
-          </p>
-          <div className="lost-actions">
-            {graphics && (
+        <LostCard
+          kicker="ERREUR 404 · SECTEUR NON CARTOGRAPHIÉ"
+          title="Cette page s’est perdue dans un champ d’astéroïdes."
+          path={path}
+          primary={
+            graphics ? (
               <button className="is-primary" onClick={play}>
                 <Play size={16} /> Traverser le champ d’astéroïdes
               </button>
-            )}
-            <a href="/">
-              <Home size={16} /> Retour à ORBITAL
-            </a>
-          </div>
-          {graphics && <p className="lost-hint mono">SOURIS, DOIGT OU ZQSD · ESPACE : POUSSÉE · ÉCHAP : PAUSE · SURVIVEZ 90 S</p>}
-          <nav className="lost-links" aria-label="Accès directs">
-            <a href={CV_PDF} download>
-              <Download size={14} /> Télécharger mon CV
-            </a>
-            <a href={mail}>
-              <Mail size={14} /> Me contacter
-            </a>
-          </nav>
-        </section>
+            ) : undefined
+          }
+          extra={graphics ? <p className="lost-hint mono">SOURIS, DOIGT OU ZQSD · ESPACE : POUSSÉE · ÉCHAP : PAUSE · SURVIVEZ 90 S</p> : undefined}
+        >
+          <p>Votre saut n’a mené nulle part : la page n’existe pas, ou plus. Pour retrouver la route, traversez le champ… ou rentrez directement.</p>
+        </LostCard>
       )}
 
       {phase === "playing" && (
@@ -262,9 +243,18 @@ export default function LostSector() {
       )}
 
       {phase === "result" && result && (
-        <section className="lost-card" aria-labelledby="lost-result">
-          <span className="mono">{result.won ? "ROUTE RETROUVÉE" : "COQUE DÉTRUITE"}</span>
-          <h1 id="lost-result">{result.won ? "Vous êtes sorti du champ. Cap sur ORBITAL." : "Le champ a eu raison de la coque."}</h1>
+        <LostCard
+          kicker={result.won ? "ROUTE RETROUVÉE" : "COQUE DÉTRUITE"}
+          title={result.won ? "Vous êtes sorti du champ. Cap sur ORBITAL." : "Le champ a eu raison de la coque."}
+          titleId="lost-result"
+          path={path}
+          homePrimary={result.won}
+          primary={
+            <button className={result.won ? "" : "is-primary"} onClick={play}>
+              <RotateCcw size={16} /> Rejouer
+            </button>
+          }
+        >
           <dl className="lost-score">
             <div>
               <dt>Score</dt>
@@ -282,23 +272,7 @@ export default function LostSector() {
           <p className="lost-note">
             {summary?.record ? "Nouveau record ! " : ""}Ce vol compte dans la Galactic Arcade, accessible depuis le cockpit d’ORBITAL.
           </p>
-          <div className="lost-actions">
-            <a className={result.won ? "is-primary" : ""} href="/">
-              <Home size={16} /> Retour à ORBITAL
-            </a>
-            <button className={result.won ? "" : "is-primary"} onClick={play}>
-              <RotateCcw size={16} /> Rejouer
-            </button>
-          </div>
-          <nav className="lost-links" aria-label="Accès directs">
-            <a href={CV_PDF} download>
-              <Download size={14} /> Télécharger mon CV
-            </a>
-            <a href={mail}>
-              <Mail size={14} /> Me contacter
-            </a>
-          </nav>
-        </section>
+        </LostCard>
       )}
 
       {phase === "jump" && <JumpIntro reduced={reduced} onDone={() => setPhase("briefing")} />}
