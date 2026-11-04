@@ -347,12 +347,14 @@ export default function SpaceScene({
     if (!el) return;
     let disposed = false;
     const referenceTextures = new Set<THREE.Texture>();
+    let quality = state.quality,
+      profile = qualityProfiles[quality] ?? qualityProfiles.high;
     let renderer: THREE.WebGLRenderer;
     try {
       // Opaque: the sky dome covers every pixel, so a transparent canvas only cost compositing.
       renderer = new THREE.WebGLRenderer({
         alpha: false,
-        antialias: true,
+        antialias: profile.antialias,
         powerPreference: "high-performance",
       });
     } catch {
@@ -360,8 +362,6 @@ export default function SpaceScene({
       onReady();
       return;
     }
-    let quality = state.quality,
-      profile = qualityProfiles[quality] ?? qualityProfiles.high;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, profile.pixelRatio));
     renderer.setClearColor(0x020407, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -805,9 +805,17 @@ export default function SpaceScene({
     // Frame-rate sampling for the automatic profile: only while space is actually being flown.
     let sampleFrames = 0,
       sampleTime = 0;
+    let lastDrawn = 0;
     const animate = (now: number) => {
+      // The software profile draws about fifteen frames a second; the time step follows, so the
+      // flight keeps its speed.
+      if (profile.frameInterval && now - lastDrawn < profile.frameInterval) {
+        frame = requestAnimationFrame(animate);
+        return;
+      }
+      lastDrawn = now;
       const raw = now - last,
-        dt = Math.min(raw / 1000, 0.05);
+        dt = Math.min(raw / 1000, profile.frameInterval ? 0.1 : 0.05);
       last = now;
       const s = live.current;
       // While the visitor is on a planet's surface, space keeps its state but stops drawing.
