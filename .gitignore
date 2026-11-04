@@ -4,3 +4,7 @@ out/
 .sites-runtime/
 *.tsbuildinfo
 .DS_Store
+*.zip
+references/
+.openai/
+.claude/
