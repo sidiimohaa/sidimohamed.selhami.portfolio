@@ -13,33 +13,80 @@ function woolFinish() {
 }
 
 /** Rounded leaf volume with a raised inner ear, rather than a flat triangle. */
-export function earGeometry(side:number,inset=false) {
-  const outline:XYZ[]=[[.107,.02,-.005],[.151,.046,0],[.227,.071,-.008],[.312,.075,-.032],[.28,.023,-.006],[.22,-.023,.015],[.153,-.033,.031],[.112,-.011,.031]];
-  const center=new THREE.Vector3(.192,.016,.034),positions:number[]=[],uvs:number[]=[],indices:number[]=[];
-  const point=(p:THREE.Vector3)=>{positions.push(side*p.x,p.y,p.z);uvs.push((side*p.x+.32)/.64,(p.y+.13)/.26);};
-  point(center.clone().setZ(inset?.044:.034));
-  for(const tuple of outline){const p=new THREE.Vector3(...tuple);if(inset)p.lerp(center,.23).setZ(p.z+.009);point(p);}
-  for(let i=0;i<outline.length;i++){const a=1+i,b=1+(i+1)%outline.length;indices.push(...(side===1?[0,b,a]:[0,a,b]));}
-  if(!inset){
-    const rear=positions.length/3;point(center.clone().setZ(-.029));
-    for(const tuple of outline)point(new THREE.Vector3(...tuple).add(new THREE.Vector3(0,0,-.015)));
-    for(let i=0;i<outline.length;i++){
-      const a=rear+1+i,b=rear+1+(i+1)%outline.length,fa=1+i,fb=1+(i+1)%outline.length;
-      indices.push(...(side===1?[rear,a,b,fa,fb,a,fb,b,a]:[rear,b,a,fa,a,fb,fb,a,b]));
+export function earGeometry(side: number, inset = false) {
+  const outline: XYZ[] = [[.107,.02,-.005],[.151,.046,0],[.227,.071,-.008],[.312,.075,-.032],[.28,.023,-.006],[.22,-.023,.015],[.153,-.033,.031],[.112,-.011,.031]];
+  const boundary = new THREE.CatmullRomCurve3(outline.map(p => new THREE.Vector3(...p)), true, "catmullrom", .35);
+  const center = new THREE.Vector3(.192, .016, .034);
+  const positions: number[] = [], uvs: number[] = [], indices: number[] = [];
+  const sectors = 32, rings = 3;
+  const addPoint = (point: THREE.Vector3) => {
+    positions.push(side * point.x, point.y, point.z);
+    uvs.push((side * point.x + .32) / .64, (point.y + .13) / .26);
+    return positions.length / 3 - 1;
+  };
+  const triangle = (a: number, b: number, c: number, front: boolean) => {
+    const ax = positions[b * 3] - positions[a * 3], ay = positions[b * 3 + 1] - positions[a * 3 + 1];
+    const bx = positions[c * 3] - positions[a * 3], by = positions[c * 3 + 1] - positions[a * 3 + 1];
+    if ((ax * by - ay * bx > 0) === front) indices.push(a, b, c);
+    else indices.push(a, c, b);
+  };
+  const surface = (front: boolean) => {
+    const middle = center.clone();
+    middle.z = front ? (inset ? .048 : .036) : -.029;
+    const origin = addPoint(middle);
+    for (let ring = 1; ring <= rings; ring++) {
+      const progress = ring / rings;
+      for (let sector = 0; sector < sectors; sector++) {
+        const edge = boundary.getPoint(sector / sectors);
+        if (inset) edge.lerp(center, .23).setZ(edge.z + .014);
+        if (!front) edge.z -= .015;
+        const point = middle.clone().lerp(edge, progress);
+        point.z += (front ? 1 : -1) * Math.sin(progress * Math.PI) * .006;
+        addPoint(point);
+      }
+    }
+    for (let sector = 0; sector < sectors; sector++) {
+      const next = (sector + 1) % sectors;
+      triangle(origin, origin + 1 + sector, origin + 1 + next, front);
+      for (let ring = 0; ring < rings - 1; ring++) {
+        const inner = origin + 1 + ring * sectors, outer = inner + sectors;
+        triangle(inner + sector, outer + sector, outer + next, front);
+        triangle(inner + sector, outer + next, inner + next, front);
+      }
+    }
+    return origin + 1 + (rings - 1) * sectors;
+  };
+  const frontEdge = surface(true);
+  if (!inset) {
+    const backEdge = surface(false);
+    for (let sector = 0; sector < sectors; sector++) {
+      const next = (sector + 1) % sectors;
+      const a = frontEdge + sector, b = frontEdge + next, c = backEdge + sector, d = backEdge + next;
+      if (side > 0) indices.push(a, b, c, b, d, c);
+      else indices.push(a, c, b, b, c, d);
     }
   }
-  const g=new THREE.BufferGeometry();g.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
-  g.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));g.setIndex(indices);g.computeVertexNormals();return g;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 /** Grogu sits directly on the booth cushion; coordinates face +Z with the floor at Y=0. */
 export function createSeatedGrogu(seatHeight=.55) {
-  const group=new THREE.Group();group.name="cantina-grogu";
+  const group=new THREE.Group();group.name="cantina-grogu";group.userData.character=true;
   const skin=new THREE.MeshStandardMaterial({color:0x8caa7d,roughness:.83,metalness:.01});
-  const innerEar=new THREE.MeshStandardMaterial({color:0xa59c84,roughness:.92,side:THREE.DoubleSide});
-  const eyes=new THREE.MeshStandardMaterial({color:0x0b100a,roughness:.14,metalness:.14});
+  const innerEar=new THREE.MeshStandardMaterial({color:0xb3a08d,roughness:.86,side:THREE.DoubleSide});
+  const eyes=new THREE.MeshStandardMaterial({color:0x0b100a,roughness:.12,metalness:0});
   const robeMap=woolFinish(),robe=new THREE.MeshStandardMaterial({color:0x9e8d70,map:robeMap,bumpMap:robeMap,bumpScale:.0025,roughness:1});
   const fur=new THREE.MeshStandardMaterial({color:0xc7bca4,roughness:1});
+  skin.userData.surfaceKind = "skin";
+  innerEar.userData.surfaceKind = "skin";
+  robe.userData.surfaceKind = "cloth";
+  fur.userData.surfaceKind = "fur";
+  eyes.userData.skipSurfaceDetail = true;
   const sphere=(p:THREE.Group,r:number,mat:THREE.Material,at:XYZ,scale:XYZ=[1,1,1],segments=20)=>{const mesh=part(p,new THREE.SphereGeometry(r,segments,14),mat,at);mesh.scale.set(...scale);return mesh;};
 
   const body=new THREE.Group();group.add(body);
@@ -66,6 +113,10 @@ export function createSeatedGrogu(seatHeight=.55) {
     pipe(head,[[side*.02,-.006,.121],[side*.049,-.021,.132],[side*.077,-.018,.124],[side*.099,-.002,.11]],.005,skin);
   }
   sphere(head,.014,skin,[0,-.021,.13],[1.1,.64,.82]);
+  for (const side of [-1, 1]) {
+    sphere(head,.004,innerEar,[side*.008,-.027,.138],[1,.5,.5],12);
+    pipe(head,[[side*.018,-.029,.124],[side*.028,-.039,.118],[side*.029,-.049,.112]],.0015,innerEar);
+  }
   pipe(head,[[-.025,-.054,.114],[0,-.058,.126],[.025,-.054,.114]],.0027,eyes);
   for(let wrinkle=0;wrinkle<3;wrinkle++){
     const y=.064+wrinkle*.015,w=.064-wrinkle*.012;
@@ -75,6 +126,13 @@ export function createSeatedGrogu(seatHeight=.55) {
   for(let i=0;i<4;i++)pipe(head,[[-.036+i*.022,.111,-.015],[-.04+i*.023,.132,-.018],[-.046+i*.025,.137,-.025]],.0009,fur);
   bakePart(head);
 
+  // Independent lids soften his idle expression and keep the Force reach articulated.
+  const lids = [-1, 1].map(side => {
+    const lid = sphere(head,1,skin,[side*.058,.044,.112],[.044,.007,.025],24);
+    lid.name = side < 0 ? "grogu-left-eyelid" : "grogu-right-eyelid";
+    lid.rotation.z = -side * .11;
+    return lid;
+  });
   const ears:THREE.Group[]=[];
   for(const side of[-1,1]){
     const ear=new THREE.Group();ear.name=side<0?"grogu-ear-left":"grogu-ear-right";head.add(ear);ears.push(ear);
@@ -106,6 +164,12 @@ export function createSeatedGrogu(seatHeight=.55) {
     head.rotation.z=reduced?0:Math.sin(t*.26+.8)*.035;
     head.rotation.x=reduced?0:Math.sin(t*.41)*.022;
     ears.forEach((ear,i)=>ear.rotation.z=reduced?0:Math.sin(t*.52+i*1.6)*.014);
+    const phase = (t + 2.1) % 5.4;
+    const blink = !reduced && phase < .24 ? Math.sin(Math.PI * phase / .24) : 0;
+    lids.forEach(lid => {
+      lid.position.y = .044 - blink * .033;
+      lid.scale.y = .007 + blink * .026;
+    });
     setForcePose(0);
   }};
 }

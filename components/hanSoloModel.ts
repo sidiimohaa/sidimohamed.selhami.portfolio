@@ -5,7 +5,7 @@ type XYZ = [number, number, number];
 
 /** Classic cream shirt and pocketed vest, seated at a cantina table and facing +Z. */
 export function createSeatedHanSolo(seatHeight = .55) {
-  const group = new THREE.Group(); group.name = "cantina-han-solo";
+  const group = new THREE.Group(); group.name = "cantina-han-solo"; group.userData.character = true;
   const shirt = new THREE.MeshStandardMaterial({ color: 0xe5d6af, roughness: .92 });
   const seam = new THREE.MeshStandardMaterial({ color: 0xb7a787, roughness: 1 });
   const vest = new THREE.MeshStandardMaterial({ color: 0x242724, roughness: .88 });
@@ -14,7 +14,7 @@ export function createSeatedHanSolo(seatHeight = .55) {
   const boots = new THREE.MeshStandardMaterial({ color: 0x1f2220, roughness: .48 });
   const leather = new THREE.MeshStandardMaterial({ color: 0x62412c, roughness: .78 });
   const metal = new THREE.MeshStandardMaterial({ color: 0xb8b9aa, roughness: .35, metalness: .8 });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xcfa789, roughness: .8 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xcfa789, roughness: .69 });
   const lip = new THREE.MeshStandardMaterial({ color: 0x9b6d56, roughness: .87 });
   const hair = new THREE.MeshStandardMaterial({ color: 0x443124, roughness: .9 });
   const hairLight = new THREE.MeshStandardMaterial({ color: 0x604631, roughness: .88 });
@@ -34,6 +34,12 @@ export function createSeatedHanSolo(seatHeight = .55) {
     return part(g, new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: .003, bevelSize: .003, bevelSegments: 1 }), mat, at);
   };
   const scar = new THREE.MeshStandardMaterial({ color: 0xe0bfa4, roughness: .7 });
+  for (const material of [shirt, seam, vest, trousers, stripe]) material.userData.surfaceKind = "cloth";
+  for (const material of [skin, lip, scar]) material.userData.surfaceKind = "skin";
+  for (const material of [hair, hairLight]) material.userData.surfaceKind = "fur";
+  for (const material of [boots, leather]) material.userData.surfaceKind = "leather";
+  metal.userData.surfaceKind = "metal";
+  white.userData.skipSurfaceDetail = true;
   // A relaxed hand: palm, four jointed fingers curling over and a thumb on the inside.
   const hand = (g: THREE.Group, x: number, y: number, z: number, side: number, curl: number) => {
     box(g, [x, y, z], [.068, .03, .08], skin, .014);
@@ -114,21 +120,38 @@ export function createSeatedHanSolo(seatHeight = .55) {
   });
 
   const head=new THREE.Group();head.name="han-solo-head";head.position.set(0,seatHeight+.79,.008);group.add(head);
-  ball(head,[0,.025,-.012],[.111,.139,.107],skin);
-  ball(head,[0,-.068,.018],[.082,.072,.085],skin);
-  ball(head,[0,-.102,.047],[.068,.031,.055],skin);
+  // A continuous jaw and forehead avoid intersecting spheres across the cheeks.
+  const face = new THREE.SphereGeometry(1, 32, 24);
+  const vertices = face.getAttribute("position");
+  for (let i = 0; i < vertices.count; i++) {
+    const x = vertices.getX(i), y = vertices.getY(i), z = vertices.getZ(i);
+    const jaw = THREE.MathUtils.smoothstep(y, -.9, -.12);
+    const width = THREE.MathUtils.lerp(.082, .112, jaw);
+    const chin = (1 - THREE.MathUtils.smoothstep(y, -.95, -.35)) * .026;
+    vertices.setXYZ(i, x * width, y * .151 + .016, z * .103 - .006 + chin);
+  }
+  face.computeVertexNormals();
+  part(head, face, skin);
+  ball(head,[0,-.102,.047],[.062,.027,.05],skin);
   for(const side of [-1,1]) {
     ball(head,[side*.109,-.012,-.005],[.023,.042,.022],skin);
     ball(head,[side*.111,-.01,.013],[.009,.021,.005],lip);
     ball(head,[side*.058,-.012,.07],[.036,.044,.035],skin);
     ball(head,[side*.043,.024,.087],[.025,.012,.013],white);
-    pipe(head,[[side*.019,.032,.1],[side*.041,.039,.098],[side*.067,.027,.087]],.0047,skin);
+    pipe(head,[[side*.019,.032,.1],[side*.041,.039,.098],[side*.067,.027,.087]],.0042,skin);
+    pipe(head,[[side*.019,.02,.1],[side*.042,.013,.103],[side*.068,.022,.089]],.0032,skin);
+    pipe(head,[[side*.024,.043,.097],[side*.044,.046,.095],[side*.066,.036,.086]],.0016,lip);
     pipe(head,[[side*.019,.05,.097],[side*.043,.056,.094],[side*.071,.043,.077]],.0048,hair);
   }
   // Straight nose with a defined bridge, tip and nostril wings.
   rod(head,[0,.051,.095],[0,-.013,.12],.009,.014,skin);
   ball(head,[0,-.017,.119],[.018,.014,.016],skin);
-  for(const side of [-1,1]) ball(head,[side*.015,-.02,.111],[.008,.009,.009],skin);
+  for(const side of [-1,1]) {
+    ball(head,[side*.015,-.02,.111],[.008,.009,.009],skin);
+    ball(head,[side*.012,-.026,.121],[.0045,.0024,.0034],lip);
+    pipe(head,[[side*.02,-.034,.106],[side*.032,-.047,.101]],.0014,lip);
+  }
+  pipe(head,[[0,-.033,.112],[0,-.048,.105]],.0022,skin);
   // A small scar under the lip, on the left of the chin.
   pipe(head,[[.012,-.082,.098],[.02,-.093,.094]],.0018,scar);
   // Cheekbones.
@@ -155,6 +178,8 @@ export function createSeatedHanSolo(seatHeight = .55) {
   const iris = new THREE.MeshStandardMaterial({ color: 0x5a4a2e, roughness: .25 });
   const pupil = new THREE.MeshStandardMaterial({ color: 0x0c0b0a, roughness: .15 });
   const glint = new THREE.MeshBasicMaterial({ color: 0xfff6e8 });
+  iris.userData.skipSurfaceDetail = true;
+  pupil.userData.skipSurfaceDetail = true;
   const gazes = [-1,1].map(side=>{
     const g=new THREE.Group();g.position.set(side*.043,.024,.1005);head.add(g);
     part(g,new THREE.CircleGeometry(.0095,16),iris);
@@ -178,8 +203,10 @@ export function createSeatedHanSolo(seatHeight = .55) {
     head.rotation.y=-.04+(still?0:Math.sin(t*.25)*.045)+annoyed*Math.sin(t*6.5)*.1;
     head.rotation.z=smug*.07-annoyed*.03;
     gazes.forEach(g=>g.position.y=.024+(look-.6)*.003);
-    const blink=!still&&(t*.27)%1>.962?1:0;
-    lids.forEach(l=>{l.position.y=.042-blink*.015;l.scale.y=.01+blink*.004;});
+    const blinkPhase = (t + .8) % 4.7;
+    const blink = !still && blinkPhase < .18 ? Math.sin(Math.PI * blinkPhase / .18) : 0;
+    lids.forEach(l=>{l.position.y=.042-blink*.018;l.scale.y=.01+blink*.006;});
+    gazes.forEach((g, i)=>g.position.x=(i===0?-.043:.043)+(still?0:Math.sin(t*.31)*.002));
     mouth.rotation.z=smug*.22-annoyed*.08;
     mouth.position.y=-.056+smug*.002;
     // A shrug with the free arm when Chewie wins the exchange; a lazy flourish when Han does.

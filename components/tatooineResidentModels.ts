@@ -22,7 +22,7 @@ const axle=(root:THREE.Group,r:number,w:number,mat:THREE.Material,at:XYZ)=>part(
 
 /** Reconditioned port workers and civilian travellers, all modelled facing +Z. */
 export function createResidentModel(kind: ResidentKind) {
-  const group=new THREE.Group();group.name=`mos-eisley-resident-${kind}`;
+  const group=new THREE.Group();group.name=`mos-eisley-resident-${kind}`;group.userData.character=true;
   const figure=new THREE.Group();group.add(figure);
   const head=new THREE.Group(),arms:THREE.Group[]=[],legs:THREE.Group[]=[],wings:THREE.Group[]=[];
   const black=surface(0x151b1d,.35,.72),steel=surface(0x8c9697,.75,.38),leather=surface(0x56402b,.03,.93);
@@ -30,6 +30,18 @@ export function createResidentModel(kind: ResidentKind) {
   const paint=surface(kind==="kx"?0x252c2f:kind==="b1"?0xa75b43:0x68777c,.47,.61);
   const skin=surface(kind==="gungan"?0xa97b55:0x7b8864,.02,.88);
   const cloth=surface(kind==="tusken"?0x9b8665:0x625443,.01,.96);
+  black.userData.surfaceKind = "metal";
+  steel.userData.surfaceKind = "metal";
+  paint.userData.surfaceKind = "metal";
+  leather.userData.surfaceKind = "leather";
+  skin.userData.surfaceKind = "skin";
+  cloth.userData.surfaceKind = "cloth";
+  const crease = surface(kind === "gungan" ? 0x79533b : 0x505e40, .01, .86);
+  crease.userData.surfaceKind = "skin";
+  const iris = surface(0xa89149, .05, .38);
+  iris.userData.skipSurfaceDetail = true;
+  const pupil = surface(0x111816, 0, .2);
+  pupil.userData.skipSurfaceDetail = true;
   const torso=new THREE.Group();figure.add(torso);
 
   if(kind==="kx"||kind==="b1"||kind==="b2"){
@@ -107,7 +119,15 @@ export function createResidentModel(kind: ResidentKind) {
       bar(head,[side*.14,.126,0],[side*.16,.19,0],.008,steel);
     }
     part(head,new THREE.CylinderGeometry(.054,.054,.055,16),leather,[0,-.086,.172],[Math.PI/2,0,0]);
-    box(head,.045,.027,.017,steel,[0,-.084,.207]);bakePart(head);figure.add(head);
+    box(head,.045,.027,.017,steel,[0,-.084,.207]);
+    ball(head,.145,cloth,[0,.137,-.006],[1,.45,1]);
+    for (const side of [-1,1]) {
+      pipe(head, [[side*.105,-.058,.14],[side*.153,-.115,.128],[side*.11,-.164,.035]], .016, leather);
+      part(head,new THREE.TorusGeometry(.032,.005,5,16),steel,[side*.073,.019,.207]);
+      box(head,.022,.01,.005,steel,[side*.073,.039,.21],.001);
+    }
+    for (let slat=0; slat<4; slat++) box(head,.006,.035,.006,black,[-.018+slat*.012,-.084,.219],.001);
+    bakePart(head);figure.add(head);
     for(const side of[-1,1]){
       const arm=new THREE.Group();arm.position.set(side*.24,1.25,0);figure.add(arm);arms.push(arm);
       bar(arm,[0,0,0],[side*.055,-.43,.045],.09,cloth,.115);ball(arm,.054,leather,[side*.055,-.46,.065]);bakePart(arm);
@@ -117,7 +137,7 @@ export function createResidentModel(kind: ResidentKind) {
     const staff=new THREE.Group();figure.add(staff);bar(staff,[.34,.055,.11],[.34,1.73,.11],.014,leather);
     box(staff,.085,.095,.035,steel,[.34,1.63,.11]);part(staff,new THREE.ConeGeometry(.037,.17,4),steel,[.34,.095,.11],[Math.PI,0,0]);bakePart(staff);
   }else if(kind==="toydarian"){
-    const pale=surface(0xa39b6b,.01,.92);ball(torso,.272,skin,[0,.695,0],[1,1.19,.82]);ball(torso,.235,pale,[0,.664,.103],[.91,1.08,.58]);
+    const pale=surface(0xa39b6b,.01,.83);pale.userData.surfaceKind="skin";ball(torso,.272,skin,[0,.695,0],[1,1.19,.82]);ball(torso,.235,pale,[0,.664,.103],[.91,1.08,.58]);
     for(const side of[-1,1]){
       box(torso,.12,.245,.09,leather,[side*.163,.947,.091],.026).rotation.z=-side*.22;
       box(torso,.07,.12,.05,leather,[side*.205,.69,.15],.015);
@@ -126,10 +146,22 @@ export function createResidentModel(kind: ResidentKind) {
     head.position.y=1.175;ball(head,.153,skin,[0,0,0],[.91,1.12,.93]);
     pipe(head,[[0,-.015,.107],[0,-.08,.202],[0,-.19,.209]],.041,skin);
     for(const side of[-1,1]){
-      ball(head,.03,pale,[side*.078,.035,.116]);ball(head,.012,black,[side*.078,.035,.143]);
+      ball(head,.034,crease,[side*.079,.037,.111],[1.1,.92,.8]);
+      ball(head,.027,iris,[side*.078,.035,.132],[1,.88,.65]);
+      ball(head,.012,pupil,[side*.078,.035,.148],[.8,1,.45]);
+      pipe(head,[[side*.044,.054,.129],[side*.076,.067,.127],[side*.108,.049,.115]],.011,skin);
+      ball(head,.04,pale,[side*.069,-.047,.125],[1,.7,.5]);
+      pipe(head,[[side*.099,-.054,.127],[side*.082,-.076,.14],[side*.049,-.094,.151]],.0035,crease);
       part(head,new THREE.ConeGeometry(.018,.058,10),pale,[side*.07,-.089,.13],[0,0,-side*.3]);
     }
-    box(head,.074,.012,.016,leather,[0,-.105,.14],.004);bakePart(head);figure.add(head);
+    box(head,.074,.012,.016,crease,[0,-.105,.14],.004);
+    ball(head,.042,pale,[0,-.126,.125],[1,.48,.55]);
+    for (let fold=0; fold<3; fold++) {
+      const y=-.068-fold*.03, z=.197+fold*.005;
+      pipe(head,[[-.028,y,z],[0,y-.006,z+.007],[.028,y,z]],.0028,crease);
+    }
+    for (const side of [-1,1]) ball(head,.009,crease,[side*.018,-.186,.236],[.7,.55,.5]);
+    bakePart(head);figure.add(head);
     for(const side of[-1,1]){
       const arm=new THREE.Group();arm.position.set(side*.225,.969,0);figure.add(arm);arms.push(arm);
       bar(arm,[0,0,0],[side*.11,-.2,.01],.046,skin,.035);bar(arm,[side*.11,-.2,.01],[side*.15,-.4,.08],.035,skin,.025);
@@ -142,18 +174,32 @@ export function createResidentModel(kind: ResidentKind) {
       for(let i=0;i<3;i++)bar(wing,[0,0,.01],[side*(.12+i*.075),.02+i*.115,.012],.006,pale);bakePart(wing);
     }
   }else{
-    const trousers=surface(0x4a4436,.01,.98),innerEar=surface(0x925c46,.01,.94),pale=surface(0xc0ae83,.01,.89);
+    const trousers=surface(0x4a4436,.01,.98),innerEar=surface(0x925c46,.01,.94),pale=surface(0xc0ae83,.01,.82);
+    trousers.userData.surfaceKind="cloth";
+    innerEar.userData.surfaceKind="skin";
+    pale.userData.surfaceKind="skin";
     box(torso,.32,.37,.2,trousers,[0,1.227,0],.045);
     for(const side of[-1,1])box(torso,.105,.32,.057,leather,[side*.121,1.238,.088],.015).rotation.z=side*.12;
     bar(torso,[0,1.389,0],[0,1.59,.01],.069,pale,.057);
     box(torso,.33,.15,.22,trousers,[0,1.019,.012],.03);pipe(torso,[[-.16,1.095,.1],[0,1.05,.139],[.16,1.095,.1]],.015,leather);bakePart(torso);
     head.position.y=1.684;ball(head,.13,skin,[0,0,0],[.87,1.15,1.03]);ball(head,.099,pale,[0,-.051,.13],[1.1,.55,1.32]);
-    box(head,.12,.009,.013,leather,[0,-.085,.221],.002);
+    pipe(head,[[-.088,-.075,.175],[-.051,-.089,.22],[0,-.091,.236],[.051,-.089,.22],[.088,-.075,.175]],.0035,crease);
+    ball(head,.074,pale,[0,-.089,.148],[1.05,.32,1.11]);
+    for (const side of [-1,1]) {
+      ball(head,.017,skin,[side*.042,-.021,.217],[1,.6,.55]);
+      ball(head,.006,crease,[side*.042,-.019,.226],[1,.65,.4]);
+      pipe(head,[[side*.102,-.04,.08],[side*.097,-.063,.118],[side*.079,-.073,.16]],.004,crease);
+    }
     for(const side of[-1,1]){
       bar(head,[side*.061,.08,.008],[side*.071,.208,.026],.023,skin,.019);
-      ball(head,.032,pale,[side*.071,.208,.034]);ball(head,.013,black,[side*.071,.209,.061]);
+      ball(head,.034,pale,[side*.071,.208,.034]);
+      ball(head,.02,iris,[side*.071,.209,.06],[1,1,.48]);
+      ball(head,.01,pupil,[side*.071,.209,.07],[.7,1,.4]);
+      pipe(head,[[side*.047,.223,.046],[side*.071,.239,.048],[side*.096,.221,.041]],.006,skin);
       const ear=shapePlate([[side*.105,.07],[side*.167,.087],[side*.202,-.1],[side*.18,-.43],[side*.095,-.31]],.024);part(head,ear,skin,[0,0,-.04]);
       const inset=shapePlate([[side*.13,.042],[side*.157,.026],[side*.179,-.13],[side*.167,-.355],[side*.119,-.265]],.006);part(head,inset,innerEar,[0,0,-.01]);
+      pipe(head,[[side*.138,.008,.001],[side*.16,-.116,.002],[side*.15,-.28,.001]],.0045,crease);
+      pipe(head,[[side*.15,-.05,.002],[side*.177,-.12,.001],[side*.169,-.19,.001]],.003,pale);
     }
     bakePart(head);figure.add(head);
     for(const side of[-1,1]){

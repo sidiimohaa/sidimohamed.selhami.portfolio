@@ -8,3 +8,4 @@ out/
 references/
 .openai/
 .claude/
+.env.local

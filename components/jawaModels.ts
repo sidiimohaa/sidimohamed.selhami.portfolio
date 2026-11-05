@@ -7,15 +7,20 @@ function wovenCloth(){
   c.fillStyle="#c4b49d";c.fillRect(0,0,256,256);
   for(let i=0;i<5000;i++){c.fillStyle=i%2?"#ddc59a18":"#24190e20";c.fillRect(rand()*256,rand()*256,.4+rand()*1.5,1+rand()*3);}
   for(let y=0;y<256;y+=3){c.fillStyle="#2b201017";c.fillRect(0,y,256,.6);}
+  for(let x=0;x<256;x+=4){c.fillStyle="#f0ddba12";c.fillRect(x,0,.65,256);}
   const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.anisotropy=8;return map;
 }
 
 export function createJawa(color=0x947455){
-  const group=new THREE.Group();group.name="jawa";
-  const clothMap=wovenCloth(),cloth=new THREE.MeshStandardMaterial({map:clothMap,bumpMap:clothMap,bumpScale:.013,color,roughness:1});
+  const group=new THREE.Group();group.name="jawa";group.userData.character=true;
+  const clothMap=wovenCloth(),cloth=new THREE.MeshStandardMaterial({map:clothMap,bumpMap:clothMap,bumpScale:.004,color,roughness:1});
   const dark=new THREE.MeshStandardMaterial({color:0x080706,roughness:1}),leather=new THREE.MeshStandardMaterial({color:0x493020,roughness:.92});
   const buckle=new THREE.MeshStandardMaterial({color:0x88735a,roughness:.65,metalness:.4});
   const eye=new THREE.MeshBasicMaterial({color:0xf2bc51});
+  cloth.userData.surfaceKind="cloth";
+  leather.userData.surfaceKind="leather";
+  buckle.userData.surfaceKind="metal";
+  dark.userData.skipSurfaceDetail=true;
   const body=new THREE.Group();group.add(body);
   const robe=new THREE.CylinderGeometry(.19,.39,.79,48,14),p=robe.getAttribute("position");
   for(let i=0;i<p.count;i++){
@@ -30,7 +35,11 @@ export function createJawa(color=0x947455){
   for(let i=0;i<4;i++){
     const x=-.19+i*.12,y=.69-i*.155;
     part(body,rounded(.12,.13,.063,.018),leather,[x,y,.31],[0,0,.1]);
-    part(body,new THREE.BoxGeometry(.035,.025,.012),buckle,[x,y+.025,.35]);
+    part(body,rounded(.126,.048,.015,.009),leather,[x,y+.048,.349],[0,0,.1]);
+    part(body,new THREE.BoxGeometry(.035,.025,.012),buckle,[x,y+.025,.36]);
+    for(const edge of[-1,1])for(let seam=0;seam<3;seam++){
+      part(body,new THREE.BoxGeometry(.004,.009,.004),buckle,[x+edge*.049,y-.038+seam*.025,.345]);
+    }
   }
   bakePart(body);
   const head=new THREE.Group();head.position.y=.88;group.add(head);
@@ -39,14 +48,28 @@ export function createJawa(color=0x947455){
   hood.computeVertexNormals();part(head,hood,cloth,[0,0,.08]);
   part(head,new THREE.TorusGeometry(.196,.066,12,32),cloth,[0,-.01,.078]).scale.set(1,1.13,.85);
   part(head,new THREE.SphereGeometry(.189,24,16),dark,[0,-.015,.058]).scale.set(1,1.13,.16);
-  for(const side of[-1,1])part(head,new THREE.SphereGeometry(.018,10,8),eye,[side*.063,.018,.096]);
+  for(const side of[-1,1])part(head,new THREE.SphereGeometry(.018,12,10),eye,[side*.063,.018,.096]);
+  // A rolled seam follows the hood opening and tucks into the neck wrap.
+  for(const side of[-1,1]){
+    pipe(head,[[side*.07,.225,.105],[side*.18,.135,.132],[side*.207,-.03,.128],[side*.14,-.19,.113]],.007,leather);
+    for(let seam=0;seam<5;seam++){
+      const angle=.22+seam*.34;
+      part(head,new THREE.BoxGeometry(.014,.005,.005),leather,
+        [side*Math.sin(angle)*.209,Math.cos(angle)*.227-.01,.137],[0,0,-side*angle]);
+    }
+  }
   bakePart(head);
   const arms:THREE.Group[]=[],legs:THREE.Group[]=[];
   for(const side of[-1,1]){
     const arm=new THREE.Group();arm.position.set(side*.265,.67,.015);group.add(arm);arms.push(arm);
     part(arm,new THREE.CylinderGeometry(.085,.125,.31,16,4),cloth,[side*.012,-.13,.025],[.12,0,side*.12]);
     part(arm,new THREE.TorusGeometry(.095,.022,8,20),cloth,[side*.02,-.276,.045],[Math.PI/2,0,0]);
-    part(arm,new THREE.SphereGeometry(.052,12,8),leather,[side*.018,-.295,.06]);
+    part(arm,new THREE.SphereGeometry(.052,12,8),leather,[side*.018,-.295,.06]).scale.set(1,.84,1);
+    for(let finger=0;finger<4;finger++){
+      part(arm,new THREE.CapsuleGeometry(.009,.031,3,6),leather,
+        [side*.018-.027+finger*.018,-.329,.087],[-.7,0,0]);
+    }
+    part(arm,new THREE.CapsuleGeometry(.012,.024,3,6),leather,[-side*.028,-.297,.095],[.2,0,-side*.65]);
     if(side===1){part(arm,new THREE.CylinderGeometry(.012,.012,.15,8),buckle,[side*.018,-.29,.105],[Math.PI/2,0,0]);}
     bakePart(arm);
     const leg=new THREE.Group();leg.position.set(side*.13,.16,0);group.add(leg);legs.push(leg);

@@ -77,15 +77,21 @@ function leatherTexture(tone: number) {
 }
 function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"): Ewok {
   const root = new THREE.Group();
+  root.name = "ewok-villager";
+  root.userData.character = true;
   // Fur gets a soft sheen at grazing angles, which reads as fuzz.
   const coat = new THREE.MeshPhysicalMaterial({ map: furTexture(fur), roughness: 1, sheen: 1, sheenRoughness: 0.8, sheenColor: new THREE.Color(fur).lerp(new THREE.Color(0xe8dcc4), 0.6) });
   const cream = new THREE.MeshPhysicalMaterial({ map: furTexture("#ebe2cc"), roughness: 1, sheen: 1, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xfff8ec) });
   const leather = new THREE.MeshStandardMaterial({ map: leatherTexture(hood), roughness: 0.85, side: THREE.DoubleSide });
   const stitch = new THREE.MeshStandardMaterial({ color: 0x3a2414, roughness: 0.9 });
-  const gloss = new THREE.MeshStandardMaterial({ color: 0x050403, roughness: 0.12, metalness: 0.3 });
+  const gloss = new THREE.MeshPhysicalMaterial({ color: 0x080604, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.08 });
+  gloss.userData.skipSurfaceDetail = true;
   const nose = new THREE.MeshStandardMaterial({ color: 0x2a1e18, roughness: 0.5 });
   const wood = new THREE.MeshStandardMaterial({ color: 0x6b5a34, roughness: 0.9 });
   const flint = new THREE.MeshStandardMaterial({ color: 0x8c8e88, roughness: 0.5, metalness: 0.3 });
+  coat.userData.surfaceKind = cream.userData.surfaceKind = "fur";
+  leather.userData.surfaceKind = stitch.userData.surfaceKind = "leather";
+  nose.userData.surfaceKind = "skin";
   const body = new THREE.Group();
   root.add(body);
   part(body, new THREE.SphereGeometry(0.3, 18, 14), coat, [0, 0.5, 0]).scale.set(1.12, 1.35, 1);
@@ -93,6 +99,13 @@ function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"):
   // The hood's bib hangs over the chest.
   part(body, new THREE.ConeGeometry(0.22, 0.36, 4), leather, [0, 0.6, 0.21], [Math.PI, Math.PI / 4, 0]).scale.set(1, 1, 0.35);
   part(body, new THREE.CylinderGeometry(0.25, 0.34, 0.24, 18, 1, true), leather, [0, 0.79, -0.02]);
+  // Small tapered locks soften the outline without transparent fur layers.
+  for (const side of [-1, 1]) {
+    for (let lock = 0; lock < 5; lock++) {
+      part(body, new THREE.ConeGeometry(.026, .11, 5), coat,
+        [side * (.31 - lock * .008), .61 - lock * .065, .045], [0, 0, side * 2.8]);
+    }
+  }
   bakePart(body);
   const head = new THREE.Group();
   head.position.y = 1.03;
@@ -102,13 +115,23 @@ function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"):
   part(head, new THREE.SphereGeometry(0.12, 14, 10), cream, [0, -0.08, 0.2]).scale.set(1.1, 0.75, 0.9);
   for (const side of [-1, 1]) {
     part(head, new THREE.SphereGeometry(0.075, 12, 10), coat, [side * 0.085, 0.03, 0.2]).scale.set(1, 0.9, 0.5);
-    part(head, new THREE.SphereGeometry(0.055, 14, 10), gloss, [side * 0.085, 0.035, 0.235]);
+    part(head, new THREE.SphereGeometry(0.044, 18, 12), gloss, [side * 0.085, 0.035, 0.243]).scale.set(1, .86, .64);
+    pipe(head, [[side * .047, .041, .261], [side * .083, .071, .262], [side * .125, .047, .244]], .013, coat);
+    pipe(head, [[side * .049, .021, .257], [side * .084, .005, .263], [side * .123, .024, .245]], .008, cream);
+    part(head, new THREE.SphereGeometry(.067, 14, 10), cream, [side * .056, -.083, .245]).scale.set(1, .65, .8);
+    for (let lock = 0; lock < 4; lock++) {
+      part(head, new THREE.ConeGeometry(.014, .065, 5), cream,
+        [side * (.173 - lock * .017), -.055 - lock * .028, .18], [0, 0, side * 2.6]);
+    }
     // Fluffy ears through the hood, their tips pale.
     part(head, new THREE.SphereGeometry(0.075, 10, 8), coat, [side * 0.21, 0.21, -0.03]);
-    part(head, new THREE.SphereGeometry(0.05, 8, 6), cream, [side * 0.235, 0.24, -0.01]);
+    part(head, new THREE.SphereGeometry(0.05, 12, 8), cream, [side * 0.235, 0.24, -0.01]).scale.set(1, 1.12, .75);
+    part(head, new THREE.SphereGeometry(.026, 12, 8), nose, [side * .235, .242, .023]).scale.set(1, 1.12, .3);
   }
   part(head, new THREE.SphereGeometry(0.045, 10, 8), nose, [0, -0.05, 0.305]).scale.set(1.25, 0.8, 0.8);
-  part(head, rounded(0.09, 0.015, 0.02, 0.005), nose, [0, -0.13, 0.28]);
+  for (const side of [-1, 1]) part(head, new THREE.SphereGeometry(.009, 8, 6), gloss, [side * .023, -.06, .335]).scale.z = .35;
+  pipe(head, [[0, -.077, .324], [0, -.113, .302]], .006, nose);
+  pipe(head, [[-.065, -.118, .281], [0, -.131, .294], [.065, -.118, .281]], .007, nose);
   // The hood: a cap over the crown and forehead, sides falling to the shoulders, open only at the
   // face, and a stitched seam running across the forehead.
   part(head, new THREE.SphereGeometry(0.305, 22, 10, 0, Math.PI * 2, 0, Math.PI * 0.33), leather, [0, 0.02, -0.01]);
@@ -122,7 +145,11 @@ function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"):
     const arm = new THREE.Group();
     arm.position.set(side * 0.29, 0.66, 0.03);
     part(arm, new THREE.CylinderGeometry(0.075, 0.09, 0.34, 10), coat, [0, -0.16, 0]);
-    part(arm, new THREE.SphereGeometry(0.068, 10, 8), coat, [0, -0.34, 0.02]);
+    part(arm, new THREE.SphereGeometry(0.068, 12, 8), coat, [0, -0.34, 0.02]);
+    for (let finger = 0; finger < 3; finger++) {
+      part(arm, new THREE.CapsuleGeometry(.015, .045, 3, 6), nose, [-.032 + finger * .032, -.385, .043], [-.28, 0, 0]);
+    }
+    part(arm, new THREE.SphereGeometry(.022, 10, 8), nose, [-side * .061, -.349, .056]).scale.set(.75, 1.2, 1);
     if (side > 0 && staff === "staff") {
       part(arm, new THREE.CylinderGeometry(0.02, 0.026, 1.25, 6), wood, [0, -0.2, 0.06]);
       part(arm, new THREE.SphereGeometry(0.06, 8, 6), leather, [0, 0.44, 0.06]);

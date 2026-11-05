@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { bakePart } from "./tatooineCharacters";
 import { createProbeDroid } from "./probeDroid";
 import { createDroidKit } from "./droidModels";
 import { createAirTaxi } from "./coruscantTaxi/taxiModel";
@@ -260,10 +261,21 @@ export function createPadLife(options: {
       transparent: true,
       opacity: 0.9,
     });
+  flightSuit.userData.surfaceKind = "cloth";
+  vest.userData.surfaceKind = "cloth";
+  leather.userData.surfaceKind = "leather";
+  helmet.userData.surfaceKind = "metal";
+  goggles.userData.skipSurfaceDetail = true;
+  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xd7ccc0, roughness: .3 });
+  const pupil = new THREE.MeshStandardMaterial({ color: 0x202322, roughness: .16 });
+  eyeWhite.userData.skipSurfaceDetail = true;
+  pupil.userData.skipSurfaceDetail = true;
   const indicators = [0x6fb7ff, 0xffffff, 0xff5a3c].map((color) => new THREE.MeshBasicMaterial({ color }));
   const crewMember = (skin: number) => {
     const person = new THREE.Group();
+    person.userData.character = true;
     const face = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.75 });
+    face.userData.surfaceKind = "skin";
     const legs = [-1, 1].map((side) => {
       const hip = new THREE.Group();
       hip.position.set(side * 0.1, 0.9, 0);
@@ -276,6 +288,7 @@ export function createPadLife(options: {
         mesh(new THREE.CylinderGeometry(0.072, 0.07, 0.29, 10), leather, [0, -0.725, 0]),
         mesh(new THREE.BoxGeometry(0.11, 0.07, 0.25), leather, [0, -0.865, 0.05]),
       );
+      bakePart(hip);
       person.add(hip);
       return hip;
     });
@@ -288,6 +301,16 @@ export function createPadLife(options: {
         mesh(new THREE.CylinderGeometry(0.055, 0.062, 0.16, 10), leather, [0, -0.5, 0]),
         mesh(new THREE.BoxGeometry(0.07, 0.1, 0.05), leather, [0, -0.62, 0]),
       );
+      // A glove cuff, four curved fingers and the opposing thumb.
+      for (let finger = 0; finger < 4; finger++) {
+        const digit = mesh(new THREE.CapsuleGeometry(.008, .042, 3, 6), leather, [-.025 + finger * .016, -.673, .015]);
+        digit.rotation.x = -.25;
+        shoulder.add(digit);
+      }
+      const thumb = mesh(new THREE.CapsuleGeometry(.012, .035, 3, 6), leather, [-side * .043, -.625, .025]);
+      thumb.rotation.z = -side * .6;
+      shoulder.add(thumb);
+      bakePart(shoulder);
       person.add(shoulder);
       return shoulder;
     });
@@ -341,7 +364,29 @@ export function createPadLife(options: {
       ),
       mic,
     );
-    person.add(head);
+    const jaw = mesh(new THREE.SphereGeometry(.075, 16, 10), face, [0, -.054, .026]);
+    jaw.scale.set(.9, .7, .94);
+    head.add(jaw);
+    for (const side of [-1, 1]) {
+      const eye = mesh(new THREE.SphereGeometry(.019, 12, 8), eyeWhite, [side * .04, .015, .091]);
+      eye.scale.set(1, .52, .5);
+      const iris = mesh(new THREE.SphereGeometry(.008, 10, 8), pupil, [side * .04, .015, .1]);
+      iris.scale.set(1, 1, .35);
+      const brow = mesh(new THREE.CapsuleGeometry(.006, .028, 3, 6), face, [side * .04, .03, .093]);
+      brow.rotation.z = Math.PI / 2 - side * .12;
+      head.add(eye, iris, brow);
+    }
+    const nose = mesh(new THREE.SphereGeometry(.018, 12, 8), face, [0, -.022, .11]);
+    nose.scale.set(.7, 1.35, 1.05);
+    const mouth = mesh(new THREE.CapsuleGeometry(.0025, .033, 3, 6), pupil, [0, -.062, .096]);
+    mouth.rotation.z = Math.PI / 2;
+    head.add(nose, mouth);
+    bakePart(head);
+    // Bake the torso alone so the gait still rotates each limb independently.
+    legs.forEach((leg) => leg.removeFromParent());
+    arms.forEach((arm) => arm.removeFromParent());
+    bakePart(person);
+    person.add(...legs, ...arms, head);
     group.add(person);
     return { person, legs, arms };
   };

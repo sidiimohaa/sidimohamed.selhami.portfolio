@@ -61,6 +61,7 @@ export function createStandingHuman(look: HumanLook, dress?: (parts: Omit<Human,
   const { box, ball, rod } = s;
   const group = new THREE.Group();
   group.name = look.name;
+  group.userData.character = true;
   const skin = mat(look.skin, 0.78),
     lip = mat(new THREE.Color(look.skin).multiplyScalar(0.78).getHex(), 0.85),
     hair = mat(look.hair, 0.92),
@@ -71,6 +72,13 @@ export function createStandingHuman(look: HumanLook, dress?: (parts: Omit<Human,
     belt = mat(look.belt, 0.7),
     hands = look.gloves === undefined ? skin : mat(look.gloves, 0.6),
     white = mat(0xe4ddd2, 0.5);
+
+  for (const material of [skin, lip]) material.userData.surfaceKind = "skin";
+  for (const material of [tunic, sleeves, trousers]) material.userData.surfaceKind = "cloth";
+  for (const material of [boots, belt]) material.userData.surfaceKind = "leather";
+  if (hands !== skin) hands.userData.surfaceKind = "leather";
+  hair.userData.surfaceKind = "fur";
+  white.userData.skipSurfaceDetail = true;
 
   const body = new THREE.Group();
   group.add(body);
@@ -170,6 +178,7 @@ export function createStandingHuman(look: HumanLook, dress?: (parts: Omit<Human,
   if (look.beard !== undefined) {
     const beard = mat(look.beard, 1),
       trim = look.shortBeard ? 0.82 : 1;
+    beard.userData.surfaceKind = "fur";
     ball(head, [0, -0.085 * (look.shortBeard ? 0.96 : 1), 0.045], [0.07 * trim, 0.05 * trim, 0.06 * trim], beard);
     for (const side of [-1, 1]) {
       ball(head, [side * 0.065, -0.055, 0.04 - (1 - trim) * 0.03], [0.035 * trim, 0.05 * trim, 0.05 * trim], beard);
@@ -199,6 +208,8 @@ export function createStandingHuman(look: HumanLook, dress?: (parts: Omit<Human,
   const iris = mat(look.iris, 0.25),
     pupil = mat(0x0b0a09, 0.15),
     glint = new THREE.MeshBasicMaterial({ color: 0xfff6e8 });
+  iris.userData.skipSurfaceDetail = true;
+  pupil.userData.skipSurfaceDetail = true;
   const gazes = [-1, 1].map((side) => {
     const g = new THREE.Group();
     g.position.set(side * 0.042, 0.024, 0.1);

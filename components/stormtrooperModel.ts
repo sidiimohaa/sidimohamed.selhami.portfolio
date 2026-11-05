@@ -44,12 +44,18 @@ function chestShell(front: boolean) {
 
 export function createSandtrooper(officer = false) {
   const group = new THREE.Group(); group.name = officer ? "sandtrooper-officer" : "sandtrooper";
-  const armor = new THREE.MeshStandardMaterial({ color: 0xf2efe5, map: armorFinish(), roughness: .36, metalness: .06, side: THREE.DoubleSide });
+  group.userData.character = true;
+  const armor = new THREE.MeshPhysicalMaterial({ color: 0xf2efe5, map: armorFinish(), roughness: .38, metalness: .06, clearcoat: .28, clearcoatRoughness: .32, side: THREE.DoubleSide });
   const black = new THREE.MeshStandardMaterial({ color: 0x12171a, roughness: .82 });
   const lens = new THREE.MeshStandardMaterial({ color: 0x080f12, roughness: .18, metalness: .18 });
   const metal = new THREE.MeshStandardMaterial({ color: 0x697272, roughness: .57, metalness: .48 });
   const blue = new THREE.MeshStandardMaterial({ color: 0x374952, roughness: .6 });
   const orange = new THREE.MeshStandardMaterial({ color: 0xc47531, roughness: .77, side: THREE.DoubleSide });
+  armor.userData.surfaceKind = "metal";
+  black.userData.surfaceKind = "cloth";
+  metal.userData.surfaceKind = blue.userData.surfaceKind = "metal";
+  orange.userData.surfaceKind = "leather";
+  lens.userData.skipSurfaceDetail = true;
   const box = (p: THREE.Group, w: number, h: number, d: number, mat: THREE.Material, at: XYZ, radius = .007) => part(p, rounded(w, h, d, radius), mat, at);
   const link = (p: THREE.Group, a: XYZ, b: XYZ, r1: number, r2: number, mat: THREE.Material) => {
     const from = new THREE.Vector3(...a), to = new THREE.Vector3(...b);
@@ -60,6 +66,11 @@ export function createSandtrooper(officer = false) {
   const body = new THREE.Group(); group.add(body);
   box(body, .36, .42, .21, black, [0, 1.205, 0], .075);
   part(body, chestShell(true), armor); part(body, chestShell(false), armor);
+  pipe(body, [[-.192,1.098,.085],[-.12,1.072,.143],[0,1.054,.155],[.12,1.072,.143],[.192,1.098,.085]], .007, armor);
+  // Flexible underarm seals remain visible between the chest and shoulder plates.
+  for (const side of [-1,1]) for (let rib=0;rib<4;rib++) {
+    pipe(body, [[side*.19,1.17+rib*.035,-.06],[side*.217,1.17+rib*.035,0],[side*.19,1.17+rib*.035,.07]], .005, black);
+  }
   for (const side of [-1, 1]) {
     box(body, .069, .045, .19, armor, [side * .15, 1.405, -.005], .013);
     for (let rib = 0; rib < 4; rib++) box(body, .071, .009, .13, metal, [side * .15, 1.429, -.05 + rib * .033], .002);
@@ -116,6 +127,9 @@ export function createSandtrooper(officer = false) {
     plate(head, [[side * .025, -.014], [side * .057, -.029], [side * .113, -.054], [side * .166, -.035], [side * .162, -.064], [side * .112, -.077], [side * .051, -.044]], .012, armor, [0, 0, .16], .004);
     part(head, new THREE.CylinderGeometry(.045, .048, .027, 20), armor, [side * .182, -.017, -.008], [0, 0, Math.PI / 2]);
     part(head, new THREE.CylinderGeometry(.025, .025, .03, 16), metal, [side * .197, -.017, -.008], [0, 0, Math.PI / 2]);
+    // Recessed temple panels and screw heads give the helmet a constructed shell.
+    plate(head, [[side*.117,.055],[side*.155,.063],[side*.163,.117],[side*.137,.138]], .006, metal, [0,0,.079], .002);
+    for (const y of [-.033,.002]) part(head,new THREE.SphereGeometry(.005,8,6),black,[side*.214,y,.004]);
     // Flared cheek tubes sweep forward to the two round aerators.
     pipe(head, [[side * .15, -.067, .07], [side * .168, -.105, .099], [side * .142, -.145, .154], [side * .079, -.15, .203]], .035, armor);
     for (let i = 0; i < 7; i++) part(head, new THREE.BoxGeometry(.005, .024, .006), blue, [side * (.147 - i * .006), -.083 - i * .005, .163 + i * .005], [0, side * .45, side * .42]);
@@ -159,9 +173,15 @@ export function createSandtrooper(officer = false) {
     part(arm,new THREE.SphereGeometry(.113,24,14,0,Math.PI*2,0,2.08),armor,[0,.015,0]).scale.set(1,1.25,.96);
     link(arm,[0,-.077,0],[-side*.025,-.255,.022],.071,.063,armor);
     part(arm,new THREE.SphereGeometry(.051,16,10),black,[-side*.025,-.272,.022]);
+    for(let rib=0;rib<3;rib++)part(arm,new THREE.TorusGeometry(.048,.004,5,14),black,[-side*.025,-.26-rib*.012,.022],[Math.PI/2,0,0]);
     link(arm,[-side*.035,-.29,.044],[-side*.136,-.361,.217],.064,.047,armor);
     part(arm,new THREE.SphereGeometry(.047,16,10),black,[-side*.147,-.373,.245]).scale.set(.92,1,1.15);
     box(arm,.054,.018,.059,armor,[-side*.147,-.341,.256],.008);
+    for(let finger=0;finger<4;finger++){
+      part(arm,new THREE.CapsuleGeometry(.007,.028,3,6),black,
+        [-side*.147-.023+finger*.015,-.392,.274],[-.8,0,0]);
+    }
+    part(arm,new THREE.CapsuleGeometry(.009,.025,3,6),black,[-side*.185,-.369,.269],[.6,0,-side*.6]);
     bakePart(arm);
   }
   const blaster=new THREE.Group();blaster.name="e11-blaster";

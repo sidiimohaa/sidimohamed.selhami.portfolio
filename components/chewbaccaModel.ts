@@ -5,10 +5,10 @@ type XYZ = [number, number, number];
 
 /** Chewie at the holotable: shaggy coat and bandolier, seated facing +Z. */
 export function createSeatedChewbacca(seatHeight = .55) {
-  const group = new THREE.Group(); group.name = "cantina-chewbacca";
+  const group = new THREE.Group(); group.name = "cantina-chewbacca"; group.userData.character = true;
   const brown = new THREE.MeshStandardMaterial({ color: 0x59402b, roughness: 1 });
   const shadow = new THREE.MeshStandardMaterial({ color: 0x332b22, roughness: 1 });
-  const gold = new THREE.MeshStandardMaterial({ color: 0x977044, roughness: 1 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0x88633f, roughness: 1 });
   const warm = brown;
   const skin = new THREE.MeshStandardMaterial({ color: 0x4a3c30, roughness: .88 });
   const black = new THREE.MeshStandardMaterial({ color: 0x181716, roughness: .5 });
@@ -16,6 +16,13 @@ export function createSeatedChewbacca(seatHeight = .55) {
   const leather = new THREE.MeshStandardMaterial({ color: 0x37291f, roughness: .79 });
   const silver = new THREE.MeshStandardMaterial({ color: 0xabb5b5, metalness: .82, roughness: .33 });
   const socket = new THREE.MeshStandardMaterial({ color: 0x262423, metalness: .42, roughness: .58 });
+  for (const material of [brown, shadow, gold]) material.userData.surfaceKind = "fur";
+  skin.userData.surfaceKind = "skin";
+  leather.userData.surfaceKind = "leather";
+  silver.userData.surfaceKind = "metal";
+  socket.userData.surfaceKind = "metal";
+  eyes.userData.skipSurfaceDetail = true;
+  black.userData.skipSurfaceDetail = true;
   const hip = seatHeight + .09, shoulder = seatHeight + .83;
   const sphere = (root: THREE.Group, at: XYZ, radii: XYZ, mat: THREE.Material = brown) => {
     const mesh = part(root, new THREE.SphereGeometry(1, 18, 12), mat, at);
@@ -27,8 +34,26 @@ export function createSeatedChewbacca(seatHeight = .55) {
     m.position.copy(start).add(end).multiplyScalar(.5);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), span.normalize()); return m;
   };
-  const strand = (root: THREE.Group, points: XYZ[], radius: number, material: THREE.Material) =>
-    part(root, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p))), 8, radius, 4, false), material);
+  const strand = (root: THREE.Group, points: XYZ[], radius: number, material: THREE.Material) => {
+    const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
+    const geometry = new THREE.TubeGeometry(curve, 8, radius, 5, false);
+    const positions = geometry.getAttribute("position");
+    const center = new THREE.Vector3();
+    for (let ring = 0; ring <= 8; ring++) {
+      const progress = ring / 8;
+      curve.getPointAt(progress, center);
+      const taper = 1 - progress * .92;
+      for (let side = 0; side <= 5; side++) {
+        const index = ring * 6 + side;
+        positions.setXYZ(index,
+          center.x + (positions.getX(index) - center.x) * taper,
+          center.y + (positions.getY(index) - center.y) * taper,
+          center.z + (positions.getZ(index) - center.z) * taper);
+      }
+    }
+    geometry.computeVertexNormals();
+    return part(root, geometry, material);
+  };
   // Overlapping tapered locks follow the coat's surface. All locks are merged
   // by material, so a long shaggy coat does not cost one draw call per strand.
   const locks = (root: THREE.Group, center: XYZ, radii: XYZ, count: number, length: number, seed: number, beard = false) => {
@@ -124,13 +149,19 @@ export function createSeatedChewbacca(seatHeight = .55) {
     for (let k = 0; k < 5; k++) strand(head,
       [[side * (.035 + k * .013), .079, .13], [side * (.055 + k * .016), .098 - k * .006, .148], [side * (.085 + k * .014), .043 - k * .01, .14]], .006, k % 2 ? gold : brown);
   }
+  // A dark facial mask frames the muzzle, with fur growing out of its edges.
+  for (const side of [-1, 1]) {
+    sphere(head, [side * .045, -.035, .158], [.034, .054, .025], shadow);
+    strand(head, [[side * .09, -.012, .17], [side * .125, -.055, .17], [side * .14, -.17, .145]], .011, gold);
+    strand(head, [[side * .105, .018, .149], [side * .151, -.025, .139], [side * .17, -.11, .12]], .01, brown);
+  }
   sphere(head, [0, -.047, .153], [.068, .053, .045], skin);
   sphere(head, [0, -.033, .191], [.053, .025, .025], black);
   for (const side of [-1, 1]) sphere(head, [side * .026, -.042, .212], [.013, .008, .006], shadow);
   // The moustache spreads sideways then drops into the long golden beard.
   for (const side of [-1, 1]) for (let i = 0; i < 11; i++) {
     const x = side * (.018 + i * .009), y = -.067 - i * .002;
-    pipe(head, [[x * .7, y, .194], [x, y - .037, .205 - i * .002], [x * 1.12, y - .10, .175 - i * .002]], .007, i % 3 ? gold : brown);
+    strand(head, [[x * .7, y, .194], [x, y - .037, .205 - i * .002], [x * 1.12, y - .10, .175 - i * .002]], .007, i % 3 ? gold : brown);
   }
   pipe(head, [[-.053, -.105, .184], [0, -.12, .196], [.053, -.104, .184]], .008, shadow);
   locks(head, [0, -.17, .11], [.118, .105, .082], 85, .24, 32, true);
@@ -166,7 +197,8 @@ export function createSeatedChewbacca(seatHeight = .55) {
     head.rotation.x = .085 + a * .055 + (1 - look) * .16 - roar * .38 + proud * Math.sin(t * 5) * .05 + (quiet ? 0 : Math.sin(t * .37) * .012);
     head.rotation.y = (quiet ? 0 : Math.sin(t * .23) * .045) - a * .035 + roar * Math.sin(t * 3) * .08;
     gazes.forEach(g => g.position.y = .014 + (look - .6) * .003);
-    const blink = !quiet && (t * .21 + .4) % 1 > .965 ? 1 : 0;
+    const blinkPhase = (t + 1.7) % 5.2;
+    const blink = !quiet && blinkPhase < .2 ? Math.sin(Math.PI * blinkPhase / .2) : 0;
     lids.forEach(l => { l.position.y = .037 - blink * .019 - roar * .006; });
     const open = Math.max(roar, proud * .35 * (.5 + .5 * Math.sin(t * 9)));
     inner.scale.y = .004 + open * .048; inner.position.y = -open * .024;
