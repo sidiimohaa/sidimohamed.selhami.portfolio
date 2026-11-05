@@ -7,9 +7,6 @@ const clamp = (n: number, min = 0, max = 1) => Math.max(min, Math.min(max, n));
 export function createDefenseAudio() {
   const Context = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   let disposed = false, enabled = false, volume = .55, lastAlarm = -Infinity;
-  let speech: SpeechSynthesisUtterance | null = null, lastSpeech = -Infinity, speechAllowed = true;
-  const synthesizer = typeof window.speechSynthesis !== "undefined" ? window.speechSynthesis : null;
-  const cancelSpeech = () => { if (speech && synthesizer) { speech = null; try { synthesizer.cancel(); } catch {} } };
   const ctx = Context ? new Context() : null;
   const voices = new Set<Voice>();
   const master = ctx?.createGain() ?? null;
@@ -64,33 +61,16 @@ export function createDefenseAudio() {
     setEnabled(value: boolean) {
       if (disposed) return;
       enabled = value;
-      if (value) resume(); else { cancelSpeech(); for (const voice of [...voices]) voice.stop(); }
+      if (value) resume(); else for (const voice of [...voices]) voice.stop();
       if (ctx && master) master.gain.setTargetAtTime(value ? volume * .55 : 0, ctx.currentTime, .04);
     },
     setVolume(value: number) {
       if (disposed) return;
       volume = clamp(Number.isFinite(value) ? value : .55);
-      if (volume === 0) cancelSpeech(); else if (speech) speech.volume = volume * .8;
       if (ctx && master) master.gain.setTargetAtTime(enabled ? volume * .55 : 0, ctx.currentTime, .04);
     },
     play(event: DefenseEvent) {
       if (!enabled || disposed || !ctx) return;
-      // All spoken lines come from the game's original French event text.
-      // No recorded film dialogue, remote voice service or downloaded asset.
-      if (event.text && speechAllowed && synthesizer && typeof SpeechSynthesisUtterance !== "undefined" && ["radio", "wave", "boss", "victory", "defeat"].includes(event.type)) {
-        const critical = ["boss", "victory", "defeat"].includes(event.type) || /AT-AT|Mission accomplie|offensive repoussée|Évacuez|boucliers épuisés/i.test(event.text);
-        if (critical || ctx.currentTime - lastSpeech >= 4) {
-          cancelSpeech();
-          try {
-            const utterance = new SpeechSynthesisUtterance(event.text);
-            utterance.lang = "fr-FR"; utterance.rate = 1.03; utterance.pitch = 1.02; utterance.volume = clamp(volume * .8);
-            const voice = synthesizer.getVoices().find(item => item.lang.toLowerCase().startsWith("fr"));
-            if (voice) utterance.voice = voice;
-            utterance.onend = utterance.onerror = () => { if (speech === utterance) speech = null; };
-            speech = utterance; lastSpeech = ctx.currentTime; synthesizer.speak(utterance);
-          } catch { speech = null; }
-        }
-      }
       switch (event.type) {
         case "shot": tone(840, 125, .13, .24, "sawtooth"); tone(260, 60, .1, .12, "triangle"); break;
         case "hit": tone(event.amount === 0 ? 510 : 1200, 190, .055, .15, "triangle"); break;
@@ -110,8 +90,6 @@ export function createDefenseAudio() {
     },
     tick(state: DefenseState, _dt: number) {
       if (!ctx || disposed) return;
-      speechAllowed = state.phase !== "paused" && state.phase !== "briefing";
-      if (!speechAllowed) cancelSpeech();
       const active = enabled && (state.phase === "playing" || state.phase === "transition");
       windGain?.gain.setTargetAtTime(active ? .065 + Math.sin(state.time * .4) * .012 : 0, ctx.currentTime, .15);
       windFilter?.frequency.setTargetAtTime(280 + Math.sin(state.time * .2) * 120, ctx.currentTime, .3);
@@ -125,7 +103,7 @@ export function createDefenseAudio() {
       if (state.phase === "paused" || state.phase === "briefing") { for (const voice of [...voices]) voice.stop(); if (state.phase === "briefing") lastAlarm = -Infinity; }
     },
     dispose() {
-      if (disposed) return; disposed = true; enabled = false; cancelSpeech();
+      if (disposed) return; disposed = true; enabled = false;
       for (const voice of [...voices]) voice.stop();
       for (const source of [wind, engine, armour]) { try { source?.stop(); } catch {} }
       for (const node of [wind, windFilter, windGain, engine, engineGain, armour, armourFilter, armourGain, master]) { try { node?.disconnect(); } catch {} }

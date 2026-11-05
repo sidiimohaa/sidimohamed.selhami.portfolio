@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Clapperboard, DoorOpen, Eye, FastForward, LogOut, MessageSquare, MessageSquareOff, Navigation, Sunset } from "lucide-react";
+import { ArrowLeft, Clapperboard, DoorOpen, Eye, FastForward, LogOut, Navigation, Sunset } from "lucide-react";
 import * as THREE from "three";
 import { advanceCity, cityFogColor, lightCity } from "../galaxy/cityEnv";
 import { createCityEvents, type CityEffects } from "../galaxy/cityEvents";
@@ -71,9 +71,8 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
   const [fade, setFade] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tip, setTip] = useState<string | null>(null);
-  const [voice, setVoice] = useState(true);
-  const live = useRef({ reduced, panel, sound, voice });
-  live.current = { reduced, panel, sound, voice };
+  const live = useRef({ reduced, panel, sound });
+  live.current = { reduced, panel, sound };
   const audio = useRef<TaxiAudio | null>(null);
   const controls = useRef<Controls | null>(null);
   const leaveRef = useRef(onClose);
@@ -82,9 +81,6 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
   useEffect(() => {
     audio.current?.setEnabled(sound);
   }, [sound]);
-  useEffect(() => {
-    audio.current?.setVoice(voice);
-  }, [voice]);
 
   useEffect(() => {
     const el = mount.current;
@@ -113,7 +109,6 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
     const sfx = createTaxiAudio();
     audio.current = sfx;
     sfx.setEnabled(live.current.sound);
-    sfx.setVoice(live.current.voice);
 
     // The world.
     const glow = glowTexture();
@@ -187,7 +182,6 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       const id = captionId;
       setCaption({ id, text: line });
       sfx.droid();
-      later(320, () => sfx.speak(line));
       talkUntil = elapsed + Math.max(3, line.length * 0.06);
       later(Math.max(5200, line.length * 75), () => setCaption((current) => (current?.id === id ? null : current)));
     };
@@ -1090,10 +1084,6 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
           <strong>{status}</strong>
         </div>
         <div className="taxi-head-actions">
-          <button className="taxi-chip" onClick={() => setVoice((on) => !on)} aria-pressed={voice} title={voice ? "Couper la voix du droïde" : "Rétablir la voix du droïde"}>
-            {voice ? <MessageSquare size={15} /> : <MessageSquareOff size={15} />}
-            <span>VOIX</span>
-          </button>
           {hud.mode === "flight" && (
             <button className="taxi-chip" onClick={act((k) => k.toggleView())} aria-pressed={hud.view === "cinema"} title="Changer de vue (V)">
               {hud.view === "cabin" ? <Clapperboard size={15} /> : <Eye size={15} />}

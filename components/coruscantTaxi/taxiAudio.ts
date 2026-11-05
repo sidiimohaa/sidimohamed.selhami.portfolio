@@ -163,27 +163,13 @@ export function createTaxiAudio() {
     source.onended = () => panner.disconnect();
   };
 
-  let voice: SpeechSynthesisVoice | null | undefined;
-  const speech = typeof window !== "undefined" && "speechSynthesis" in window ? window.speechSynthesis : null;
-  const pickVoice = () => {
-    if (!speech) return null;
-    const voices = speech.getVoices().filter((item) => item.lang.toLowerCase().startsWith("fr"));
-    return voices.find((item) => /thomas|daniel|google|amélie|amelie/i.test(item.name)) ?? voices[0] ?? null;
-  };
-  let speaking = true;
-
   return {
     setEnabled: (on: boolean) => {
       enabled = on;
       if (!ctx || !master) return;
       if (on && ctx.state === "suspended") void ctx.resume();
       ramp(master.gain, on ? 0.85 : 0, 0.4);
-      if (!on) speech?.cancel();
-      else applyScene();
-    },
-    setVoice: (on: boolean) => {
-      speaking = on;
-      if (!on) speech?.cancel();
+      if (on) applyScene();
     },
     setScene: (next: TaxiScene) => {
       scene = next;
@@ -225,23 +211,7 @@ export function createTaxiAudio() {
       [392, 494, 587, 784, 988].forEach((f, i) => tone(f, f, 0.9, 0.05, "sine", i * 0.16));
       hiss(3.2, 0.1, 500, 900, 0.3);
     },
-    // The pilot droid's voice; returns false when nothing will be heard.
-    speak: (line: string) => {
-      if (!speech || !enabled || !speaking) return false;
-      if (voice === undefined || voice === null) voice = pickVoice();
-      if (!voice) return false;
-      speech.cancel();
-      const utterance = new SpeechSynthesisUtterance(line);
-      utterance.voice = voice;
-      utterance.lang = voice.lang;
-      utterance.rate = 1.04;
-      utterance.pitch = 0.82;
-      utterance.volume = 0.9;
-      speech.speak(utterance);
-      return true;
-    },
     dispose: () => {
-      speech?.cancel();
       sources.forEach((source) => {
         try {
           source.stop();

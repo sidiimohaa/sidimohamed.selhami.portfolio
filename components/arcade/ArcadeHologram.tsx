@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Lock, Play, X } from "lucide-react";
 import { arcadeGames, gameById, type ArcadeGame, type ArcadeGameId } from "./catalog";
 import { achievements, cosmetics, equip, equippedValue, grades, noteSecret, purchase, useArcade, type CosmeticKind, type ResultSummary } from "./arcadeStore";
-import { droidLines, launchLine, resultLine, speak, suggestion } from "./droid";
+import { droidLines, launchLine, resultLine, suggestion } from "./droid";
 import type { ArcadeAudio } from "./arcadeAudio";
 
 // The Galactic Arcade hologram: catalogue, mission briefings, the launch sequence, results, the
@@ -88,7 +88,6 @@ function Difficulty({ level }: { level: number }) {
 type Props = {
   mode: "holo" | "flat";
   reduced: boolean;
-  sound: boolean;
   audio: ArcadeAudio | null;
   result: ResultSummary | null;
   onLaunch: (id: ArcadeGameId) => void;
@@ -97,7 +96,7 @@ type Props = {
   style?: React.CSSProperties;
 };
 
-export const ArcadeHologram = forwardRef<HTMLElement, Props>(function ArcadeHologram({ mode, reduced, sound, audio, result, onLaunch, onClose, onDismissResult, style }, ref) {
+export const ArcadeHologram = forwardRef<HTMLElement, Props>(function ArcadeHologram({ mode, reduced, audio, result, onLaunch, onClose, onDismissResult, style }, ref) {
   const { data, grade } = useArcade();
   const [view, setView] = useState<View>(() => (result ? { kind: "result" } : { kind: "boot" }));
   const [tab, setTab] = useState<Tab>("catalog");
@@ -115,15 +114,11 @@ export const ArcadeHologram = forwardRef<HTMLElement, Props>(function ArcadeHolo
     window.clearTimeout(launchTimer.current);
     onClose();
   };
-  const say = (text: string) => {
-    setLine(text);
-    speak(text, sound);
-  };
+  const say = (text: string) => setLine(text);
   // Boot: lines appear, then the droid presents the console.
   useEffect(() => {
     if (view.kind !== "boot") return;
     audio?.ui("boot");
-    speak(droidLines.boot, sound);
     const timer = window.setTimeout(() => {
       setView({ kind: "tabs" });
       say(droidLines.open);

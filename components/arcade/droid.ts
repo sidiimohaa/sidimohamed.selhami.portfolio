@@ -3,7 +3,7 @@ import { gameById } from "./catalog";
 import type { ResultSummary } from "./arcadeStore";
 
 // The arcade droid speaks from written lines only: no AI call for these simple reactions. Lines
-// are shown on the console and, when sound is on, spoken by the browser's own French voice.
+// are shown on the console, never read aloud.
 
 const pick = <T,>(list: T[], seed = Math.random()) => list[Math.floor(seed * list.length) % list.length];
 
@@ -37,24 +37,3 @@ export function suggestion(exclude: ArcadeGameId, ids: ArcadeGameId[]) {
   return other.length ? `Pourquoi ne pas tenter ${gameById(pick(other)).name} ?` : "";
 }
 
-let voice: SpeechSynthesisUtterance | null = null;
-/** Speaks a line with the browser's French voice, cutting off the previous one. */
-export function speak(text: string, enabled: boolean) {
-  if (!enabled || typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  try {
-    window.speechSynthesis.cancel();
-    voice = new SpeechSynthesisUtterance(text);
-    voice.lang = "fr-FR";
-    voice.rate = 1.05;
-    voice.pitch = 1.15;
-    const french = window.speechSynthesis.getVoices().find((item) => item.lang.toLowerCase().startsWith("fr"));
-    if (french) voice.voice = french;
-    window.speechSynthesis.speak(voice);
-  } catch {
-    voice = null;
-  }
-}
-export function hush() {
-  if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-  voice = null;
-}

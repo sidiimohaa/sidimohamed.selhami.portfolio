@@ -37,7 +37,6 @@ import { ArcadeHologram } from "./arcade/ArcadeHologram";
 import { createArcadeAudio, type ArcadeAudio } from "./arcade/arcadeAudio";
 import { equippedValue, recordResult, useArcade, type GameResult, type ResultSummary } from "./arcade/arcadeStore";
 import { gameById, type ArcadeGameId } from "./arcade/catalog";
-import { hush } from "./arcade/droid";
 import type { PodResult } from "./podracing/types";
 import type { CockpitGameKind, CockpitGameRuntime, CockpitGameView } from "./arcade/cockpitGames";
 const ArcadeGameHUD = dynamic(() => import("./arcade/ArcadeGameHUD"), { ssr: false });
@@ -140,7 +139,6 @@ export default function CockpitMap({
   const closeRef = useRef(closeJournal);
   closeRef.current = closeJournal;
   const closeArcade = () => {
-    hush();
     arcadeAudio.current?.ui("back");
     setArcade(false);
     setArcadeResult(null);
@@ -733,7 +731,6 @@ export default function CockpitMap({
   };
   const launchArcade = (id: ArcadeGameId) => {
     const game = gameById(id);
-    hush();
     ensureArcadeAudio();
     setArcade(false);
     setArcadeResult(null);
@@ -783,13 +780,11 @@ export default function CockpitMap({
   }, [defenseView]);
   useEffect(() => {
     arcadeAudio.current?.setEnabled(sound);
-    if (!sound) hush();
   }, [sound]);
   useEffect(
     () => () => {
       window.clearTimeout(finishTimer.current);
       window.clearTimeout(toastTimer.current);
-      hush();
       arcadeAudio.current?.dispose();
     },
     [],
@@ -1125,7 +1120,6 @@ export default function CockpitMap({
               ref={arcadeScreen}
               mode={compact || !graphics ? "flat" : "holo"}
               reduced={reduced}
-              sound={sound}
               audio={arcadeAudio.current}
               result={arcadeResult}
               onLaunch={launchArcade}
