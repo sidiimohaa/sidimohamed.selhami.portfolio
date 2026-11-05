@@ -43,6 +43,9 @@ import { destinationSlug, destinations, landings, planetReferenceStyle } from ".
 import { addFlightTime, logDocking, logLanding, logOrbit } from "./flightLog";
 import type { EventPlace } from "./galaxy/catalog";
 import GalaxyLayer, { MonitorButton } from "./galaxy/GalaxyLayer";
+import { livingOn } from "./galaxy/flags";
+import DroidLayer from "./droid/DroidLayer";
+import type { Section } from "./deathStar/cvData";
 import {
   getProgress,
   markRankCelebrated,
@@ -94,6 +97,7 @@ export default function Experience() {
     [transmission, setTransmission] = useState<"order-66" | "archives" | null>(null),
     // Inside the Death Star: the professional record, walked through or in Recruiter mode.
     [station, setStation] = useState<"explore" | "recruiter" | null>(null),
+    [stationSection, setStationSection] = useState<Section | undefined>(undefined),
     // The air taxi ride from Coruscant's pad to the Jedi Temple and the Senate.
     [taxi, setTaxi] = useState(false),
     // The bridge: welcome on arrival, settings, the sector scanner, copilot messages, photo mode.
@@ -435,8 +439,9 @@ export default function Experience() {
     setResetKey((key) => key + 1);
   };
   // From orbit, leaving the station returns to the Death Star; from anywhere else, to free flight.
-  const enterStation = (start: "explore" | "recruiter", fromOrbit = false) => {
+  const enterStation = (start: "explore" | "recruiter", fromOrbit = false, section?: Section) => {
     stationFromOrbit.current = fromOrbit;
+    setStationSection(section);
     timers.current.forEach(clearTimeout);
     setWelcome(false);
     setScan(null);
@@ -516,6 +521,19 @@ export default function Experience() {
   const leaveTaxi = () => {
     setTaxi(false);
     setCombat(false);
+  };
+  // What R-X7's buttons do. The ids come from its fixed list, and each one is a click by the visitor.
+  const droidAct = (id: string) => {
+    if (id === "recruiter") enterStation("recruiter");
+    else if (id.startsWith("recruiter:")) enterStation("recruiter", false, id.slice("recruiter:".length) as Section);
+    else if (id === "station") enterStation("explore");
+    else if (id === "map") openMap();
+    else if (id === "journal") openMap(true);
+    else if (id === "scanner") openScanner();
+    else if (id.startsWith("course:")) {
+      const index = destinations.findIndex((world) => destinationSlug(world) === id.slice("course:".length));
+      if (index >= 0) launch(index);
+    }
   };
   const replayArrival = () => {
     reset();
@@ -809,7 +827,7 @@ export default function Experience() {
         )}
       </AnimatePresence>
       <span className="sr-only" role="status">
-        {droidSignal > 0 ? "L’astromécano vous salue." : ""}
+        {droidSignal > 0 ? "R-X7, l’astromécano, ouvre sa conversation." : ""}
       </span>
       <AnimatePresence>
         {helpOpen && (
@@ -883,6 +901,10 @@ export default function Experience() {
                   <dd>R, ou le bouton Scanner en haut à gauche</dd>
                 </div>
                 <div>
+                  <dt>Discuter</dt>
+                  <dd>Cliquez sur l’astromécano du X-wing pour parler à R-X7</dd>
+                </div>
+                <div>
                   <dt>Photo</dt>
                   <dd>Icône appareil photo en haut à droite : l’interface se masque, réglez la focale et capturez</dd>
                 </div>
@@ -952,6 +974,17 @@ export default function Experience() {
         )}
       </AnimatePresence>
       <GalaxyLayer place={eventPlace} blocked={eventsBlocked} sound={sound && !combat} reduced={reduced} />
+      {livingOn("droid") && (
+        <DroidLayer
+          visible={cruising && !welcome && !jumping && !taxi && reward === null && transmission === null}
+          reduced={reduced}
+          sound={sound && !combat}
+          quality={quality}
+          openSignal={droidSignal}
+          onEnableSound={toggleSound}
+          onAction={droidAct}
+        />
+      )}
       <AnimatePresence>
         {scan && (
           <GalacticScanner
@@ -1010,7 +1043,7 @@ export default function Experience() {
           />
         )}
       </AnimatePresence>
-      {station && <DeathStarStation key="station" start={station} reduced={reduced} sound={sound} onClose={leaveStation} />}
+      {station && <DeathStarStation key="station" start={station} section={stationSection} reduced={reduced} sound={sound} onClose={leaveStation} />}
       {taxi && <CoruscantTaxi reduced={reduced} sound={sound} onClose={leaveTaxi} />}
       <div className="jedi-toasts">
         <AnimatePresence>

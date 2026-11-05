@@ -1386,7 +1386,7 @@ export default function SpaceScene({
       <button
         ref={droidButton}
         className="droid-hit"
-        aria-label="Saluer l’astromécano"
+        aria-label="Parler à l’astromécano R-X7"
         onClick={onDroid}
       >
         <span>ASTROMÉCANO</span>

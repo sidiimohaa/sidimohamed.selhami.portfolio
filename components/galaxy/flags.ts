@@ -2,7 +2,7 @@
 // default; a visitor can turn the events off in the settings, and ?living=off or
 // ?living=-cityTraffic,-events turns systems off for one visit (to compare or to diagnose).
 
-export const livingFlags = ["cityCycle", "cityTraffic", "cityHolograms", "cityNeon", "events", "spaceEvents", "worldEvents", "hothFauna", "hothOutpost"] as const;
+export const livingFlags = ["cityCycle", "cityTraffic", "cityHolograms", "cityNeon", "events", "spaceEvents", "worldEvents", "hothFauna", "hothOutpost", "droid"] as const;
 export type LivingFlag = (typeof livingFlags)[number];
 
 const KEY = "orbital-living-flags-v1";

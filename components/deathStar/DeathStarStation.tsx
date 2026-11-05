@@ -20,7 +20,7 @@ import type { PerformanceKind } from "./stationPresences";
 // landing in the hangar play first (skippable), then the visitor walks the station; the Recruiter
 // mode gives every essential without walking anywhere, and is the whole experience without WebGL.
 
-type Props = { start: "explore" | "recruiter"; reduced: boolean; sound: boolean; onClose: () => void };
+type Props = { start: "explore" | "recruiter"; section?: Section; reduced: boolean; sound: boolean; onClose: () => void };
 // Where the plan takes the visitor, and what they turn to face on arrival.
 type Destination = { id: string; label: string; short: string; room: RoomId; x: number; z: number; face: [number, number] };
 
@@ -54,7 +54,7 @@ function panelFor(id: string): { id: PanelId; focus?: string } | null {
   return null;
 }
 
-export default function DeathStarStation({ start, reduced, sound, onClose }: Props) {
+export default function DeathStarStation({ start, section, reduced, sound, onClose }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const shell = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<"intro" | "explore">(start === "recruiter" || reduced ? "explore" : "intro");
@@ -796,6 +796,7 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
         <RecruiterMode
           view={recruiter.view}
           title={recruiter.title}
+          initial={section}
           onSeen={markSeen}
           onClose={() => (fallback ? onClose() : setRecruiter(null))}
           onExit={onClose}

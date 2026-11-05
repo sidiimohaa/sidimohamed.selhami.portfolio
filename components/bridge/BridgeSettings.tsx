@@ -24,6 +24,7 @@ type Props = {
 export default function BridgeSettings({ applied, systemReduced, sound, onToggleSound, onClose }: Props) {
   const settings = useBridgeSettings();
   const [events, setEvents] = useState(() => livingOn("events"));
+  const [droid, setDroid] = useState(() => livingOn("droid"));
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -151,6 +152,13 @@ export default function BridgeSettings({ applied, systemReduced, sound, onToggle
             <span>
               <b>Événements galactiques</b>
               <small>Tempêtes, poursuites, signaux de détresse… Effet complet au prochain atterrissage</small>
+            </span>
+          </label>
+          <label>
+            <input type="checkbox" checked={droid} onChange={(event) => { setLiving("droid", event.target.checked); setDroid(event.target.checked); }} />
+            <span>
+              <b>Droïde R-X7</b>
+              <small>La conversation qui s’ouvre en cliquant sur l’astromécano du X-wing. Effet au prochain chargement</small>
             </span>
           </label>
           <label>
