@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { Download, FileText, Linkedin, Mail, Map, X } from "lucide-react";
+import { Download, FileText, Mail, Map, X } from "lucide-react";
+import Linkedin from "../LinkedinIcon";
 import { CV_PDF, education, experiences, identity, interests, languages, projects, skillTree, statusLabel, type Section } from "./cvData";
 import { IMPERIAL_PRESENCES } from "./imperialRoster";
 

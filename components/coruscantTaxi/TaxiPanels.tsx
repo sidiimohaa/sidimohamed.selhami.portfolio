@@ -1,6 +1,7 @@
 "use client";
 import { forwardRef } from "react";
-import { Download, ExternalLink, Linkedin, Mail, X } from "lucide-react";
+import { Download, ExternalLink, Mail, X } from "lucide-react";
+import Linkedin from "../LinkedinIcon";
 import { CV_PDF, education, experiences, identity, projects, skillTree, statusLabel } from "../deathStar/cvData";
 import type { CouncilTopic } from "./councilChamber";
 

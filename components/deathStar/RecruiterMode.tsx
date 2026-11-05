@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Download, Globe, Linkedin, Mail, Rocket, X } from "lucide-react";
+import { ArrowLeft, Download, Globe, Mail, Rocket, X } from "lucide-react";
+import Linkedin from "../LinkedinIcon";
 import { CV_PDF, SECTIONS, certifications, education, experiences, identity, interests, languages, projects, sectionLabel, skillTree, statusLabel, type Section } from "./cvData";
 
 // The recruiter's view of the record: every essential in a few clicks, readable without the 3D

@@ -6,23 +6,24 @@
     "dev": "next dev --webpack --hostname 0.0.0.0",
     "build": "next build --webpack",
     "start": "next start",
+    "test:podracing": "node tests/pod-sim.cjs && node tests/pod-runtime.cjs && node tests/pod-progression.cjs && node tests/pod-arcade.cjs",
     "test:hoth": "node tests/hoth-defense.cjs && node tests/hoth-world.cjs"
   },
   "dependencies": {
-    "lucide-react": "^0.468.0",
-    "motion": "^12.23.0",
+    "lucide-react": "^1.69.0",
+    "motion": "^14.9.1",
     "next": "^16.4.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "three": "^0.180.0"
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "@types/three": "^0.180.0",
+    "@types/three": "^0.187.0",
     "tailwindcss": "^4.1.0",
-    "typescript": "^5.9.0"
+    "typescript": "~5.9.3"
   }
 }
