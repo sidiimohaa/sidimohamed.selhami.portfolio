@@ -478,6 +478,20 @@ export function createShipModel() {
       cylinder(0.142, 0.86, [engineX, -0.43, 0.05], hull, wing);
       cylinder(0.147, 0.2, [engineX, -0.04, 0.05], ivory, wing);
       cylinder(0.154, 0.23, [engineX, -0.84, 0.05], dark, wing);
+      // The open intake at the front: a dark throat, a steel lip and a fan, not a blank cap.
+      const intake = new THREE.Group();
+      intake.position.set(engineX, 0.061, 0.05);
+      intake.rotation.x = -Math.PI / 2;
+      wing.add(intake);
+      add(new THREE.CircleGeometry(0.13, 28), dark, intake);
+      add(new THREE.TorusGeometry(0.133, 0.012, 6, 32), steel, intake).position.z = 0.003;
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2,
+          blade = add(new THREE.PlaneGeometry(0.016, 0.082), steel, intake);
+        blade.position.set(Math.cos(angle) * 0.078, Math.sin(angle) * 0.078, 0.003);
+        blade.rotation.z = angle - Math.PI / 2;
+      }
+      add(new THREE.CircleGeometry(0.032, 16), hull, intake).position.z = 0.005;
       for (const y of [-0.17, -0.34, -0.56, -0.72, -0.92])
         ring(0.145, 0.012, [engineX, y, 0.05], steel, wing);
       beam(

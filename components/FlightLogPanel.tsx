@@ -2,6 +2,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { Compass, Gamepad2, ScrollText, X } from "lucide-react";
 import { useFlightLog } from "./flightLog";
+import { useGalaxy } from "./galaxy/store";
 import { useJediProgression } from "./jediProgression";
 import { useArcade, achievements } from "./arcade/arcadeStore";
 import { arcadeGames } from "./arcade/catalog";
@@ -32,6 +33,7 @@ const duration = (seconds: number) => {
 
 export const FlightLogPanel = forwardRef<HTMLElement, Props>(function FlightLogPanel({ mode, onClose, onLaunch, onArcade, onJournal, style }, ref) {
   const log = useFlightLog();
+  const activity = useGalaxy().record();
   const { count, total, rank } = useJediProgression();
   const { data, grade } = useArcade();
   const [dossier, setDossier] = useState(0);
@@ -84,6 +86,12 @@ export const FlightLogPanel = forwardRef<HTMLElement, Props>(function FlightLogP
             <dt>Missions Jedi</dt>
             <dd>
               {count}/{total} <small>{rank.title}</small>
+            </dd>
+          </div>
+          <div>
+            <dt>Événements observés</dt>
+            <dd>
+              {activity.seen} <small>{activity.discoveries.length} découverte{activity.discoveries.length > 1 ? "s" : ""}</small>
             </dd>
           </div>
           <div>

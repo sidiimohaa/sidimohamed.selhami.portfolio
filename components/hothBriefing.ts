@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { ZoneTerminal } from "./landingKit";
+import { softBeam } from "./render/softBeam";
 import { bakePart, part } from "./tatooineCharacters";
 import type { Landing } from "./universe";
 
@@ -119,7 +120,7 @@ export function createBriefingTable(landing: Landing, at: { x: number; z: number
   part(table, new THREE.CylinderGeometry(0.5, 0.6, 0.12, 32), dark, [0, 0.86, 0]);
   bakePart(table);
   part(group, new THREE.TorusGeometry(1.5, 0.04, 8, 72), new THREE.MeshBasicMaterial({ color: CYAN }), [0, 0.82, 0], [Math.PI / 2, 0, 0]);
-  const beam = part(group, new THREE.CylinderGeometry(1.35, 0.45, CENTRE - RADIUS - 0.85, 40, 1, true), new THREE.MeshBasicMaterial({ color: 0x4fb8e8, opacity: 0.07, side: THREE.DoubleSide, ...additive }), [0, 0.86 + (CENTRE - RADIUS - 0.85) / 2, 0]);
+  const beam = part(group, new THREE.CylinderGeometry(1.35, 0.45, CENTRE - RADIUS - 0.85, 40, 1, true), softBeam(new THREE.MeshBasicMaterial({ color: 0x4fb8e8, opacity: 0.07, side: THREE.DoubleSide, ...additive })), [0, 0.86 + (CENTRE - RADIUS - 0.85) / 2, 0]);
 
   // The schematic turns gently back and forth so every target stays on the visible face.
   const station = new THREE.Group();

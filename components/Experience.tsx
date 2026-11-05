@@ -41,6 +41,8 @@ const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
 const CockpitMap = dynamic(() => import("./CockpitMap"), { ssr: false });
 import { destinationSlug, destinations, landings, planetReferenceStyle } from "./universe";
 import { addFlightTime, logDocking, logLanding, logOrbit } from "./flightLog";
+import type { EventPlace } from "./galaxy/catalog";
+import GalaxyLayer, { MonitorButton } from "./galaxy/GalaxyLayer";
 import {
   getProgress,
   markRankCelebrated,
@@ -476,6 +478,15 @@ export default function Experience() {
     // Development only: ?sol=hoth lands straight on a world, to compare renders at a fixed view.
     const sol = process.env.NODE_ENV !== "production" ? url.searchParams.get("sol") : null;
     const solIndex = sol ? destinations.findIndex((world) => world.name.toLowerCase() === sol.toLowerCase()) : -1;
+    // ?sol=espace starts in open space, past the opening.
+    if (sol === "espace") {
+      try {
+        window.sessionStorage.setItem("orbital-welcome", "1");
+      } catch {
+        // Nothing to remember without storage.
+      }
+      setLoading(false);
+    }
     if (solIndex >= 0) {
       try {
         window.sessionStorage.setItem("orbital-welcome", "1");
@@ -523,6 +534,14 @@ export default function Experience() {
   const paused =
     loading || mapOpen || helpOpen || surface !== null || reward !== null || station !== null || welcome || settingsOpen || scan !== null;
   const cruising = !loading && !mapOpen && surface === null && station === null && !photo && !unsupported;
+  // Where the visitor is, for the Galactic Event Director, and when it must keep quiet: any
+  // transition, cinematic or game, the photo mode, and always the recruiter's record.
+  const eventPlace: EventPlace | null = station !== null
+    ? "station"
+    : ground
+      ? ground.name === "Coruscant" ? "coruscant" : ground.name === "Tatooine" ? "tatooine" : ground.name === "Hoth" ? "hoth" : ground.name === "Endor" ? "endor" : null
+      : "space";
+  const eventsBlocked = loading || welcome || travel || jumping || reward !== null || transmission !== null || photo || mapOpen || helpOpen || settingsOpen || station === "recruiter" || unsupported;
   return (
     <main
       aria-busy={loading}
@@ -630,6 +649,7 @@ export default function Experience() {
                 <Camera size={16} aria-hidden="true" />
               </button>
             )}
+            <MonitorButton className="sound-button" />
             <button className="sound-button" data-tip="Revenir au départ" onClick={reset} aria-label="Revenir au point de départ">
               <RotateCcw size={15} aria-hidden="true" />
             </button>
@@ -931,6 +951,7 @@ export default function Experience() {
           />
         )}
       </AnimatePresence>
+      <GalaxyLayer place={eventPlace} blocked={eventsBlocked} sound={sound && !combat} reduced={reduced} />
       <AnimatePresence>
         {scan && (
           <GalacticScanner

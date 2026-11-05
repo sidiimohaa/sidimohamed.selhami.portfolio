@@ -37,14 +37,21 @@ export function createTauntaun(seed = 0) {
   // Upright chest and long, shaggy throat are the distinguishing silhouette.
   sphere(body, [0, 2.02, .38], [.36, .79, .37], mane).rotation.x = -.2;
   coat(body, [0, 2.05, .38], [.34, .71, .35], 135, mane);
-  // Thick thighs, bent hocks and broad three-toed feet.
+  // Thick thighs, bent hocks and broad three-toed feet. Each leg hangs from its hip so it can swing;
+  // the inner group keeps the coordinates the model was drawn in.
+  const hips: THREE.Group[] = [], limbs: THREE.Group[] = [];
   for (const side of [-1, 1]) {
-    sphere(body, [side * .42, 1.19, -.17], [.29, .5, .38]);
-    pipe(body, [[side * .42, 1.14, -.17], [side * .43, .65, -.4], [side * .45, .17, -.1]], .115, fur);
-    sphere(body, [side * .45, .12, .03], [.17, .12, .27]);
+    const hip = new THREE.Group(), limb = new THREE.Group();
+    hip.position.set(side * .42, 1.19, -.17);
+    limb.position.set(-side * .42, -1.19, .17);
+    hip.add(limb); root.add(hip);
+    hips.push(hip); limbs.push(limb);
+    sphere(limb, [side * .42, 1.19, -.17], [.29, .5, .38]);
+    pipe(limb, [[side * .42, 1.14, -.17], [side * .43, .65, -.4], [side * .45, .17, -.1]], .115, fur);
+    sphere(limb, [side * .45, .12, .03], [.17, .12, .27]);
     for (let toe = -1; toe <= 1; toe++) {
-      sphere(body, [side * .45 + toe * .09, .075, .2 + (toe === 0 ? .045 : 0)], [.058, .065, .15], skin);
-      part(body, new THREE.ConeGeometry(.035, .09, 6), dark, [side * .45 + toe * .09, .058, .345 + (toe === 0 ? .045 : 0)], [Math.PI / 2, 0, 0]);
+      sphere(limb, [side * .45 + toe * .09, .075, .2 + (toe === 0 ? .045 : 0)], [.058, .065, .15], skin);
+      part(limb, new THREE.ConeGeometry(.035, .09, 6), dark, [side * .45 + toe * .09, .058, .345 + (toe === 0 ? .045 : 0)], [Math.PI / 2, 0, 0]);
     }
     // Short arms, elbows tucked against the chest, three little claws.
     pipe(body, [[side * .3, 2.08, .46], [side * .43, 1.59, .61], [side * .36, 1.46, .77]], .065, fur);
@@ -66,6 +73,7 @@ export function createTauntaun(seed = 0) {
   part(body, new THREE.CylinderGeometry(.13, .13, .72, 14), blanket, [0, 2.25, -.9], [0, 0, Math.PI / 2]);
   for (const x of [-.23, .23]) part(body, new THREE.TorusGeometry(.135, .013, 5, 18), leather, [x, 2.25, -.9], [0, Math.PI / 2, 0]);
   bakePart(body);
+  limbs.forEach((limb) => bakePart(limb));
 
   const head = new THREE.Group(); head.name = "tauntaun-head"; head.position.set(0, 2.65, .48); root.add(head);
   sphere(head, [0, .035, .055], [.245, .31, .26]);
@@ -117,5 +125,15 @@ export function createTauntaun(seed = 0) {
     head.rotation.x = reduced ? 0 : Math.sin(t * .49 + seed) * .025;
     tail.rotation.y = reduced ? 0 : Math.sin(t * .7 + seed) * .07;
     body.scale.y = reduced ? 1 : 1 + Math.sin(t * 1.1 + seed) * .004;
+  },
+  /** A loping stride: `phase` advances with the ground covered, `amount` 0 to 1 eases it in. */
+  walk: (phase: number, amount: number) => {
+    hips.forEach((hip, i) => hip.rotation.x = Math.sin(phase + i * Math.PI) * .6 * amount);
+    const lift = Math.abs(Math.cos(phase)) * .09 * amount;
+    body.position.y = lift;
+    head.position.y = 2.65 + lift + Math.sin(phase * 2) * .025 * amount;
+    head.rotation.x += Math.sin(phase * 2 + .6) * .05 * amount;
+    tail.rotation.x = Math.sin(phase * 2) * .06 * amount;
+    root.rotation.z = Math.sin(phase) * .025 * amount;
   } };
 }

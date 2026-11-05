@@ -1,3 +1,6 @@
+import { eventLevels, createFlyby } from "./galaxy/worldEvents";
+import { galaxy } from "./galaxy/store";
+import { speederBike } from "./endorLife";
 import * as THREE from "three";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import { createEndorForest } from "./endorForest";
@@ -211,9 +214,15 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     object.castShadow = materials.every((m) => m instanceof THREE.MeshStandardMaterial && !m.transparent && m.alphaTest === 0);
   });
+  // Galactic events: a bank of fog when the director calls it, and a patrol beyond the first trunks.
+  const fog = new THREE.FogExp2(HAZE, 0.0118);
+  const events = eventLevels("endor");
+  const patrolBike = speederBike(true);
+  group.add(patrolBike.root);
+  const patrol = createFlyby(patrolBike.root, [new THREE.Vector3(-140, 2, -70), new THREE.Vector3(-60, 2.2, -52), new THREE.Vector3(10, 2, -60), new THREE.Vector3(70, 2.2, -46), new THREE.Vector3(150, 2, -66)], 6.5);
   return {
     group,
-    fog: new THREE.FogExp2(HAZE, 0.0118),
+    fog,
     exposure: 1.05,
     walkRadius: WALK,
     // The arrival is watched from the take-off corridor, looking back over the fire into the clearing.
@@ -266,6 +275,8 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
       life.tick(dt, reduced);
       holocron.tick(dt, elapsed, reduced);
       mist.tick(dt, elapsed, reduced, walker);
+      fog.density = 0.0118 * (1 + events("endor-mist", dt, 0.35) * 1.5);
+      patrol.tick(dt, galaxy().activeAt("endor").some((run) => run.id === "endor-patrol"));
       // Seen at eye height from wherever the visitor stands, platforms included.
       if (ghosts.tick(dt, reduced, viewer.set(walker.x, level + 1.7, walker.z)) > 0.6) reveal("last-message");
     },

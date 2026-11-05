@@ -9,10 +9,12 @@ import styles from "./BountyProjectPanel.module.css";
 type Props = {
   project: Landing["terminals"][number];
   onClose: () => void;
+  // The line above the title, for a dossier reached some other way than the bounty puck.
+  eyebrow?: string;
 };
 
 /** A separate dossier so opening the puck never sends the visitor back to a bay terminal. */
-export default function BountyProjectPanel({ project, onClose }: Props) {
+export default function BountyProjectPanel({ project, onClose, eyebrow = "PRIME IDENTIFIÉE" }: Props) {
   const [mounted, setMounted] = useState(false);
   const dialog = useRef<HTMLElement>(null), close = useRef<HTMLButtonElement>(null);
   const titleId = useId(), bodyId = useId();
@@ -67,7 +69,7 @@ export default function BountyProjectPanel({ project, onClose }: Props) {
         <header className={styles.header}>
           <div className={styles.signal}>
             <Crosshair size={17} aria-hidden="true" />
-            <span>PRIME IDENTIFIÉE</span>
+            <span>{eyebrow}</span>
           </div>
           <button ref={close} className={styles.close} type="button" onClick={onClose} aria-label="Fermer le dossier projet">
             <X size={19} aria-hidden="true" />

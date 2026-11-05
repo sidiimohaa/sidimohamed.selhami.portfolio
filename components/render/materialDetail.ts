@@ -124,7 +124,7 @@ export function enrichMaterials(root: THREE.Object3D, detail: Detail, tier: numb
     const radius = (mesh.geometry.boundingSphere?.radius ?? 0) * Math.max(scale.x, scale.y, scale.z);
     (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((material) => {
       const standard = material as THREE.MeshStandardMaterial;
-      if (!standard.isMeshStandardMaterial || standard.transparent || standard.userData[DONE] || standard.wireframe) return;
+      if (!standard.isMeshStandardMaterial || standard.transparent || standard.userData[DONE] || standard.userData.indoors || standard.wireframe) return;
       size.set(standard, Math.max(size.get(standard) ?? 0, radius));
     });
   });

@@ -2,14 +2,12 @@ import * as THREE from "three";
 import type { PadEvent } from "./coruscantLife";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { glowTexture, random, type Reveal, type Spot, type ZoneAction } from "./landingKit";
-import { createDirewolf, createJonSnow, walkPose } from "./nightWatch";
 import { createHeroDroids, part } from "./tatooineCharacters";
 import { snowCover } from "./weathering";
 import { createWampa } from "./wampaModel";
 
 // What hides in and around Echo Base's hangar: a wampa's ice cave in the west wall with Luke's
-// lightsaber planted at its mouth, R2-D2 watching the storm for his master, and, a minute into
-// the visit, Jon Snow and Ghost crossing the snow in the distance.
+// lightsaber planted at its mouth, and R2-D2 watching the storm for his master.
 
 // The cave is carved into the west wall: an ice facade follows the cliff with a ragged arch in it,
 // and behind it lies a lit chamber of blue ice where the wampa waits.
@@ -17,7 +15,6 @@ export const WAMPA_CAVE = { x: -25.6, z: 30 };
 const CHAMBER: [number, number, number] = [3.4, 3.8, 4.3];
 const ARCH = { z: 30, halfWidth: 1.8, height: 3.2 };
 const R2_SPOT = { x: -7, z: 34.4 };
-const BOUNDS = { minX: -21, maxX: 21, minZ: -22, maxZ: 46 };
 type Walker = { x: number; z: number; yaw: number };
 const shortest = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
 const smooth = (value: number, from: number, to: number) => {
@@ -207,7 +204,7 @@ function footprint() {
   return texture;
 }
 
-export function createHothSecrets(reveal: Reveal, notify: (event: PadEvent) => void, ground: (x: number, z: number) => number) {
+export function createHothSecrets(reveal: Reveal, notify: (event: PadEvent) => void) {
   const group = new THREE.Group();
   group.name = "hoth-secrets";
   const glow = glowTexture();
@@ -270,62 +267,8 @@ export function createHothSecrets(reveal: Reveal, notify: (event: PadEvent) => v
   let greeting = -1,
     noticed = false;
 
-  // Jon Snow and Ghost, who cross once in front of the visitor after a minute on Hoth.
-  const jon = createJonSnow(),
-    ghost = createDirewolf();
-  const crossing = new THREE.Group();
-  crossing.visible = false;
-  crossing.add(jon.group, ghost.group);
-  group.add(crossing);
-  const fading: THREE.Material[] = [];
-  crossing.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    const material = object.material as THREE.MeshStandardMaterial;
-    if (fading.includes(material)) return;
-    material.transparent = true;
-    fading.push(material);
-  });
-  let route: { from: THREE.Vector3; to: THREE.Vector3; length: number } | null = null,
-    walked = 0,
-    crossed = false,
-    retryAt = 60;
-  // They cross far off: out on the plain beyond the mouth when the visitor looks that way,
-  // otherwise at the far end of the hangar.
-  const planRoute = (walker: Walker) => {
-    const forward = new THREE.Vector2(-Math.sin(walker.yaw), -Math.cos(walker.yaw)),
-      across = new THREE.Vector2(-forward.y, forward.x).multiplyScalar(Math.random() < 0.5 ? 1 : -1);
-    outside = forward.y > 0.35;
-    if (outside) {
-      const z = THREE.MathUtils.clamp(walker.z + 30, 52, 64),
-        sign = Math.random() < 0.5 ? 1 : -1;
-      return { from: new THREE.Vector3(-30 * sign, 0, z), to: new THREE.Vector3(30 * sign, 0, z + 4), length: Math.hypot(60, 4) };
-    }
-    let best: typeof route = null,
-      bestScore = Infinity;
-    for (const distance of [20, 18, 22, 16, 24, 14]) {
-      const centre = new THREE.Vector2(walker.x, walker.z).addScaledVector(forward, distance);
-      // Keep the stretch of a 30 m line that lies inside the hangar and the snow before it.
-      const points: THREE.Vector2[] = [];
-      for (let s = -15; s <= 15; s += 0.75) {
-        const p = centre.clone().addScaledVector(across, s);
-        if (p.x > BOUNDS.minX && p.x < BOUNDS.maxX && p.y > BOUNDS.minZ && p.y < BOUNDS.maxZ) points.push(p);
-      }
-      if (points.length < 16) continue;
-      const blocked = points.filter((p) => circles.concat(extra).some((c) => Math.hypot(p.x - c.x, p.y - c.z) < c.r + 0.5)).length;
-      const score = blocked * 10 - points.length;
-      if (score < bestScore) {
-        bestScore = score;
-        const a = points[0],
-          b = points[points.length - 1];
-        best = { from: new THREE.Vector3(a.x, 0, a.y), to: new THREE.Vector3(b.x, 0, b.y), length: a.distanceTo(b) };
-      }
-    }
-    return best;
-  };
-  const extra: Spot[] = [];
   const toward = new THREE.Vector3();
-  let snarl = 0,
-    outside = false;
+  let snarl = 0;
 
   const actions: ZoneAction[] = [
     {
@@ -355,8 +298,6 @@ export function createHothSecrets(reveal: Reveal, notify: (event: PadEvent) => v
     group,
     circles,
     actions,
-    // Other obstacles in the hangar, so the crossing avoids crates and ships.
-    avoid: (spots: Spot[]) => extra.push(...spots),
     tick: (dt: number, elapsed: number, reduced: boolean, walker: Walker) => {
       const time = elapsed;
       // The wampa watches whoever comes to the arch, and snarls the closer they get.
@@ -431,57 +372,6 @@ export function createHothSecrets(reveal: Reveal, notify: (event: PadEvent) => v
       } else {
         dome.rotation.y += shortest(domeGoal - dome.rotation.y) * (1 - Math.exp(-dt * 3));
         r2.rotation.z = reduced ? 0 : Math.sin(time * 23) * 0.004;
-      }
-
-      // Jon and Ghost.
-      if (!crossed && time > retryAt && !route) {
-        if (reduced) {
-          route = { from: new THREE.Vector3(7, ground(7, 54), 54), to: new THREE.Vector3(7, ground(7, 54), 54), length: 0 };
-        } else {
-          route = planRoute(walker);
-          if (!route) retryAt = time + 4;
-        }
-        walked = 0;
-      }
-      if (route && !crossed) {
-        crossing.visible = true;
-        if (reduced) {
-          jon.group.position.copy(route.from);
-          ghost.group.position.copy(route.from).add(new THREE.Vector3(1, 0, 0.4));
-          jon.group.rotation.y = ghost.group.rotation.y = Math.atan2(walker.x - route.from.x, walker.z - route.from.z);
-          walkPose(jon, 0, 0);
-          ghost.pose(0, 0, 0);
-          fading.forEach((material) => (material.opacity = 1));
-        } else {
-          walked += dt * (outside ? 1.75 : 1.35);
-          const t = walked / route.length,
-            heading = Math.atan2(route.to.x - route.from.x, route.to.z - route.from.z);
-          jon.group.position.lerpVectors(route.from, route.to, Math.min(t, 1));
-          jon.group.position.y = ground(jon.group.position.x, jon.group.position.z);
-          // Ghost pads a little ahead on the far side, so Jon stays in full view.
-          const side = new THREE.Vector3(Math.cos(heading), 0, -Math.sin(heading)),
-            ahead = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading));
-          const towardVisitor = Math.sign(side.x * (walker.x - jon.group.position.x) + side.z * (walker.z - jon.group.position.z)) || 1;
-          ghost.group.position.copy(jon.group.position).addScaledVector(side, -0.9 * towardVisitor).addScaledVector(ahead, 2.1);
-          ghost.group.position.y = ground(ghost.group.position.x, ghost.group.position.z);
-          jon.group.rotation.y = ghost.group.rotation.y = heading;
-          walkPose(jon, walked * 4.2, 1);
-          ghost.pose(walked * 4.6, 1, time);
-          jon.cape.rotation.x = 0.12 + Math.sin(walked * 4.2) * 0.04;
-          // He turns to look at the visitor as he passes, with a slow nod at the closest point.
-          const look = THREE.MathUtils.clamp(shortest(Math.atan2(walker.x - jon.group.position.x, walker.z - jon.group.position.z) - heading), -1.2, 1.2);
-          const closest = Math.exp(-Math.pow((t - 0.5) * 5, 2));
-          jon.head.rotation.y = look * 0.85;
-          jon.head.rotation.x = 0.05 + closest * 0.18;
-          jon.look(THREE.MathUtils.clamp(look * 0.5, -1, 1), 0, time, false);
-          ghost.head.rotation.y = THREE.MathUtils.clamp(look, -0.8, 0.8) * closest;
-          const fade = THREE.MathUtils.smoothstep(walked, 0, 1.5) * (1 - THREE.MathUtils.smoothstep(walked, route.length - 1.5, route.length));
-          fading.forEach((material) => (material.opacity = fade));
-          if (t >= 1) {
-            crossed = true;
-            crossing.visible = false;
-          }
-        }
       }
     },
   };

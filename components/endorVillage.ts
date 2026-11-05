@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { glowTexture, random, type Spot, type ZoneTerminal } from "./landingKit";
+import { softBeam } from "./render/softBeam";
 import { bakePart, part, pipe, rounded } from "./tatooineCharacters";
 import type { Landing } from "./universe";
 
@@ -557,7 +558,7 @@ export function createEndorVillage(landing: Landing, circles: Spot[]) {
   const cone = part(
     projector,
     new THREE.CylinderGeometry(1.5, 0.25, 0.9, 32, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x4fb8e8, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+    softBeam(new THREE.MeshBasicMaterial({ color: 0x4fb8e8, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })),
     [0, 1.58, 0],
   );
   circles.push({ x: P.x, z: P.y, r: 1.05 });

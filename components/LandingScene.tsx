@@ -12,6 +12,7 @@ import AtmosphereEntry, { ENTRY_SECONDS } from "./AtmosphereEntry";
 import BountyProjectPanel from "./BountyProjectPanel";
 import PassionsViewer from "./PassionsViewer";
 import { createEndorZone } from "./endorZone";
+import { setGalaxyBusy } from "./galaxy/store";
 import { chosenTier, createPipeline } from "./render/pipeline";
 import { enrichMaterials } from "./render/materialDetail";
 import { lookFor, looks, skies } from "./render/looks";
@@ -77,6 +78,11 @@ export default function LandingScene({
     joystick = useRef<HTMLDivElement>(null),
     thumb = useRef<HTMLElement>(null);
   const [phase, setPhase] = useState<Phase>(reduced ? "explore" : "arrival");
+  // Nothing galactic happens over an arrival or a takeoff.
+  useEffect(() => {
+    setGalaxyBusy("landing", phase !== "explore");
+    return () => setGalaxyBusy("landing", false);
+  }, [phase]);
   const [active, setActive] = useState<number | null>(null);
   const [hint, setHint] = useState(true);
   const [leaving, setLeaving] = useState(false);
@@ -90,6 +96,7 @@ export default function LandingScene({
   // Things to use in the scene (the bounty puck, Grogu), and the project a puck has opened.
   const [actions, setActions] = useState<{ id: string; label: string; hidden?: boolean }[]>([]);
   const [bounty, setBounty] = useState<number | null>(null);
+  const [dossier, setDossier] = useState<{ eyebrow: string; project: Landing["terminals"][number] } | null>(null);
   // The passions presentation opened from Endor, and the way up to its village.
   const [story, setStory] = useState<{ at?: number; title: string } | null>(null);
   const [climb, setClimb] = useState<{ up: string; down: string } | null>(null);
@@ -161,7 +168,7 @@ export default function LandingScene({
     const worldLook = looks[lookFor(planet)],
       tier = chosenTier();
     if(planet==="Tatooine"||planet==="Hoth"||planet==="Endor"||tier>0){
-      if(planet!=="Hoth"&&planet!=="Coruscant"){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
+      if(planet!=="Hoth"&&planet!=="Coruscant"){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;}
       if(tier>0){
         // The world's own sky as image-based light, so reflections and bounce match it.
         const sky=skies[lookFor(planet) as keyof typeof skies];
@@ -189,9 +196,30 @@ export default function LandingScene({
     // The ship keeps its own modelled detail; everything else gets the world's surface treatment.
     enrichMaterials(zone.group, worldLook.detail, tier, [zone.ship]);
     const pipeline = createPipeline(renderer, scene, camera, worldLook.grade, tier);
+    zone.warmLights?.(() => renderer.compile(scene, camera));
     // Development only: what adaptive quality has settled on, for performance checks.
     if (process.env.NODE_ENV !== "production")
-      (window as unknown as { __orbitalRender?: object }).__orbitalRender = { tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
+      (window as unknown as { __orbitalRender?: object }).__orbitalRender = { scene, renderer, walker: () => walker, tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
+        // Runs the zone forward and turns the visitor, to check a scene at any moment by hand.
+        advance: (seconds = 1) => {
+          for (let i = 0; i < seconds * 30; i++) {
+            elapsed += 1 / 30;
+            zone.tick(1 / 30, elapsed, false, walker);
+          }
+        },
+        look: (yaw: number, pitch = 0.04) => {
+          walker.yaw = yaw;
+          walker.pitch = pitch;
+        },
+        // Turns towards a named object of the scene.
+        face: (name: string) => {
+          const object = zone.group.getObjectByName(name);
+          if (!object) return false;
+          const at = object.getWorldPosition(new THREE.Vector3());
+          walker.yaw = Math.atan2(-(at.x - walker.x), -(at.z - walker.z));
+          walker.pitch = Math.atan2(at.y - EYE, Math.hypot(at.x - walker.x, at.z - walker.z));
+          return true;
+        },
         // Milliseconds per frame, CPU and GPU, measured synchronously (works in a hidden tab).
         bench: (frames = 30, at?: 0 | 1 | 2 | 3) => {
           const before = pipeline.tier(), gl = renderer.getContext(), pixel = new Uint8Array(4);
@@ -258,6 +286,7 @@ export default function LandingScene({
       // An action waiting for the visitor to reach it and turn towards it.
       pending: ZoneAction | null = null,
       bountyNext = 0,
+      dossierNext = 0,
       bountyTimer = 0,
       current: Phase = live.current.reduced ? "explore" : "arrival",
       clock = 0,
@@ -436,6 +465,11 @@ export default function LandingScene({
         action.activate(still);
         cue.current("terminal");
         setStory(action.story);
+      } else if (action.dossiers) {
+        const { eyebrow, projects } = action.dossiers;
+        action.activate(still);
+        cue.current("terminal");
+        setDossier({ eyebrow, project: projects[dossierNext++ % projects.length] });
       } else if (action.present) {
         const index = bountyNext++ % landing.terminals.length;
         action.present(landing.terminals[index], index, landing.terminals.length);
@@ -470,7 +504,7 @@ export default function LandingScene({
         perform(action);
         return;
       }
-      route = far && approach && zone.routeTo ? zone.routeTo(new THREE.Vector3(walker.x, 0, walker.z), approach.position) : [];
+      route = far && action.path ? action.path.map((point) => point.clone()) : far && approach && zone.routeTo ? zone.routeTo(new THREE.Vector3(walker.x, 0, walker.z), approach.position) : [];
       pending = action;
     };
     // Up the ramp to the village, or back down to the clearing.
@@ -700,8 +734,9 @@ export default function LandingScene({
       zone.tick(frozen ? 0 : dt, elapsed, still, walker);
       if (secretActions.length) {
         const near = secretActions.filter((action) => Math.hypot(action.position.x - walker.x, action.position.z - walker.z) < 4.5).map((action) => action.id);
-        if (near.join() !== nearKey) {
-          nearKey = near.join();
+        const key = `${near.join()}|${zone.actionsKey?.() ?? 0}`;
+        if (key !== nearKey) {
+          nearKey = key;
           setActions(listed(near));
         }
       }
@@ -1136,6 +1171,7 @@ export default function LandingScene({
       {bounty !== null && landing.terminals[bounty] && (
         <BountyProjectPanel project={landing.terminals[bounty]} onClose={() => setBounty(null)} />
       )}
+      {dossier && <BountyProjectPanel project={dossier.project} eyebrow={dossier.eyebrow} onClose={() => setDossier(null)} />}
       {phase !== "arrival" && (
         <nav className={`surface-bar ${planet==="Tatooine"||planet==="Endor"?"with-district":""}`} aria-label="Navigation et terminaux">
           <span className="surface-place mono">

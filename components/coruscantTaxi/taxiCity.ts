@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { buildingMaterial, HAZE_HIGH, padTexture } from "../coruscantZone";
+import { buildingMaterial, padTexture } from "../coruscantZone";
+import { CITY_SKY_GLSL, cityBuildingUniforms, cityHaze } from "../galaxy/cityEnv";
+import { createCityNeon } from "../galaxy/cityNeon";
+import { livingOn } from "../galaxy/flags";
 import { createCoruscantSkyline, CORUSCANT_LANDMARKS } from "../coruscantSkyline";
 import { parkShip } from "../landingKit";
 import { ESPLANADE, PLAZA, SENATE, SENATE_FACING, TEMPLE, type Trip } from "./taxiPlaces";
@@ -18,9 +21,10 @@ function sky() {
   return new THREE.Mesh(
     new THREE.SphereGeometry(3800, 48, 24),
     new THREE.ShaderMaterial({
-      uniforms: { hazeHigh: { value: HAZE_HIGH }, sun: { value: SUN } },
+      uniforms: { hazeHigh: cityHaze.high, sun: { value: SUN }, ...cityBuildingUniforms() },
       vertexShader: `varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
       fragmentShader: `uniform vec3 hazeHigh;uniform vec3 sun;varying vec3 vDirection;
+       ${CITY_SKY_GLSL}
        void main(){
         vec3 d=normalize(vDirection);
         float h=d.y;
@@ -38,7 +42,7 @@ function sky() {
         c+=vec3(1.0,.62,.3)*pow(s,1400.0)*7.0;
         c+=vec3(1.0,.46,.18)*pow(s,70.0)*.6;
         c+=vec3(.85,.32,.12)*pow(s,7.0)*.2;
-        gl_FragColor=vec4(c,1.0);
+        gl_FragColor=vec4(citySky(c,h),1.0);
        }`,
       side: THREE.BackSide,
       depthWrite: false,
@@ -115,7 +119,8 @@ export function createTaxiCity(trips: Trip[], lanes: Lane[], glow: THREE.Texture
   const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   const dome = sky();
   group.add(dome);
-  group.add(new THREE.HemisphereLight(0x5a6aa0, 0xa0562a, 1.15));
+  const skyLight = new THREE.HemisphereLight(0x5a6aa0, 0xa0562a, 1.15);
+  group.add(skyLight);
   const sun = new THREE.DirectionalLight(0xffc49a, 2.1);
   sun.position.copy(SUN).multiplyScalar(600);
   group.add(sun, sun.target);
@@ -216,6 +221,9 @@ export function createTaxiCity(trips: Trip[], lanes: Lane[], glow: THREE.Texture
   }
   neon.frustumCulled = false;
   group.add(neon);
+  // Blade signs and discs on the same canyon walls, seen close up from the corridors.
+  const blades = livingOn("cityNeon") ? createCityNeon({ glow, towers: walls, signs: quality >= 2 ? 620 : 340, tubes: 0, fogDensity: CITY_HAZE, seed: 2231 }) : null;
+  if (blades) group.add(blades.group);
 
   // Sky bridges across the corridors, above or below the trip, never in another route's way.
   const bridges: THREE.BufferGeometry[] = [],
@@ -310,12 +318,15 @@ export function createTaxiCity(trips: Trip[], lanes: Lane[], glow: THREE.Texture
   let chase = 0;
   return {
     group,
+    sun,
+    skyLight,
     tick: (dt: number, elapsed: number, reduced: boolean, camera: THREE.Camera) => {
       dome.position.copy(camera.position);
       chase += reduced ? 0 : dt * 9;
       beacons.forEach((beacon, i) => (beacon.material.opacity = 0.35 + 0.65 * Math.max(0, 1 - ((((chase - i) % 24) + 24) % 24) / 4)));
       if (!reduced) signMaterials.forEach((sign, i) => (sign.opacity = 0.82 + Math.sin(elapsed * (3 + i) + i) * 0.06 + (Math.sin(elapsed * 37 + i * 5) > 0.97 ? -0.4 : 0)));
       stand.tick(elapsed, reduced);
+      blades?.tick(dt, reduced, 1, false);
     },
   };
 }

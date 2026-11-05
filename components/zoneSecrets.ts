@@ -213,6 +213,10 @@ export function createKyberCrystal(reveal: Reveal, at: { x: number; y: number; z
     group,
     action,
     circle: { x: at.x, z: at.z, r: 0.7 } as Spot,
+    // Its small glow on the stones only matters up close, and a lamp is paid for on every pixel.
+    setLit: (on: boolean) => {
+      light.visible = on;
+    },
     tick: (dt: number, time: number, reduced: boolean) => {
       const pulse = reduced ? 1 : 0.8 + Math.sin(time * 2.2) * 0.2 + Math.max(0, Math.sin(time * 0.7)) * 0.2;
       if (taken >= 0) {

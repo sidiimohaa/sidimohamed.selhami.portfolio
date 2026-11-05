@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { softBeam } from "./render/softBeam";
 import { part } from "./tatooineCharacters";
 
 // A holographic plan of the quarter, drawn in the district's (u, v) frame: forward (+v) is up and
@@ -127,7 +128,7 @@ export function createDistrictMap(shops: number[][], at: { u: number; v: number;
   const additive = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide } as const;
   part(group, new THREE.CylinderGeometry(0.3, 0.45, 0.95, 18), metal, [0, 0.47, 0]);
   part(group, new THREE.TorusGeometry(0.28, 0.03, 6, 28), new THREE.MeshBasicMaterial({ color: 0x8fdcff }), [0, 0.97, 0], [Math.PI / 2, 0, 0]);
-  const beam = part(group, new THREE.CylinderGeometry(0.75, 0.26, 0.25, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0x4fb8e8, opacity: 0.12, ...additive }), [0, 1.08, 0]);
+  const beam = part(group, new THREE.CylinderGeometry(0.75, 0.26, 0.25, 24, 1, true), softBeam(new THREE.MeshBasicMaterial({ color: 0x4fb8e8, opacity: 0.12, ...additive })), [0, 1.08, 0]);
   const screen = new THREE.Mesh(
     new THREE.PlaneGeometry(WIDTH, HEIGHT),
     new THREE.MeshBasicMaterial({ map: plan(shops), color: 0x9fdcff, opacity: 0.8, ...additive }),

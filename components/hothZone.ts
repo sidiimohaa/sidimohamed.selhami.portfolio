@@ -1,3 +1,6 @@
+import { eventLevels, createFlyby } from "./galaxy/worldEvents";
+import { galaxy } from "./galaxy/store";
+import { createProbeDroid } from "./probeDroid";
 import * as THREE from "three";
 import { snowCover } from "./weathering";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -6,7 +9,10 @@ import { createHothBattle, createSnowspeeder } from "./hothBattle";
 import { createBriefingTable } from "./hothBriefing";
 import { createTerminals, glowTexture, parkShip, random, type Reveal, type Spot, type Zone } from "./landingKit";
 import { createShipModel } from "./shipModel";
+import { createHothFauna } from "./hothFauna";
 import { createHothGlacier } from "./hothGlacier";
+import { createHothOutpost } from "./hothOutpost";
+import { livingOn } from "./galaxy/flags";
 import { createHothTauntauns } from "./hothTauntauns";
 import { createHothSecrets, WAMPA_CAVE } from "./hothSecrets";
 import { gustCycle } from "./weather";
@@ -418,9 +424,16 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   const life = createPadLife({ glow, engines: parking.exhausts, notify, guard: false, drone: false, taxi: false, ground: "snow", steam: 0xeef3f7 });
   group.add(life.group);
 
-  const secrets = createHothSecrets(reveal, notify, hothHeight);
+  // A relay post out along the glacier, reached by following its distress signal.
+  const outpost = livingOn("hothOutpost") ? createHothOutpost(hothHeight, landing) : null;
+  if (outpost) {
+    group.add(outpost.group);
+    circles.push(...outpost.circles);
+  }
+  const fauna = livingOn("hothFauna") ? createHothFauna(hothHeight) : null;
+  if (fauna) group.add(fauna.group);
+  const secrets = createHothSecrets(reveal, notify);
   group.add(secrets.group);
-  secrets.avoid([...circles]);
   circles.push(...secrets.circles);
 
   const battle = createHothBattle(hothHeight);
@@ -436,21 +449,37 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   const fog = new THREE.FogExp2(SKY, 0.0017);
   // Blizzard squalls sweep through every forty seconds or so.
   const squall = gustCycle(44, 13, 18);
+  // Galactic events: the blizzard when the director calls it, and a probe over the ridge.
+  const events = eventLevels("hoth");
+  const probeDroid = createProbeDroid();
+  probeDroid.group.scale.setScalar(5);
+  group.add(probeDroid.group);
+  const probe = createFlyby(probeDroid.group, [new THREE.Vector3(-260, 30, 240), new THREE.Vector3(-90, 24, 150), new THREE.Vector3(40, 26, 130), new THREE.Vector3(170, 34, 170), new THREE.Vector3(300, 46, 260)], 16);
   let clock = 0,
     windClock = 0;
+  const lastWalker = { x: 0, z: 0 };
   return {
     group,
     fog,
     exposure: 0.95,
-    walkRadius: 50,
+    walkRadius: outpost ? 80 : 50,
     // The wide view reveals the wall's scale before following the craft through its opening.
     arrival: { from: new THREE.Vector3(110,65,440), to: new THREE.Vector3(11,7,65), shipFrom:new THREE.Vector3(0,12,160),shipYaw:0,reveal:2.1 },
+    floorAt: () => outpost?.floorAt(lastWalker) ?? 0,
     constrainWalk: (walker) => {
+      lastWalker.x = walker.x;
+      lastWalker.z = walker.z;
+      if (outpost?.constrain(walker)) {
+        lastWalker.x = walker.x;
+        lastWalker.z = walker.z;
+        return;
+      }
       walker.x = THREE.MathUtils.clamp(walker.x, -SIDE + 3.5, SIDE - 3.5);
       walker.z = THREE.MathUtils.clamp(walker.z, BACK + 4, MOUTH + 12);
     },
     terminals: stations.terminals,
-    actions: secrets.actions,
+    actions: outpost ? [...secrets.actions, ...outpost.actions] : secrets.actions,
+    actionsKey: outpost?.actionsKey,
     ship: parking.ship,
     shipRest: parking.shipRest,
     colliders: { circles, footprint: parking.footprint, movers: life.movers },
@@ -470,16 +499,22 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       table.tick(elapsed, reduced, stations.terminals);
       battle.tick(dt, reduced);
       tauntauns.tick(dt, reduced);
+      fauna?.tick(dt, reduced, walker);
+      outpost?.tick(dt, reduced, walker);
+      lastWalker.x = walker.x;
+      lastWalker.z = walker.z;
       secrets.tick(dt, elapsed, reduced, walker);
       const daylightMix=smooth(walker.z,16,46),blend=1-Math.exp(-dt*3);
       ambient.intensity+=((1.05+daylightMix*.5)-ambient.intensity)*blend;
-      const gust = reduced ? 0 : squall(elapsed);
+      const gust = reduced ? 0 : Math.max(squall(elapsed), events("hoth-blizzard", dt));
+      probe.tick(dt, galaxy().activeAt("hoth").some((run) => run.id === "hoth-probe"));
+      probeDroid.tick(elapsed, reduced);
       // Time runs faster for the flakes in a squall, so they rush past instead of drifting.
       if (!reduced) {
         clock += dt;
         windClock += dt * (1 + gust * 2.2);
       }
-      flakes.points.visible = !reduced;
+      flakes.points.visible = !reduced && !outpost?.contains(walker);
       flakes.material.uniforms.time.value = windClock;
       flakes.material.uniforms.gust.value = gust;
       flakes.material.uniforms.origin.value.set(walker.x, 0, walker.z);

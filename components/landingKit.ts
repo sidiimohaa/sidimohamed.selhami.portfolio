@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { MissionId } from "./jediProgression";
+import { softBeam } from "./render/softBeam";
 import { createShipModel } from "./shipModel";
 import type { Landing } from "./universe";
 
@@ -105,12 +106,16 @@ export type ZoneAction = {
   portraitFov?: number;
   // Optional stand point for an interaction away from the zone’s default.
   approach?: { position: THREE.Vector3; lookAt: THREE.Vector3 };
+  // Waypoints to walk through to get there, in zones without a surface navigator.
+  path?: THREE.Vector3[];
   id: string;
   label: string;
   position: THREE.Vector3;
   objects: THREE.Object3D[];
   // Actions that show one of the zone's projects get it before they activate.
   present?: (project: Landing["terminals"][number], index: number, count: number) => void;
+  // Opens these portfolio dossiers one after the other (the holographic database on Coruscant).
+  dossiers?: { eyebrow: string; projects: Landing["terminals"] };
   // Actions that open the "Mes passions" presentation (at a step, or from its intro).
   story?: { at?: number; title: string };
   // A secret: usable by clicking it in the scene, and offered as a button only up close.
@@ -140,6 +145,10 @@ export type Zone = {
   music?: (walker: { x: number; z: number }) => { level: number; inside: boolean };
   // 2 is full detail; lower levels trade shadow quality for frame rate.
   setQuality?: (level: number) => void;
+  // Changes whenever an action's button should read differently.
+  actionsKey?: () => number;
+  // Compiles the shader variants for lights that switch on later, so walking up to them never stalls.
+  warmLights?: (compile: () => void) => void;
   // A vehicle to board (Coruscant's air taxi): whether it waits with its door open, where the
   // passenger sits, and letting it go once they are aboard or have walked away.
   board?: { ready: () => boolean; seat: () => { position: THREE.Vector3; target: THREE.Vector3 }; release: () => void };
@@ -189,14 +198,16 @@ export function createTerminals(landing: Landing, metal: THREE.Material, circles
     ring.position.y = 1.13;
     const beam = new THREE.Mesh(
       new THREE.CylinderGeometry(1.2, 0.34, 0.75, 24, 1, true),
-      new THREE.MeshBasicMaterial({
-        color: 0x4fb8e8,
-        transparent: true,
-        opacity: 0.1,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide,
-      }),
+      softBeam(
+        new THREE.MeshBasicMaterial({
+          color: 0x4fb8e8,
+          transparent: true,
+          opacity: 0.1,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        }),
+      ),
     );
     beam.position.y = 1.5;
     const hologram = new THREE.Mesh(

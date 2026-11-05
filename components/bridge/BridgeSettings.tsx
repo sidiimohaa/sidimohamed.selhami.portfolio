@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { X } from "lucide-react";
 import {
@@ -10,6 +10,7 @@ import {
   type QualityChoice,
   type QualityId,
 } from "../graphicsQuality";
+import { livingOn, setLiving } from "../galaxy/flags";
 
 type Props = {
   applied: QualityId;
@@ -22,6 +23,7 @@ type Props = {
 // The ship's settings: graphics profile, motion and audio. Every switch takes effect at once.
 export default function BridgeSettings({ applied, systemReduced, sound, onToggleSound, onClose }: Props) {
   const settings = useBridgeSettings();
+  const [events, setEvents] = useState(() => livingOn("events"));
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -142,6 +144,13 @@ export default function BridgeSettings({ applied, systemReduced, sound, onToggle
             <span>
               <b>Transmissions du copilote</b>
               <small>Messages de l’astromécano à l’approche des mondes</small>
+            </span>
+          </label>
+          <label>
+            <input type="checkbox" checked={events} onChange={(event) => { setLiving("events", event.target.checked); setEvents(event.target.checked); }} />
+            <span>
+              <b>Événements galactiques</b>
+              <small>Tempêtes, poursuites, signaux de détresse… Effet complet au prochain atterrissage</small>
             </span>
           </label>
           <label>

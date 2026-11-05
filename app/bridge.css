@@ -789,3 +789,69 @@
     transition: none;
   }
 }
+
+/* The living universe: the copilot's notifications and the Galactic Activity Monitor. */
+.galaxy-toast {
+  position: fixed;
+  top: 76px;
+  right: 18px;
+  z-index: 95;
+  width: min(330px, calc(100vw - 32px));
+  padding: 10px 12px 11px;
+  border: 1px solid var(--holo-soft);
+  border-left: 3px solid var(--holo);
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  color: #eaf8ff;
+  pointer-events: auto;
+}
+.galaxy-toast[data-priority="3"] { border-left-color: var(--amber); }
+.galaxy-toast header { display: flex; align-items: center; gap: 7px; color: var(--holo); font-size: 10px; letter-spacing: .1em; }
+.galaxy-toast header span { flex: 1; min-width: 0; }
+.galaxy-toast header button { display: grid; place-items: center; width: 24px; height: 24px; margin: -4px -6px -4px 0; color: inherit; background: none; border: 0; cursor: pointer; }
+.galaxy-toast p { margin: 7px 0 0; font-size: 13px; line-height: 1.42; }
+.galaxy-toast-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.galaxy-toast-actions button,
+.galaxy-monitor li button { min-height: 32px; padding: 5px 9px; border: 1px solid var(--holo-soft); background: var(--holo-faint); color: var(--holo); font-size: 10px; letter-spacing: .06em; cursor: pointer; }
+.galaxy-toast-actions button:hover,
+.galaxy-monitor li button:hover { background: var(--holo-soft); color: #fff; }
+.galaxy-monitor {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 96;
+  width: min(390px, 100vw);
+  padding: 16px 16px 24px;
+  overflow-y: auto;
+  border-left: 1px solid var(--holo-soft);
+  background: rgba(5, 11, 20, 0.93);
+  backdrop-filter: blur(14px);
+  color: #e6f6ff;
+  pointer-events: auto;
+}
+.galaxy-monitor > header { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.galaxy-monitor > header p { margin: 0; color: var(--holo); font-size: 9px; letter-spacing: .12em; }
+.galaxy-monitor > header h2 { margin: 3px 0 0; font-size: 21px; font-weight: 600; }
+.galaxy-monitor > header button { display: grid; place-items: center; width: 44px; height: 44px; margin: -6px -8px 0 0; color: inherit; background: none; border: 0; cursor: pointer; }
+.galaxy-monitor h3 { margin: 18px 0 7px; color: var(--holo); font-size: 10px; font-weight: 500; letter-spacing: .12em; }
+.galaxy-monitor ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.galaxy-monitor ul li { padding: 9px 10px; border: 1px solid var(--holo-faint); border-left: 2px solid var(--holo-soft); background: rgba(143, 228, 255, 0.04); }
+.galaxy-monitor ul li[data-priority="3"] { border-left-color: var(--amber); }
+.galaxy-monitor ul li p { margin: 4px 0 6px; color: #c1d6e2; font-size: 12px; line-height: 1.42; }
+.galaxy-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.galaxy-row .mono { color: #9fc2d3; font-size: 9px; letter-spacing: .08em; }
+.galaxy-tag { color: var(--amber) !important; }
+.galaxy-empty { margin: 0; color: #93acba; font-size: 12px; line-height: 1.45; }
+.galaxy-history { margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.galaxy-history li { display: grid; grid-template-columns: 42px 1fr auto; gap: 8px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--holo-faint); }
+.galaxy-history time, .galaxy-history small { color: #93acba; font-size: 9px; }
+.galaxy-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 7px var(--amber); pointer-events: none; }
+.cockpit-activity-button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 12px; position: relative; border: 1px solid var(--holo-soft); background: var(--glass); color: var(--holo); font-size: 10px; letter-spacing: .1em; cursor: pointer; }
+/* Below the arrival message when the two would meet. */
+@media (max-width: 1180px) {
+  .galaxy-toast { top: 136px; }
+}
+@media (max-width: 600px) {
+  .galaxy-toast { top: 66px; right: 16px; }
+}

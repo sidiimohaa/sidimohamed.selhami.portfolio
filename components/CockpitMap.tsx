@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { createFlightLogConsole } from "./flightLogConsole";
 import { FlightLogPanel } from "./FlightLogPanel";
+import { setMonitorOpen } from "./galaxy/store";
 import { useFlightLog } from "./flightLog";
 import type { HothDefenseRuntime } from "./hothDefense/runtime";
 import type { DefenseView } from "./hothDefense/types";
@@ -19,6 +20,7 @@ import {
   Volume2,
   VolumeX,
   X,
+  Radar,
 } from "lucide-react";
 import * as THREE from "three";
 import { createCockpitModel } from "./cockpitModel";
@@ -925,6 +927,11 @@ export default function CockpitMap({
         onToggleSound={() => { defenseRuntime.current?.setSound(!sound); onToggleSound(); }} onVolume={setDefenseVolume}
         onAim={(x,y) => defenseRuntime.current?.setAim(x,y)} onFire={held => defenseRuntime.current?.setFiring(held)} />}
 
+      {!defense && !arcadeGame && !arcade && (
+        <button className="cockpit-activity-button mono" style={{ position: "absolute", right: 16, top: 72, zIndex: 6 }} onClick={() => setMonitorOpen(true)} aria-label="Moniteur d’activité galactique">
+          <Radar size={15} aria-hidden="true" /> ACTIVITÉ
+        </button>
+      )}
       <header className="cockpit-titlebar">
         <div>
           <p className="cockpit-eyebrow">X-WING / ASTRONAVIGATION</p>

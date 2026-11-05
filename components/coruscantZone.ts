@@ -17,6 +17,8 @@ import {
 } from "./landingKit";
 import { createForgottenConsole } from "./zoneSecrets";
 import type { Landing } from "./universe";
+import { CITY_SKY_GLSL, advanceCity, cityBuildingUniforms, cityFogColor, cityHaze, lightCity } from "./galaxy/cityEnv";
+import { createLivingCity } from "./galaxy/livingCity";
 import { createTaxiStand, STAND } from "./coruscantTaxi/taxiModel";
 
 const PAD_RADIUS = 16;
@@ -41,27 +43,31 @@ const buildingVertex = `
  }`;
 const buildingFragment = `
  uniform vec3 hazeLow;uniform vec3 hazeHigh;uniform float fogDensity;
+ uniform float cityDay,cityNight,cityStorm,cityFlash;uniform vec4 cityOutage;
  varying vec3 vWorld;varying vec3 vNormal;varying float vSeed;
  float hash(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453);}
  vec3 windows(vec2 cell){
   vec2 id=floor(cell),f=fract(cell);
   float pane=step(.29,f.x)*step(f.x,.71)*step(.34,f.y)*step(f.y,.65);
-  float lit=step(.64-vSeed*.24,hash(id+vSeed*91.0));
+  float lit=step(.64-vSeed*.24-cityNight*.14+cityDay*.2,hash(id+vSeed*91.0));
   vec3 tint=mix(vec3(.58,.72,1.0),vec3(1.0,.66,.34),step(.78,hash(id.yx+vSeed*13.0)));
-  vec3 near=pane*lit*tint*(.5+hash(id*1.7)*.65);
+  vec3 near=pane*lit*tint*(.5+hash(id*1.7)*.65)*(1.0+cityNight*.25-cityDay*.72);
   float detail=1.0-smoothstep(.35,1.0,max(fwidth(cell.x),fwidth(cell.y)));
-  return mix(vec3(.39,.43,.61)*(.06+vSeed*.08),near,detail);
+  return mix(vec3(.39,.43,.61)*(.06+vSeed*.08)*(1.0+cityNight*.25-cityDay*.5),near,detail);
  }
  void main(){
   vec3 n=normalize(vNormal);
   vec3 color=vec3(.032,.037,.05)*(.7+vSeed*.6)*(.85+.3*n.y);
+  // By day the walls catch the sun; at any hour a sector can lose its power, tower by tower.
+  color+=cityDay*vec3(.3,.3,.33)*(.45+.55*max(0.0,dot(n,normalize(vec3(-.45,.6,.4)))))*(.7+vSeed*.6);
+  float cut=step(.001,cityOutage.w)*step(distance(vWorld.xz,cityOutage.xy),cityOutage.z)*step(vSeed,cityOutage.w*1.05);
   if(abs(n.y)<.5){
    // Blend two world projections so windows remain legible on curved shoulders.
    vec2 weight=pow(abs(n.xz),vec2(6.0));
    weight/=max(.0001,weight.x+weight.y);
-   color+=windows(vWorld.zy/vec2(1.0,1.4))*weight.x
-         +windows(vWorld.xy/vec2(1.0,1.4))*weight.y;
-   color+=vec3(.9,.5,.25)*.06*step(.96,fract(vWorld.y/36.0));
+   color+=(windows(vWorld.zy/vec2(1.0,1.4))*weight.x
+         +windows(vWorld.xy/vec2(1.0,1.4))*weight.y)*(1.0-cut);
+   color+=vec3(.9,.5,.25)*.06*step(.96,fract(vWorld.y/36.0))*(1.0-cut)*(1.0-cityDay);
   }
   float distance=length(vWorld-cameraPosition);
   float fog=1.0-exp(-fogDensity*fogDensity*distance*distance);
@@ -69,15 +75,17 @@ const buildingFragment = `
   float sunset=pow(max(0.0,dot(normalize(direction.xz+vec2(.0001)),normalize(vec2(-.85,-.5)))),4.0);
   vec3 haze=mix(hazeHigh,hazeLow,sunset*.78);
   haze=mix(haze,hazeHigh,smoothstep(-160.0,140.0,vWorld.y)*.35);
-  gl_FragColor=vec4(mix(color,haze,fog),1.0);
+  color+=vec3(.22,.24,.3)*cityFlash*(.35+.65*n.y*n.y);
+  gl_FragColor=vec4(mix(color,haze+vec3(.2,.22,.28)*cityFlash,fog),1.0);
  }`;
 // Also lights the city the air taxi crosses, with thinner haze for its longer views.
 export function buildingMaterial(fogDensity = FOG_DENSITY) {
   return new THREE.ShaderMaterial({
     uniforms: {
-      hazeLow: { value: HAZE_LOW },
-      hazeHigh: { value: HAZE_HIGH },
+      hazeLow: cityHaze.low,
+      hazeHigh: cityHaze.high,
       fogDensity: { value: fogDensity },
+      ...cityBuildingUniforms(),
     },
     vertexShader: buildingVertex,
     fragmentShader: buildingFragment,
@@ -87,9 +95,10 @@ function skyDome() {
   return new THREE.Mesh(
     new THREE.SphereGeometry(1800, 48, 24),
     new THREE.ShaderMaterial({
-      uniforms: { hazeHigh: { value: HAZE_HIGH } },
+      uniforms: { hazeHigh: cityHaze.high, ...cityBuildingUniforms() },
       vertexShader: `varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
       fragmentShader: `uniform vec3 hazeHigh;varying vec3 vDirection;
+       ${CITY_SKY_GLSL}
        void main(){
         vec3 direction=normalize(vDirection);
         float h=direction.y;
@@ -101,7 +110,7 @@ function skyDome() {
         float cloud=.5+.5*sin(direction.x*18.0+direction.z*13.0+sin(direction.z*27.0)*.7);
         c+=vec3(.055,.025,.095)*violetBand*cloud;
         c+=vec3(.16,.055,.018)*sunset*exp(-pow(h*9.0,2.0));
-        gl_FragColor=vec4(c,1.0);
+        gl_FragColor=vec4(citySky(c,h),1.0);
        }`,
       side: THREE.BackSide,
       depthWrite: false,
@@ -195,7 +204,8 @@ export function createCoruscantZone(
   const rand = random(3700);
   const glow = glowTexture();
   group.add(skyDome());
-  group.add(new THREE.HemisphereLight(0x45578a, 0x9a5226, 1.1));
+  const skyLight = new THREE.HemisphereLight(0x45578a, 0x9a5226, 1.1);
+  group.add(skyLight);
   const key = new THREE.DirectionalLight(0xffc49a, 1.6);
   key.position.set(-160, 110, 140);
   group.add(key);
@@ -434,19 +444,26 @@ export function createCoruscantZone(
   group.add(archive.group);
   circles.push(archive.circle);
 
+  // The living city around the pad: traffic, holograms, the hour and the events.
+  const living = createLivingCity({ glow, circles, towers, fogDensity: FOG_DENSITY });
+  group.add(living.group);
+  if (living.database) circles.push(living.database.circle);
+  const fog = new THREE.FogExp2(HAZE_HIGH.clone().lerp(HAZE_LOW, 0.4), FOG_DENSITY);
+
   let chase = 0;
   return {
     group,
-    fog: new THREE.FogExp2(HAZE_HIGH.clone().lerp(HAZE_LOW, 0.4), FOG_DENSITY),
+    fog,
     exposure: 1.15,
     walkRadius: PAD_RADIUS - 1.1,
     terminals: stations.terminals,
-    actions: [taxiCall, archive.action],
+    actions: living.database ? [taxiCall, archive.action, living.database.action] : [taxiCall, archive.action],
     board: { ready: life.taxi.ready, seat: life.taxi.seat, release: life.taxi.release },
     ship: parking.ship,
     shipRest: parking.shipRest,
     colliders: { circles, footprint: parking.footprint, movers: life.movers },
     setViewport: life.setViewport,
+    setQuality: living.setQuality,
     // Beside the ship's nose, turned so it sits left and a terminal glows on the right.
     spawn: { position: new THREE.Vector3(7, 0, 11.5), yaw: 0.25 },
     setThrust: (level: number) => {
@@ -461,6 +478,11 @@ export function createCoruscantZone(
     ) => {
       life.tick(dt, elapsed, reduced, walker);
       archive.tick(dt, elapsed, reduced);
+      advanceCity(dt, { cycle: living.cycle, reduced });
+      lightCity(key, skyLight, { sun: 1.6, sky: 1.1 });
+      living.tick(dt, elapsed, reduced, walker);
+      fog.color.copy(cityFogColor);
+      fog.density = FOG_DENSITY * living.fogScale();
       stand.setState(life.taxi.phase());
       stand.tick(elapsed, reduced);
       const motion = reduced ? 0 : 1;

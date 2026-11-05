@@ -1,3 +1,6 @@
+import { eventLevels, createFlyby } from "./galaxy/worldEvents";
+import { galaxy } from "./galaxy/store";
+import { createPodModel } from "./podracing/podModel";
 import * as THREE from "three";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import {
@@ -556,12 +559,21 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     const b=parking.footprint;
     return !(x>b.minX-.05 && x<b.maxX+.05 && z>b.minZ-.05 && z<b.maxZ+.05);
   });
+  // A texel of the sun's shadow map is about ten centimetres wide: anything much smaller casts
+  // nothing that can be seen, and leaving it out removes hundreds of draws from every shadow pass.
+  const worldScale=new THREE.Vector3();
   group.traverse(object=>{
     if(!(object instanceof THREE.Mesh))return;
     const materials=Array.isArray(object.material)?object.material:[object.material];
     object.receiveShadow=true;
-    object.castShadow=materials.every(m=>m instanceof THREE.MeshStandardMaterial&&!m.transparent)&&object.geometry.type!=="PlaneGeometry";
+    if(!object.geometry.boundingSphere)object.geometry.computeBoundingSphere();
+    const reach=object.geometry.boundingSphere!.radius*Math.max(...object.getWorldScale(worldScale).toArray());
+    object.castShadow=reach>=.12&&materials.every(m=>m instanceof THREE.MeshStandardMaterial&&!m.transparent)&&object.geometry.type!=="PlaneGeometry";
   });
+  // The sun crawls and only small things move, so its shadow map need not be redrawn every frame.
+  sun.shadow.autoUpdate=false;
+  sun.shadow.needsUpdate=true;
+  let shadowClock=0;
 
   // Indoors, a warm amber haze replaces the desert air.
   const fog = new THREE.FogExp2(HAZE, 0.0016),
@@ -570,6 +582,14 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
   const storm = createSandstorm(new THREE.Vector2(0.8, 0.6));
   group.add(storm.group);
   const squall = gustCycle(58, 17, 28);
+  // Galactic events: a front of sand when the director calls one, and podracers out on the flats.
+  const events = eventLevels("tatooine");
+  const pods = ([[0xf58a39,"mammoth",0],[0x326bc9,"ulzer",14],[0x76edab,"pedrovia",-16]] as const).map(([color,module,offset])=>{
+    const pod=createPodModel(color,false,module);
+    pod.root.scale.multiplyScalar(1.8);
+    group.add(pod.root);
+    return createFlyby(pod.root,[new THREE.Vector3(-560,74,-400+offset),new THREE.Vector3(-200,64,-260+offset),new THREE.Vector3(40,58,-200+offset),new THREE.Vector3(300,66,-260+offset),new THREE.Vector3(620,80,-430+offset)],9+Math.abs(offset)*.03);
+  });
   const sunsetting = {
     sun: new THREE.Vector3(),
     second: new THREE.Vector3(),
@@ -590,6 +610,12 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     interior:district.interior,
     routeTo,
     music: district.music,
+    // Three light setups: the desert alone (the default), the cantina's lamps, or the kyber crystal's.
+    warmLights:(compile)=>{
+      kyber.setLit(false);district.setLamps(true);compile();
+      district.setLamps(false);kyber.setLit(true);compile();
+      kyber.setLit(false);compile();
+    },
     setQuality: (level) => {
       // Full detail, then a coarser shadow map, then no sun shadows at all.
       const size = level > 1 ? 2048 : 1024;
@@ -599,6 +625,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
         sun.shadow.mapSize.set(size, size);
         sun.shadow.map?.dispose();
         sun.shadow.map = null;
+        sun.shadow.needsUpdate = true;
       }
     },
     constrainWalk:(walker)=>{
@@ -625,7 +652,9 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       life.tick(dt, elapsed, reduced, walker);
       district.tick(dt,reduced,walker);
       kyber.tick(dt, elapsed, reduced);
+      kyber.setLit(Math.hypot(walker.x-kyberAt.x,walker.z-kyberAt.z)<9);
       const indoors=district.interior.contains(walker.x,walker.z),blend=1-Math.exp(-dt*4);
+      if(!indoors&&++shadowClock%3===0)sun.shadow.needsUpdate=true;
       // The suns go down, the light warms to orange and the sky deepens.
       const dusk=smooth(elapsed,15,255),{colors,sky:tints,discs:glows}=sunsetting;
       setElevation(sunsetting.sun,SUN,THREE.MathUtils.lerp(SUN.y,-.012,dusk));
@@ -647,7 +676,8 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
         disc.scale.setScalar((i?75:110)*(1+dusk*.25));
       });
       // Squalls thicken the air outside; indoors the cantina keeps its own haze.
-      const gust=indoors?0:squall(elapsed);
+      const gust=indoors?0:Math.max(squall(elapsed),events("tatooine-storm",dt));
+      pods.forEach((pod)=>pod.tick(dt,galaxy().activeAt("tatooine").some((run)=>run.id==="tatooine-pods")));
       storm.tick(dt,elapsed,gust,reduced,walker,groundHeight);
       sunsetting.haze.lerpColors(HAZE,DUSK_HAZE,dusk).lerp(SANDY_HAZE,gust*.6);
       ambient.intensity+=((indoors?.32:THREE.MathUtils.lerp(1.35,.85,dusk))-ambient.intensity)*blend;

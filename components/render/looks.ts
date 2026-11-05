@@ -290,5 +290,6 @@ export const skies: Record<Exclude<LookId, "taxi" | "deathstar" | "podDay" | "po
   hoth: { top: 0x9db3cb, horizon: 0xe4edf5, ground: 0xc4d2df, sun: 0xffffff, sunDir: [30, 70, 90], intensity: 0.5 },
   tatooine: { top: 0x6f9ccc, horizon: 0xf0c08a, ground: 0xb7834f, sun: 0xfff0d0, sunDir: [0.02, 0.139, -0.99], intensity: 0.5 },
   coruscant: { top: 0x261f4a, horizon: 0xc8743e, ground: 0x17121c, sun: 0xffb27a, sunDir: [-160, 110, 140], intensity: 0.38 },
-  endor: { top: 0x9fbd96, horizon: 0x5f7044, ground: 0x2a2317, sun: 0xffe2a8, sunDir: [-34, 110, -20], intensity: 0.42 },
+  // Kept close to neutral: anything metal mirrors this, and a greener sky paints the ship olive.
+  endor: { top: 0xb6bfae, horizon: 0x7b7d62, ground: 0x2a2317, sun: 0xffe2a8, sunDir: [-34, 110, -20], intensity: 0.42 },
 };

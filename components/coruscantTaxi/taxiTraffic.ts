@@ -43,6 +43,67 @@ function clip(points: THREE.Vector3[], minimum = 90) {
   return runs.filter((item) => item.length > 1 && item[0].distanceTo(item[item.length - 1]) > minimum);
 }
 
+/** The air lanes seen from the landing platform: rings and crossings at several altitudes, and
+ *  short hops that start and end at the great towers, so traffic visibly leaves and enters them. */
+export function padLanes(seed = 8123) {
+  let s = seed;
+  const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const lanes: Lane[] = [];
+  const add = (points: THREE.Vector3[], speed: [number, number], density: number, minimum = 70) =>
+    clip(points, minimum).forEach((run) => lanes.push(lane(run, speed, density)));
+  // Rings around the district: the nearer ones low and slow, the far ones high and fast.
+  [
+    [88, -26, 26, 36],
+    [118, 22, 30, 42],
+    [165, -52, 34, 48],
+    [215, 46, 38, 54],
+    [280, -8, 42, 60],
+    [360, 86, 46, 66],
+    [440, -96, 42, 60],
+  ].forEach(([radius, height, slow, fast], ring) => {
+    [-1, 1].forEach((way) => {
+      const points: THREE.Vector3[] = [];
+      for (let a = 0; a <= 360; a += 3) {
+        const angle = (a * way * Math.PI) / 180 + ring * 1.3;
+        const reach = radius + way * 5 + Math.sin(angle * 3 + ring) * 12;
+        points.push(new THREE.Vector3(Math.cos(angle) * reach, height + way * 4 + Math.sin(angle * 2 + ring) * 5, Math.sin(angle) * reach));
+      }
+      add(points, [slow, fast], 1 / 85);
+    });
+  });
+  // Straight corridors crossing the view from horizon to horizon.
+  for (let i = 0; i < 14; i++) {
+    const angle = rand() * Math.PI * 2,
+      direction = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)),
+      across = new THREE.Vector3(-direction.z, 0, direction.x),
+      centre = across.clone().multiplyScalar(110 + rand() * 300).setY(-90 + rand() * 190);
+    [-1, 1].forEach((way) => {
+      const points: THREE.Vector3[] = [];
+      for (let d = -760; d <= 760; d += 12) points.push(centre.clone().addScaledVector(direction, d * way).addScaledVector(across, way * 4));
+      add(points, [44, 70], 1 / 130, 120);
+    });
+  }
+  // Hops between the towers: these lanes stop at the walls instead of being cut by the obstacle test.
+  const marks = CORUSCANT_LANDMARKS.filter((mark) => Math.hypot(mark.x, mark.z) < 520);
+  for (let i = 0; i < Math.min(12, marks.length); i++) {
+    const from = marks[i],
+      to = marks[(i + 1 + Math.floor(rand() * 3)) % marks.length];
+    if (from === to) continue;
+    const span = Math.hypot(to.x - from.x, to.z - from.z) || 1,
+      ux = (to.x - from.x) / span,
+      uz = (to.z - from.z) / span,
+      height = -40 + rand() * 90;
+    const points: THREE.Vector3[] = [];
+    for (let k = 0; k <= 24; k++) {
+      const t = k / 24,
+        d = from.r + (span - from.r - to.r) * t;
+      points.push(new THREE.Vector3(from.x + ux * d, height + Math.sin(t * Math.PI) * 24, from.z + uz * d));
+    }
+    if (points.every((point) => Math.hypot(point.x, point.z) > 46)) lanes.push(lane(points, [24, 34], 1 / 70));
+  }
+  return lanes;
+}
+
 export function buildLanes(trips: Trip[], seed = 4417) {
   let s = seed;
   const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -129,6 +190,25 @@ const MODELS = {
       tinted(new THREE.BoxGeometry(0.06, 0.34, 1.5).rotateZ(0.75), 0x2a2e33, [-1.35, 1.3, -2.7]),
       tinted(new THREE.BoxGeometry(1.5, 0.07, 0.06), 0xff3a2e, [0, 0.92, -2.78]),
     ]),
+  // A long freighter of containers, and a small official shuttle with its two short wings.
+  cargo: () =>
+    mergeGeometries([
+      tinted(new THREE.BoxGeometry(2.4, 2.1, 13), 0xffffff, [0, 1.2, -1]),
+      tinted(new THREE.BoxGeometry(2.46, 0.2, 13.06), 0x2a2e33, [0, 1.4, -1]),
+      tinted(new THREE.BoxGeometry(2, 1.5, 2.2), 0x4a5058, [0, 1.3, 6.5]),
+      tinted(new THREE.BoxGeometry(1.5, 0.6, 0.8), 0x0b1016, [0, 1.7, 7.5]),
+    ]),
+  shuttle: () =>
+    mergeGeometries([
+      tinted(capsule(0.95, 4.2), 0xffffff, [0, 1, 0], [1, 0.85, 1]),
+      tinted(new THREE.BoxGeometry(1.1, 0.5, 1.4), 0x0b1016, [0, 1.45, 2]),
+      tinted(new THREE.BoxGeometry(6.4, 0.12, 1.5), 0xffffff, [0, 0.9, -0.8]),
+      tinted(new THREE.BoxGeometry(0.12, 2.2, 1.7).rotateX(0.32), 0xffffff, [0, 2.4, -2.2]),
+      tinted(new THREE.BoxGeometry(1.5, 0.08, 0.5), 0xc9a65a, [0, 1.02, 3.1]),
+      tinted(new THREE.BoxGeometry(6.5, 0.1, 0.22), 0xc9a65a, [0, 0.93, -0.1]),
+      tinted(new THREE.CylinderGeometry(0.28, 0.34, 1.6, 10).rotateX(Math.PI / 2), 0x555b63, [2.6, 0.9, -1.2]),
+      tinted(new THREE.CylinderGeometry(0.28, 0.34, 1.6, 10).rotateX(Math.PI / 2), 0x555b63, [-2.6, 0.9, -1.2]),
+    ]),
   transport: () =>
     mergeGeometries([
       tinted(new THREE.BoxGeometry(2.6, 2.2, 9.5), 0xffffff, [0, 1.3, 0]),
@@ -138,6 +218,8 @@ const MODELS = {
     ]),
 };
 type Kind = keyof typeof MODELS;
+/** One vehicle's model, for events that fly their own (a chase, an official shuttle). */
+export const vehicleGeometry = (kind: Kind) => MODELS[kind]();
 const PAINT = [0xe8ecef, 0x9fb4c8, 0x6c7a8a, 0xb84a3a, 0x3d6f9c, 0xd8d0bc, 0x2f3338, 0x8f5fb0];
 
 type Vehicle = { kind: Kind; slot: number; lane: number; d: number; speed: number; companion?: { lateral: number; vertical: number; rel: number; speed: number; way: number } };
@@ -150,10 +232,10 @@ export function createTraffic(lanes: Lane[], glow: THREE.Texture, quality: numbe
   const rand = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   const thin = quality < 2 ? 0.55 : 1;
   const vehicles: Vehicle[] = [];
-  const counts: Record<Kind, number> = { speeder: 0, taxi: 0, transport: 0 };
+  const counts: Record<Kind, number> = { speeder: 0, taxi: 0, transport: 0, cargo: 0, shuttle: 0 };
   const pick = (): Kind => {
     const r = rand();
-    return r < 0.56 ? "speeder" : r < 0.86 ? "taxi" : "transport";
+    return r < 0.5 ? "speeder" : r < 0.78 ? "taxi" : r < 0.88 ? "transport" : r < 0.95 ? "cargo" : "shuttle";
   };
   lanes.forEach((item, index) => {
     const count = Math.max(1, Math.round(item.count * thin));
@@ -197,6 +279,12 @@ export function createTraffic(lanes: Lane[], glow: THREE.Texture, quality: numbe
     {} as Record<Kind, THREE.InstancedMesh>,
   );
   // Head and tail lights: one pair per vehicle.
+  // Each vehicle has its own place in the order that traffic thins out, so density changes never
+  // make a whole stream vanish, and a size that eases in and out instead of a pop.
+  const order = vehicles.map(() => rand());
+  const presence = vehicles.map(() => 1);
+  let density = 1,
+    frame = 0;
   const lightPositions = new Float32Array(vehicles.length * 6),
     lightColors = new Float32Array(vehicles.length * 6);
   vehicles.forEach((_, i) => {
@@ -240,7 +328,7 @@ export function createTraffic(lanes: Lane[], glow: THREE.Texture, quality: numbe
     quaternion.setFromRotationMatrix(look);
     matrix.compose(position, quaternion, scale.setScalar(size));
     mesh.setMatrixAt(vehicle.slot, matrix);
-    const length = vehicle.kind === "transport" ? 5.4 : vehicle.kind === "taxi" ? 2.9 : 2.0;
+    const length = vehicle.kind === "cargo" ? 8 : vehicle.kind === "transport" ? 5.4 : vehicle.kind === "taxi" ? 2.9 : 2.0;
     lightPositions.set([position.x + forward.x * length * size, position.y + 0.6 * size, position.z + forward.z * length * size], index * 6);
     lightPositions.set([position.x - forward.x * length * size, position.y + 0.7 * size, position.z - forward.z * length * size], index * 6 + 3);
   };
@@ -249,9 +337,14 @@ export function createTraffic(lanes: Lane[], glow: THREE.Texture, quality: numbe
 
   return {
     group,
+    // The share of traffic in the air, 0 to 1: a storm, an alert, the rhythm of the city.
+    setDensity: (level: number) => {
+      density = level;
+    },
     // Moves every vehicle; companions follow the taxi's trip around its position.
-    tick: (dt: number, reduced: boolean, taxi: { trip: Trip | null; s: number; speed: number; camera: THREE.Camera }, passing?: Passing) => {
+    tick: (dt: number, reduced: boolean, taxi: { trip: Trip | null; s: number; speed: number; camera?: THREE.Camera; viewer?: THREE.Vector3 }, passing?: Passing) => {
       const step = reduced ? 0 : dt;
+      frame++;
       vehicles.forEach((vehicle, index) => {
         if (vehicle.companion) {
           const c = vehicle.companion;
@@ -274,8 +367,8 @@ export function createTraffic(lanes: Lane[], glow: THREE.Texture, quality: numbe
           heading.copy(taxiFrame.tangent).multiplyScalar(c.way);
           place(vehicle, index, at, heading, calm);
           // A whoosh as it passes close to the passenger.
-          const gap = at.distanceTo(taxi.camera.position);
-          if (gap < 16 && !near.has(vehicle)) {
+          const gap = taxi.camera ? at.distanceTo(taxi.camera.position) : Infinity;
+          if (gap < 16 && !near.has(vehicle) && taxi.camera) {
             near.add(vehicle);
             side.copy(at).applyMatrix4(taxi.camera.matrixWorldInverse);
             passing?.(THREE.MathUtils.clamp(side.x / 12, -1, 1), Math.min(1, (16 - gap) / 10) * (c.way < 0 ? 1 : 0.7));
@@ -284,6 +377,12 @@ export function createTraffic(lanes: Lane[], glow: THREE.Texture, quality: numbe
         }
         const item = lanes[vehicle.lane];
         vehicle.d = (vehicle.d + vehicle.speed * step) % item.length;
+        // Far away a vehicle moves a few pixels at most: place it one frame in three.
+        if (taxi.viewer && (frame + index) % 3 !== 0) {
+          const bucket = item.points[Math.floor((vehicle.d / item.length) * (item.points.length - 1))];
+          if (bucket.distanceToSquared(taxi.viewer) > 490000) return;
+        }
+        presence[index] += ((order[index] < density ? 1 : 0) - presence[index]) * (1 - Math.exp(-dt * 1.2));
         sample(item, vehicle.d, at);
         sample(item, Math.min(item.length, vehicle.d + 4), ahead);
         heading.subVectors(ahead, at);
@@ -291,7 +390,7 @@ export function createTraffic(lanes: Lane[], glow: THREE.Texture, quality: numbe
         heading.normalize();
         // Vehicles grow in and out at the ends of a lane, so nothing pops.
         const fade = Math.min(1, vehicle.d / 40, (item.length - vehicle.d) / 40);
-        place(vehicle, index, at, heading, Math.max(0, fade));
+        place(vehicle, index, at, heading, Math.max(0, fade) * presence[index]);
       });
       (Object.keys(meshes) as Kind[]).forEach((kind) => (meshes[kind].instanceMatrix.needsUpdate = true));
       lightGeometry.getAttribute("position").needsUpdate = true;

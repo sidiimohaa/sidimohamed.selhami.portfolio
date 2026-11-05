@@ -9,6 +9,10 @@ import { createNebula, createShootingStars } from "./spaceAmbience";
 import { createSpaceDust, createStarLayers, createSun } from "./deepSpace";
 import { qualityProfiles, type QualityId } from "./graphicsQuality";
 import { createSpaceTraffic, type HyperspacePhase } from "./spaceTraffic";
+import { livingOn } from "./galaxy/flags";
+import { livingProfile } from "./galaxy/quality";
+import { createSpaceEvents } from "./galaxy/spaceEvents";
+import { galaxy } from "./galaxy/store";
 import { createApproachFlight } from "./approachFlight";
 export type FlightState = {
   flying: boolean;
@@ -614,6 +618,19 @@ export default function SpaceScene({
       hyperspaceCallback.current(phase),
     );
     scene.add(traffic.group);
+    const spaceEvents = livingOn("events") && livingOn("spaceEvents")
+      ? createSpaceEvents({ glow: traffic.glow, ship: traffic.fleetShip, asteroids: Math.round(60 + livingProfile().traffic * 120) })
+      : null;
+    if (spaceEvents) scene.add(spaceEvents.group);
+    // Development only: runs the events forward, to check them by hand.
+    if (process.env.NODE_ENV !== "production" && spaceEvents)
+      (window as unknown as { __orbitalSpace?: object }).__orbitalSpace = {
+        advance: (seconds = 1) => {
+          for (let i = 0; i < seconds * 30; i++) spaceEvents.tick(1 / 30, i / 30, false, camera, galaxy().activeAt("space"));
+        },
+        camera,
+        group: spaceEvents.group,
+      };
     const obstacles = planets.map((planet, index) => ({
       position: planet.position,
       radius: radii[index],
@@ -1118,6 +1135,7 @@ export default function SpaceScene({
         { active: s.flying && !s.reduced, travel: s.travel },
         obstacles,
       );
+      spaceEvents?.tick(s.paused ? 0 : dt, elapsed, s.reduced, camera, galaxy().activeAt("space"));
       if (s.droidSignal !== lastDroidSignal) {
         lastDroidSignal = s.droidSignal;
         droidAt = elapsed;

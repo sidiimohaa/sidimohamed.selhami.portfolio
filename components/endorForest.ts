@@ -1,5 +1,7 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { glowTexture, random, type Spot } from "./landingKit";
+import { softBeam } from "./render/softBeam";
 
 // Endor's forest around the clearing: giant redwoods, a canopy with a gap over the clearing,
 // ferns and fallen logs, and shafts of late-afternoon light. The ship's approach (from -z),
@@ -19,35 +21,81 @@ function canvasTexture(width: number, height: number, paint: (c: CanvasRendering
   texture.anisotropy = 8;
   return texture;
 }
-// Deep, fibrous red-brown bark running up the trunk.
-// Deeply furrowed red-brown bark: long ridges with dark fissures between them. Moss is added by
-// the material, by height, so it does not repeat up the trunk with the texture.
-function bark() {
+// Deeply furrowed red-brown bark: long ridges with dark fissures between them. The relief is drawn
+// once and read back into a normal map, so the furrows catch the light. Moss is added by the
+// material, by height, so it does not repeat up the trunk with the texture.
+function barkSet() {
   const rand = random(83);
-  return canvasTexture(256, 512, (c) => {
-    c.fillStyle = "#6a3e2a";
-    c.fillRect(0, 0, 256, 512);
-    for (let i = 0; i < 70; i++) {
-      // A ridge that wanders slightly as it climbs.
-      let x = rand() * 256;
-      const w = 4 + rand() * 12;
-      c.fillStyle = rand() < 0.5 ? "rgba(150,92,62,.35)" : "rgba(110,66,44,.4)";
-      for (let y = 0; y < 512; y += 16) {
-        c.fillRect(x, y, w, 17);
-        x += (rand() - 0.5) * 3;
-      }
-    }
+  const map = canvasTexture(512, 1024, (c) => {
+    c.fillStyle = "#5e4030";
+    c.fillRect(0, 0, 512, 1024);
     for (let i = 0; i < 150; i++) {
-      let x = rand() * 256;
-      c.fillStyle = "rgba(18,9,5,.6)";
-      const top = rand() * 512,
-        length = 40 + rand() * 220;
-      for (let y = top; y < top + length; y += 12) {
-        c.fillRect(x, y % 512, 1.5 + rand() * 2.5, 13);
-        x += (rand() - 0.5) * 2;
+      // A ridge that wanders slightly as it climbs.
+      let x = rand() * 512;
+      const w = 5 + rand() * 20;
+      c.fillStyle = rand() < 0.5 ? "rgba(146,106,80,.38)" : "rgba(96,68,50,.42)";
+      for (let y = 0; y < 1024; y += 16) {
+        c.fillRect(x, y, w, 17);
+        x += (rand() - 0.5) * 4;
       }
     }
-  }, [2, 9]);
+    for (let i = 0; i < 340; i++) {
+      let x = rand() * 512;
+      c.fillStyle = "rgba(14,8,5,.68)";
+      const top = rand() * 1024,
+        length = 60 + rand() * 420;
+      for (let y = top; y < top + length; y += 10) {
+        c.fillRect(x, y % 1024, 1.5 + rand() * 3.5, 11);
+        x += (rand() - 0.5) * 2.4;
+      }
+    }
+    // Flakes of lighter bark standing proud of the ridges.
+    for (let i = 0; i < 420; i++) {
+      c.fillStyle = rand() < 0.5 ? "rgba(170,132,104,.22)" : "rgba(40,26,18,.26)";
+      c.fillRect(rand() * 512, rand() * 1024, 2 + rand() * 7, 8 + rand() * 30);
+    }
+  });
+  const relief = map.image as HTMLCanvasElement;
+  const source = relief.getContext("2d")?.getImageData(0, 0, relief.width, relief.height)?.data;
+  let normal: THREE.Texture | null = null;
+  if (source) {
+    const w = relief.width,
+      h = relief.height,
+      out = new Uint8Array(w * h * 4);
+    const height = (x: number, y: number) => source[(((y + h) % h) * w + ((x + w) % w)) * 4 + 1];
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const dx = (height(x + 1, y) - height(x - 1, y)) / 255,
+          dy = (height(x, y + 1) - height(x, y - 1)) / 255,
+          k = 1 / Math.hypot(dx * 3, dy * 3, 1),
+          at = (y * w + x) * 4;
+        out[at] = (-dx * 3 * k * 0.5 + 0.5) * 255;
+        out[at + 1] = (dy * 3 * k * 0.5 + 0.5) * 255;
+        out[at + 2] = (k * 0.5 + 0.5) * 255;
+        out[at + 3] = 255;
+      }
+    const data = new THREE.DataTexture(out, w, h);
+    data.wrapS = data.wrapT = THREE.RepeatWrapping;
+    data.flipY = true;
+    data.generateMipmaps = true;
+    data.minFilter = THREE.LinearMipmapLinearFilter;
+    data.magFilter = THREE.LinearFilter;
+    data.anisotropy = 8;
+    data.needsUpdate = true;
+    normal = data;
+  }
+  const set = (repeat: [number, number]) => {
+    const color = map.clone(),
+      bump = normal?.clone() ?? null;
+    color.repeat.set(...repeat);
+    color.needsUpdate = true;
+    if (bump) {
+      bump.repeat.set(...repeat);
+      bump.needsUpdate = true;
+    }
+    return { map: color, normalMap: bump, normalScale: new THREE.Vector2(0.9, 0.9) };
+  };
+  return set;
 }
 // Moss on trunks and roots, thick near the ground and in patches higher up.
 function mossy(material: THREE.MeshStandardMaterial) {
@@ -64,14 +112,29 @@ function mossy(material: THREE.MeshStandardMaterial) {
         vMossWorld = (modelMatrix * mossAt).xyz;`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vMossWorld;")
+      .replace(
+        "#include <common>",
+        `#include <common>
+        varying vec3 vMossWorld;
+        float mossHash(vec3 p){p=fract(p*.3183099+.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+        float mossNoise(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
+          return mix(mix(mix(mossHash(i),mossHash(i+vec3(1,0,0)),f.x),mix(mossHash(i+vec3(0,1,0)),mossHash(i+vec3(1,1,0)),f.x),f.y),
+                     mix(mix(mossHash(i+vec3(0,0,1)),mossHash(i+vec3(1,0,1)),f.x),mix(mossHash(i+vec3(0,1,1)),mossHash(i+vec3(1,1,1)),f.x),f.y),f.z);}`,
+      )
       .replace(
         "#include <map_fragment>",
         `#include <map_fragment>
         vec3 m = vMossWorld;
-        float patches = .5 + .25 * sin(m.x * 1.7 + sin(m.z * 1.3 + m.y * .35) * 2.0) + .25 * sin(m.z * 2.1 - m.y * .5 + sin(m.x * .9) * 1.5);
-        float moss = (1.0 - smoothstep(1.0, 24.0, m.y)) * smoothstep(.45, .8, patches + (1.0 - smoothstep(0.0, 5.0, m.y)) * .25);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.12, .2, .06), moss * .75);`,
+        if (m.y < 30.0) {
+          float broad = mossNoise(m * vec3(.3, .1, .3)), mid = mossNoise(m * vec3(1.3, .55, 1.3)), fine = mossNoise(m * 6.5);
+          float low = 1.0 - smoothstep(.5, 16.0, m.y);
+          // It takes hold in the furrows first, and thins out with height.
+          float furrow = 1.0 - smoothstep(.06, .3, dot(diffuseColor.rgb, vec3(.33)));
+          float moss = smoothstep(.6, .72, broad * .45 + mid * .3 + fine * .25 + low * .1 + furrow * .08) * smoothstep(30.0, 8.0, m.y);
+          // The bark's own relief shows through, so the moss is not a flat coat of paint.
+          float relief = .55 + dot(diffuseColor.rgb, vec3(.33)) * 2.6;
+          diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(.035, .07, .022), vec3(.1, .16, .05), fine * .6 + mid * .4) * relief, moss * .9);
+        }`,
       );
   };
   return material;
@@ -241,28 +304,35 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
     }
   // Trunks, root flares and canopy crowns are each one instanced mesh.
   const trunkGeometry = new THREE.CylinderGeometry(0.82, 1, 1, 18, 1, true).translate(0, 0.5, 0);
-  // Root flares with buttresses: the base swells out in six lobes.
-  const flareGeometry = new THREE.CylinderGeometry(1, 2.1, 1, 36, 4, true).translate(0, 0.5, 0);
-  {
-    const p = flareGeometry.getAttribute("position");
+  // Root flares with buttresses: the base swells out in irregular lobes that run into the ground.
+  const flareOf = (radial: number, rows: number, sharp: number) => {
+    const geometry = new THREE.CylinderGeometry(1, 2.1, 1, radial, rows, true).translate(0, 0.5, 0);
+    const p = geometry.getAttribute("position");
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i),
         y = p.getY(i),
-        z = p.getZ(i);
-      const lobe = 1 + Math.max(0, Math.cos(Math.atan2(z, x) * 6)) * 0.45 * (1 - y);
+        z = p.getZ(i),
+        a = Math.atan2(z, x);
+      const ridge = Math.pow(Math.max(0, Math.cos(a * 5 + Math.sin(a * 2 + 1) * 0.9)), sharp),
+        fold = Math.pow(Math.max(0, Math.cos(a * 11 + 1.7)), 3) * 0.22;
+      const lobe = 1 + (ridge * 0.8 + fold) * Math.pow(1 - y, 1.5);
       p.setXYZ(i, x * lobe, y, z * lobe);
     }
-    flareGeometry.computeVertexNormals();
-  }
+    geometry.computeVertexNormals();
+    return geometry;
+  };
   const crownGeometry = sprayGeometry();
-  const barkMaterial = mossy(new THREE.MeshStandardMaterial({ map: bark(), color: 0xd0a288, roughness: 0.95 }));
+  const barks = barkSet();
+  const barkMaterial = mossy(new THREE.MeshStandardMaterial({ ...barks([2, 9]), color: 0xc8ab96, roughness: 0.95 }));
   const crownMaterial = new THREE.MeshStandardMaterial({ map: needles(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
   // The roots get their own copy of the bark, tiled to their short height so it is not squashed.
-  const rootBark = bark();
-  rootBark.repeat.set(3, 1);
-  const rootMaterial = mossy(new THREE.MeshStandardMaterial({ map: rootBark, color: 0xc89a80, roughness: 0.95 }));
+  const rootMaterial = mossy(new THREE.MeshStandardMaterial({ ...barks([3, 1]), color: 0xb9a28e, roughness: 0.95 }));
+  // Close to the clearing the buttresses are modelled in detail; far off they are only a silhouette.
+  const closeUp = trees.filter((tree) => Math.hypot(tree.x, tree.z) < 72),
+    distant = trees.filter((tree) => Math.hypot(tree.x, tree.z) >= 72);
   const trunks = new THREE.InstancedMesh(trunkGeometry, barkMaterial, trees.length),
-    flares = new THREE.InstancedMesh(flareGeometry, rootMaterial, trees.length);
+    flares = new THREE.InstancedMesh(flareOf(30, 3, 1.4), rootMaterial, distant.length),
+    nearFlares = new THREE.InstancedMesh(flareOf(84, 10, 2.2), rootMaterial, closeUp.length);
   // No treetops in the direction of the battle station, so it shows through a gap in the canopy.
   const inWindow = (t: Tree) => Math.abs(Math.atan2(Math.sin(Math.atan2(t.x, t.z) - SKY_WINDOW.azimuth), Math.cos(Math.atan2(t.x, t.z) - SKY_WINDOW.azimuth))) < SKY_WINDOW.spread;
   const crownSpots = trees.filter((t) => Math.hypot(t.x, t.z) > CLEARING + 2 && !inWindow(t));
@@ -276,7 +346,9 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
     trunks.setMatrixAt(i, dummy.matrix);
     dummy.scale.set(tree.radius, 3.5 + tree.radius, tree.radius);
     dummy.updateMatrix();
-    flares.setMatrixAt(i, dummy.matrix);
+    const closeIndex = closeUp.indexOf(tree);
+    if (closeIndex >= 0) nearFlares.setMatrixAt(closeIndex, dummy.matrix);
+    else flares.setMatrixAt(distant.indexOf(tree), dummy.matrix);
     // Village trees keep a tight collider so their platforms stay walkable round the trunk.
     if (Math.hypot(tree.x, tree.z) < 60) colliders.push({ x: tree.x, z: tree.z, r: tree.radius * (options.village.includes(tree) ? 1.08 : 1.25) });
   });
@@ -315,7 +387,36 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
       leaves.setColorAt(i * 3 + k, tint.setHSL(0.24 + rand() * 0.07, 0.3, 0.5 + rand() * 0.3));
     }
   });
-  group.add(trunks, flares, crowns, branches, leaves);
+  group.add(trunks, flares, nearFlares, crowns, branches, leaves);
+  // Roots snaking out from the near trees across the ground, tapering as they go.
+  const rootPath = new THREE.CatmullRomCurve3([new THREE.Vector3(0.45, 0.62, 0), new THREE.Vector3(0.62, 0.3, 0.03), new THREE.Vector3(0.82, 0.09, -0.04), new THREE.Vector3(1, 0, 0.03)]);
+  const rootGeometry = new THREE.TubeGeometry(rootPath, 10, 0.075, 7, false);
+  {
+    const p = rootGeometry.getAttribute("position"),
+      uv = rootGeometry.getAttribute("uv"),
+      centre = new THREE.Vector3(),
+      point = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) {
+      rootPath.getPointAt(uv.getX(i), centre);
+      point.fromBufferAttribute(p, i).sub(centre).multiplyScalar(1 - uv.getX(i) * 0.82).add(centre);
+      p.setXYZ(i, point.x, point.y, point.z);
+    }
+    rootGeometry.computeVertexNormals();
+  }
+  const roots = new THREE.InstancedMesh(rootGeometry, rootMaterial, closeUp.length * 7);
+  closeUp.forEach((tree, i) => {
+    for (let k = 0; k < 7; k++) {
+      const turn = (k / 7) * Math.PI * 2 + rand() * 0.7,
+        reach = tree.radius * (2.6 + rand() * 1.5);
+      dummy.position.set(tree.x, 0, tree.z);
+      dummy.rotation.set(0, turn, 0);
+      dummy.scale.set(reach, 2.2 + tree.radius * 0.5, tree.radius * (2.4 + rand() * 1.4));
+      dummy.updateMatrix();
+      roots.setMatrixAt(i * 7 + k, dummy.matrix);
+    }
+  });
+  roots.castShadow = roots.receiveShadow = true;
+  group.add(roots);
   leaves.castShadow = branches.castShadow = true;
 
   // The forest floor, the clearing's grass and the sky behind the canopy.
@@ -349,17 +450,27 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
     ),
   );
 
-  // Ferns in drifts beyond the clearing, and a few inside its edge.
-  const fernMaterial = new THREE.MeshStandardMaterial({ map: frond(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9, color: 0xbfd99a });
+  // Ferns in drifts beyond the clearing and a few inside its edge, thickest round the foot of trees.
+  const fernMaterial = new THREE.MeshStandardMaterial({ map: frond(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9, color: 0xbfd99a, emissive: 0x24351a, emissiveIntensity: 1 });
   const ferns: THREE.Matrix4[] = [];
-  for (let i = 0; i < 900 && ferns.length < 620; i++) {
-    const angle = rand() * Math.PI * 2,
-      reach = CLEARING - 5 + Math.pow(rand(), 0.7) * 70;
-    const x = Math.cos(angle) * reach,
+  const undergrowthClear = (x: number, z: number, gap: number) =>
+    !trees.some((t) => Math.hypot(t.x - x, t.z - z) < t.radius + gap) && !near(x, z, options.keepClear, 2.5) && Math.hypot(x, z - 20) >= 8;
+  for (let i = 0; i < 2400 && ferns.length < 1500; i++) {
+    let x: number, z: number;
+    if (i % 5 < 2) {
+      const tree = closeUp[Math.floor(rand() * closeUp.length)],
+        turn = rand() * Math.PI * 2,
+        out = tree.radius * 2.1 + rand() * 4;
+      x = tree.x + Math.cos(turn) * out;
+      z = tree.z + Math.sin(turn) * out;
+      if (Math.hypot(x, z) < CLEARING - 5) continue;
+    } else {
+      const angle = rand() * Math.PI * 2,
+        reach = CLEARING - 5 + Math.pow(rand(), 0.7) * 70;
+      x = Math.cos(angle) * reach;
       z = Math.sin(angle) * reach;
-    if (Math.hypot(x, z - 20) < 8) continue;
-    if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < t.radius + 0.6)) continue;
-    if (near(x, z, options.keepClear, 2.5)) continue;
+    }
+    if (!undergrowthClear(x, z, 0.6)) continue;
     dummy.position.set(x, 0, z);
     dummy.rotation.set(0, rand() * Math.PI * 2, 0);
     dummy.scale.setScalar(0.7 + rand() * 0.9);
@@ -370,8 +481,129 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
   ferns.forEach((m, i) => fernMesh.setMatrixAt(i, m));
   group.add(fernMesh);
 
+  // Shrubs and saplings fill the layer between the ferns and the canopy, beyond the clearing's edge.
+  const shrubSpots: { x: number; z: number; size: number }[] = [];
+  for (let i = 0; i < 1100 && shrubSpots.length < 340; i++) {
+    const angle = rand() * Math.PI * 2,
+      reach = CLEARING + 4 + Math.pow(rand(), 0.8) * 62,
+      x = Math.cos(angle) * reach,
+      z = Math.sin(angle) * reach;
+    if (undergrowthClear(x, z, 0.8) && offCameraPath(x, z)) shrubSpots.push({ x, z, size: 1.6 + rand() * 2.4 });
+  }
+  // Foliage down here is seen from below as often as from above: the air lights its undersides.
+  const understory = crownMaterial.clone();
+  understory.emissive.setHex(0x1b2a14);
+  const shrubs = new THREE.InstancedMesh(crownGeometry, understory, shrubSpots.length * 2);
+  shrubSpots.forEach(({ x, z, size }, i) => {
+    for (let k = 0; k < 2; k++) {
+      dummy.position.set(x + (k ? 0.5 : -0.3) * size * 0.4, size * (0.26 + k * 0.2), z + (k ? -0.3 : 0.4) * size * 0.4);
+      dummy.rotation.set((rand() - 0.5) * 0.3, rand() * Math.PI, (rand() - 0.5) * 0.3);
+      dummy.scale.set(size * (1.3 - k * 0.3), size * (0.95 - k * 0.2), size * (1.3 - k * 0.3));
+      dummy.updateMatrix();
+      shrubs.setMatrixAt(i * 2 + k, dummy.matrix);
+      shrubs.setColorAt(i * 2 + k, tint.setHSL(0.24 + rand() * 0.06, 0.34, 0.5 + rand() * 0.26));
+    }
+  });
+  shrubs.receiveShadow = true;
+  group.add(shrubs);
+
+  const saplingSpots: { x: number; z: number; height: number }[] = [];
+  for (let i = 0; i < 500 && saplingSpots.length < 90; i++) {
+    const angle = rand() * Math.PI * 2,
+      reach = CLEARING + 5 + rand() * 58,
+      x = Math.cos(angle) * reach,
+      z = Math.sin(angle) * reach;
+    if (undergrowthClear(x, z, 1.4) && offCameraPath(x, z)) saplingSpots.push({ x, z, height: 3.5 + rand() * 5 });
+  }
+  const saplingStems = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.14, 1, 7).translate(0, 0.5, 0), barkMaterial, saplingSpots.length),
+    saplingTops = new THREE.InstancedMesh(crownGeometry, understory, saplingSpots.length * 3);
+  saplingSpots.forEach(({ x, z, height }, i) => {
+    dummy.position.set(x, 0, z);
+    dummy.rotation.set((rand() - 0.5) * 0.08, rand() * Math.PI, (rand() - 0.5) * 0.08);
+    dummy.scale.set(1, height, 1);
+    dummy.updateMatrix();
+    saplingStems.setMatrixAt(i, dummy.matrix);
+    for (let k = 0; k < 3; k++) {
+      const spread = height * (0.62 - k * 0.14);
+      dummy.position.set(x, height * (0.62 + k * 0.17), z);
+      dummy.rotation.set((rand() - 0.5) * 0.25, rand() * Math.PI, (rand() - 0.5) * 0.25);
+      dummy.scale.set(spread, spread * 0.62, spread);
+      dummy.updateMatrix();
+      saplingTops.setMatrixAt(i * 3 + k, dummy.matrix);
+      saplingTops.setColorAt(i * 3 + k, tint.setHSL(0.25 + rand() * 0.05, 0.3, 0.52 + rand() * 0.22));
+    }
+    if (Math.hypot(x, z) < 60) colliders.push({ x, z, r: 0.28 });
+  });
+  saplingStems.castShadow = true;
+  group.add(saplingStems, saplingTops);
+
+  // Tall grass where the meadow meets the forest, and pale mushrooms at the foot of the near trees.
+  const blades = canvasTexture(256, 256, (c) => {
+    c.clearRect(0, 0, 256, 256);
+    for (let i = 0; i < 90; i++) {
+      const x = 14 + rand() * 228,
+        lean = (rand() - 0.5) * 60,
+        top = 8 + Math.pow(rand(), 0.55) * 210,
+        width = 1.6 + rand() * 2.6,
+        tone = rand();
+      c.fillStyle = tone < 0.4 ? "#5a7a30" : tone < 0.75 ? "#47652a" : "#74913c";
+      // A blade narrowing to a point, bending as it rises.
+      c.beginPath();
+      c.moveTo(x - width, 256);
+      c.quadraticCurveTo(x - width * 0.6 + lean * 0.15, (256 + top) / 2, x + lean, top);
+      c.quadraticCurveTo(x + width * 0.6 + lean * 0.15, (256 + top) / 2, x + width, 256);
+      c.closePath();
+      c.fill();
+    }
+  });
+  const tuftParts = [0, Math.PI / 3, (2 * Math.PI) / 3].map((turn) => new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0).rotateY(turn));
+  const tuftGeometry = mergeGeometries(tuftParts, false)!;
+  tuftParts.forEach((part) => part.dispose());
+  const tuftSpots: { x: number; z: number; size: number }[] = [];
+  for (let i = 0; i < 3000 && tuftSpots.length < 620; i++) {
+    const angle = rand() * Math.PI * 2,
+      reach = CLEARING - 9 + Math.pow(rand(), 0.8) * 20,
+      x = Math.cos(angle) * reach,
+      z = Math.sin(angle) * reach,
+      // Clumps with bare ground between them, rather than an even hedge round the meadow.
+      clump = Math.sin(x * 0.55 + Math.sin(z * 0.37) * 1.8) + Math.sin(z * 0.61 + Math.sin(x * 0.29) * 1.6);
+    if (clump > 0.35 && undergrowthClear(x, z, 0.3)) tuftSpots.push({ x, z, size: 0.32 + rand() * rand() * 0.75 });
+  }
+  const tufts = new THREE.InstancedMesh(tuftGeometry, new THREE.MeshStandardMaterial({ map: blades, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.95 }), tuftSpots.length);
+  tuftSpots.forEach(({ x, z, size }, i) => {
+    dummy.position.set(x, 0, z);
+    dummy.rotation.set(0, rand() * Math.PI, 0);
+    dummy.scale.set(size * 1.1, size, size * 1.1);
+    dummy.updateMatrix();
+    tufts.setMatrixAt(i, dummy.matrix);
+    tufts.setColorAt(i, tint.setHSL(0.23 + rand() * 0.05, 0.3, 0.62 + rand() * 0.2));
+  });
+  tufts.receiveShadow = true;
+  group.add(tufts);
+
+  const capGeometry = new THREE.SphereGeometry(0.1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7, 1).translate(0, 0.12, 0),
+    stalkGeometry = new THREE.CylinderGeometry(0.022, 0.032, 0.13, 6).translate(0, 0.065, 0);
+  const mushroomGeometry = mergeGeometries([capGeometry.toNonIndexed(), stalkGeometry.toNonIndexed()], false)!;
+  capGeometry.dispose();
+  stalkGeometry.dispose();
+  const mushrooms = new THREE.InstancedMesh(mushroomGeometry, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }), closeUp.length * 6);
+  closeUp.forEach((tree, i) => {
+    const turn = rand() * Math.PI * 2;
+    for (let k = 0; k < 6; k++) {
+      const a = turn + k * 0.16 + rand() * 0.1,
+        out = tree.radius * (2.2 + rand() * 0.8);
+      dummy.position.set(tree.x + Math.cos(a) * out, 0, tree.z + Math.sin(a) * out);
+      dummy.rotation.set((rand() - 0.5) * 0.3, rand() * Math.PI, (rand() - 0.5) * 0.3);
+      dummy.scale.setScalar(0.7 + rand() * 1.5);
+      dummy.updateMatrix();
+      mushrooms.setMatrixAt(i * 6 + k, dummy.matrix);
+      mushrooms.setColorAt(i * 6 + k, tint.setHSL(0.09 + rand() * 0.04, 0.32, 0.58 + rand() * 0.2));
+    }
+  });
+  group.add(mushrooms);
+
   // Fallen, mossy logs at the clearing's edge.
-  const logMaterial = new THREE.MeshStandardMaterial({ map: bark(), color: 0x9f8a6a, roughness: 1 });
+  const logMaterial = mossy(new THREE.MeshStandardMaterial({ ...barks([2, 3]), color: 0x9f8a6a, roughness: 1 }));
   for (const [x, z, turn, length, radius] of [
     [-17, -6, 0.4, 9, 0.8],
     [18.5, 4, -1.1, 8, 0.7],
@@ -400,7 +632,7 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
   ].map(([x, z, radius], i) => {
     const shaft = new THREE.Mesh(
       new THREE.CylinderGeometry(radius * 0.7, radius, 64, 24, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xffe3a8, transparent: true, opacity: 0.05, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
+      softBeam(new THREE.MeshBasicMaterial({ color: 0xffe3a8, transparent: true, opacity: 0.05, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }), 12),
     );
     shaft.position.set(x - 10, 32, z - 6);
     shaft.rotation.set(-0.16, 0, 0.3);
@@ -411,8 +643,8 @@ export function createEndorForest(options: { village: Tree[]; keepClear: THREE.V
     group.add(pool);
     return { shaft, phase: i * 1.7 };
   });
-  trunks.castShadow = flares.castShadow = crowns.castShadow = true;
-  trunks.receiveShadow = flares.receiveShadow = ground.receiveShadow = fernMesh.receiveShadow = true;
+  trunks.castShadow = flares.castShadow = nearFlares.castShadow = crowns.castShadow = true;
+  trunks.receiveShadow = flares.receiveShadow = nearFlares.receiveShadow = ground.receiveShadow = fernMesh.receiveShadow = true;
   return {
     group,
     colliders,

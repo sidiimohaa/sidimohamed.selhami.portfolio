@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { glowTexture } from "../landingKit";
+import { softBeam } from "../render/softBeam";
 
 // The Coruscant air taxi: a long amber hull with an open cockpit of two rows of seats under a
 // low bubble windscreen, two oval humps on the rear deck, dark swept fins at the rear corners
@@ -245,7 +246,7 @@ export function createAirTaxi(options: { glow?: THREE.Texture; holo?: boolean } 
     mesh.name = "taxi-holo";
     const beam = add(
       new THREE.ConeGeometry(0.2, 0.5, 20, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0x5fcfff, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+      softBeam(new THREE.MeshBasicMaterial({ color: 0x5fcfff, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })),
       [-0.26, 1.45, 0.4],
       [Math.PI, 0, 0],
     );

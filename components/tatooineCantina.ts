@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createCantinaCrowd } from "./cantinaCrowd";
 import { glowTexture, type ZoneAction } from "./landingKit";
+import { softBeam } from "./render/softBeam";
 import { createDejarikDuel } from "./dejarikDuel";
 import { createBarCameos } from "./cantinaCameos";
 import { bakePart, part, pipe, rounded } from "./tatooineCharacters";
@@ -235,6 +236,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
     map.colorSpace = THREE.SRGBColorSpace;
     part(shell, new THREE.PlaneGeometry(2.8, .7), new THREE.MeshStandardMaterial({ map, emissive: 0xd7ad62, emissiveIntensity: .3 }), [-3.17, 3.42, 62], [0, Math.PI / 2, 0]);
     // Dim, warm pools of light: over the bar, the band, the booths and the door.
+    const lamps: THREE.PointLight[] = [];
     for (const [u, v, y, color, power, reach] of [[-14.7, 62, 3.7, 0xffb066, 26, 11], [-11.2, 68.4, 3.1, 0xff8a4a, 15, 7], [-19.6, 62.5, 2.7, 0xff6a3a, 11, 9], [-6.3, 62, 2.25, 0xffb66e, 12, 8]]) {
         if (u !== -19.6) {
             // Each bulb hangs on a cord from the vault (or the flat ceiling beyond it).
@@ -245,6 +247,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
         const light = new THREE.PointLight(color, power, reach, 2);
         light.position.set(u, y - .15, v);
         group.add(light);
+        lamps.push(light);
     }
     // Two shadow-casting key lights give the room its relief: daylight falling from the skylight
     // onto the bar, and a low warm lamp over the dejarik booth, so Han and Chewie are modelled by
@@ -271,7 +274,7 @@ export function createTatooineCantina(adobe: THREE.Material) {
     // The skylight lets a faint shaft down onto the bar.
     const sky = new THREE.MeshBasicMaterial({ color: 0xffe9c4, side: THREE.DoubleSide });
     part(inside, new THREE.CircleGeometry(.88, 32), sky, [CENTRE.u, 9.04, CENTRE.v], [Math.PI / 2, 0, 0]);
-    const beam = (radiusTop: number, radiusBottom: number, opacity: number) => part(group, new THREE.CylinderGeometry(radiusTop, radiusBottom, 8.4, 32, 1, true), new THREE.MeshBasicMaterial({ color: 0xffdcaa, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), [CENTRE.u, 4.8, CENTRE.v]);
+    const beam = (radiusTop: number, radiusBottom: number, opacity: number) => part(group, new THREE.CylinderGeometry(radiusTop, radiusBottom, 8.4, 32, 1, true), softBeam(new THREE.MeshBasicMaterial({ color: 0xffdcaa, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), 3), [CENTRE.u, 4.8, CENTRE.v]);
     const shafts = [beam(.85, 1.9, .035), beam(.6, 1.3, .03)];
     const pool = part(group, new THREE.CircleGeometry(2, 32), new THREE.MeshBasicMaterial({ color: 0xffcf96, transparent: true, opacity: .06, depthWrite: false, blending: THREE.AdditiveBlending }), [CENTRE.u, 1.07, CENTRE.v], [-Math.PI / 2, 0, 0]);
     // Wall sconces glow amber between the booths and along the side walls.
@@ -288,11 +291,22 @@ export function createTatooineCantina(adobe: THREE.Material) {
     }
     bakePart(shell);
     bakePart(inside);
-    const contains = (u: number, v: number) => u < -5.05 && u > -21.8 && v > 54.3 && v < 70.7;
+    // A third of the town's draws is this room, and from the street it only shows through one door:
+    // beyond that distance it is neither drawn nor animated, and its lamps stop redrawing shadows.
+    const room: THREE.Object3D[] = [inside, crowd.group, dejarik.group, cameos.group, ...flames, ...shafts, pool];
+    keys.forEach(key => { key.shadow.autoUpdate = false; key.shadow.needsUpdate = true; });
+    let roomShown = true;
+    // Every lamp in the scene is paid for on every pixel of the town, so they only burn while the
+    // visitor is at the door or inside, and come up gently rather than pop.
+    const allLamps: THREE.Light[] = [...lamps, ...keys];
+    const lampPower = allLamps.map(lamp => lamp.intensity);
+    let lampLevel = 0;
+    const setLamps = (on: boolean) => allLamps.forEach(lamp => lamp.visible = on);
+    const contains =(u: number, v: number) => u < -5.05 && u > -21.8 && v > 54.3 && v < 70.7;
     const isBlocked = (u: number, v: number, clearance=.35) => walls.some(w => u > w.minU - clearance && u < w.maxU + clearance && v > w.minV - clearance && v < w.maxV + clearance);
     return { group, circles, actions, contains, isBlocked,
         // Off at the lowest quality, like the sun's shadows.
-        setQuality: (level: number) => keys.forEach(k => k.castShadow = level > 0), bartender: crowd.bartenderSpot, entry: { u: -8.2, v: 62 }, exit: { u: -1.8, v: 62 },
+        setQuality: (level: number) => keys.forEach(k => k.castShadow = level > 0), setLamps, bartender: crowd.bartenderSpot, entry: { u: -8.2, v: 62 }, exit: { u: -1.8, v: 62 },
         constrain: (walker: {
             u: number;
             v: number;
@@ -315,6 +329,19 @@ export function createTatooineCantina(adobe: THREE.Material) {
         tick: (time: number, reduced: boolean, visitor = { u: 0, v: 0 }) => {
             const dt = THREE.MathUtils.clamp(time - last, 0, .1);
             last = time;
+            const away = Math.hypot(visitor.u - CENTRE.u, visitor.v - CENTRE.v), close = away < 34;
+            if (close !== roomShown) {
+                roomShown = close;
+                room.forEach(object => object.visible = close);
+            }
+            lampLevel = reduced ? +(away < 20) : THREE.MathUtils.clamp(lampLevel + (away < 20 ? dt : -dt) * 2, 0, 1);
+            setLamps(lampLevel > 0);
+            if (lampLevel > 0) {
+                allLamps.forEach((lamp, i) => lamp.intensity = lampPower[i] * lampLevel);
+                keys.forEach(key => key.shadow.needsUpdate = true);
+            }
+            if (!close)
+                return;
             crowd.tick(time, reduced);
             dejarik.tick(time, reduced);
             cameos.tick(time, dt, reduced, visitor);

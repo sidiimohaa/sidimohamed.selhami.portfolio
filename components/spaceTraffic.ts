@@ -681,6 +681,10 @@ export function createSpaceTraffic(
   };
   return {
     group,
+    // A ship for the galactic events (a fleet, a wreck), on the same hulls as passing traffic.
+    fleetShip: (kind: "destroyer" | "freighter" | "fighter") =>
+      buildVessel((kind === "destroyer" ? destroyerHull : kind === "freighter" ? freighterHull : fighterHull)(), glow, plating, reflections, [0, 0, 0]).root,
+    glow,
     tick: (
       dt: number,
       camera: THREE.PerspectiveCamera,

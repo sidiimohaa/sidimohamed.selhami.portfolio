@@ -3,6 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Clapperboard, DoorOpen, Eye, FastForward, LogOut, MessageSquare, MessageSquareOff, Navigation, Sunset } from "lucide-react";
 import * as THREE from "three";
+import { advanceCity, cityFogColor, lightCity } from "../galaxy/cityEnv";
+import { createCityEvents, type CityEffects } from "../galaxy/cityEvents";
+import { livingOn } from "../galaxy/flags";
+import { livingProfile } from "../galaxy/quality";
+import { galaxy } from "../galaxy/store";
 import { chosenTier, createPipeline } from "../render/pipeline";
 import { enrichMaterials } from "../render/materialDetail";
 import { looks, skies } from "../render/looks";
@@ -121,7 +126,12 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
     const chamber = createCouncilChamber(glow);
     const hall = createSenateHall(glow, quality);
     const taxi = createAirTaxi({ glow, holo: true });
-    const world = [city.group, temple.group, senate.group, traffic.group, chamber.group, taxi.group];
+    // The city keeps its hour and its events during the ride: same sky as on the platform.
+    const living = livingProfile();
+    const cityEvents = livingOn("events") ? createCityEvents({ glow, rain: living.rain }) : null;
+    const baseFog = (scene.fog as THREE.FogExp2).density;
+    let effects: CityEffects | null = null;
+    const world = [city.group, temple.group, senate.group, traffic.group, chamber.group, taxi.group, ...(cityEvents ? [cityEvents.group] : [])];
     scene.add(...world, hall.group);
     // Art direction: dusk sky as image-based light (polished stone and glass of the Council and
     // the Senate reflect it), surface detail on the architecture, and the city's colour grade.
@@ -801,6 +811,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       renderer.setPixelRatio(ratio);
       resize();
     };
+    const cameraAhead = new THREE.Vector3();
     const animate = (now: number) => {
       const dt = THREE.MathUtils.clamp((now - last) / 1000, 0, 0.05);
       last = now;
@@ -985,6 +996,13 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       // The world around.
       if (mode === "hall") hall.tick(dt, elapsed, still);
       else {
+        advanceCity(dt, { cycle: livingOn("cityCycle"), reduced: still });
+        lightCity(city.sun, city.skyLight, { sun: 2.1, sky: 1.15 });
+        camera.getWorldDirection(cameraAhead);
+        effects = cityEvents ? cityEvents.tick(dt, elapsed, still, camera.position, Math.atan2(cameraAhead.x, cameraAhead.z), galaxy().activeAt("coruscant")) : null;
+        (scene.fog as THREE.FogExp2).color.copy(cityFogColor);
+        (scene.fog as THREE.FogExp2).density = baseFog * (effects?.fog ?? 1);
+        traffic.setDensity(effects?.traffic ?? 1);
         traffic.tick(dt, still, { trip: mode === "flight" ? ride.trip : null, s: ride.s, speed: ride.v, camera }, (pan, level) => sfx.whoosh(pan, level));
         city.tick(dt, elapsed, still, camera);
         temple.tick(dt, still);
@@ -1019,6 +1037,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
         });
       });
       textures.forEach((texture) => texture.dispose());
+      cityEvents?.stop();
       pipeline.dispose();
       environment?.dispose();
       renderer.dispose();

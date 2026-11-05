@@ -24,9 +24,10 @@ const towers: Tower[] = [
   { x: 157, z: 9, r: 17, top: 54, shape: "dome" },
 ];
 
-export const CORUSCANT_LANDMARKS = towers.map(({ x, z, r }) => ({
+export const CORUSCANT_LANDMARKS = towers.map(({ x, z, r, top }) => ({
   x,
   z,
+  top,
   r: r * 1.3 + 3,
 }));
 

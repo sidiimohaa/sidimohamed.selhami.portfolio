@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { softBeam } from "../render/softBeam";
 
 // The Senate rotunda: a vast drum lined with hundreds of delegation pods, a podium on a tall
 // column at the centre under a shaft of light, a few pods adrift in the void. The visitor stands
@@ -169,7 +170,7 @@ export function createSenateHall(glow: THREE.Texture, quality: number) {
   // The shaft of light from the oculus down to the podium.
   const shaft = new THREE.Mesh(
     new THREE.CylinderGeometry(3.4, 8.5, CEILING + 18 - 2, 32, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xcfe2ff, transparent: true, opacity: 0.06, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+    softBeam(new THREE.MeshBasicMaterial({ color: 0xcfe2ff, transparent: true, opacity: 0.06, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), 8),
   );
   shaft.position.y = (CEILING + 18 + 2) / 2;
   group.add(shaft);

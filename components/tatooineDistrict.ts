@@ -273,7 +273,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     batches.forEach((parts, material) => { const geometry = mergeGeometries(parts, false); parts.forEach(p => p.dispose()); if (geometry)
         group.add(new THREE.Mesh(geometry, material)); });
     let clock = 0;
-    return { group, colliders, movers, explorePoint:districtPoint(0,34), setQuality:cantina.setQuality,
+    return { group, colliders, movers, explorePoint:districtPoint(0,34), setQuality:cantina.setQuality, setLamps:cantina.setLamps,
         actions:cantina.actions.map(action=>({...action,
             position:districtPoint(action.position.x,action.position.z).setY(action.position.y),
             approach:action.approach?{

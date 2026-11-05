@@ -5,6 +5,7 @@ import { Briefcase, Gauge, LogOut, Map as MapIcon } from "lucide-react";
 import * as THREE from "three";
 import { createStage } from "../jedi/stage";
 import { enrichMaterials } from "../render/materialDetail";
+import { eventLevels } from "../galaxy/worldEvents";
 import { looks } from "../render/looks";
 import { LIFT_A, LIFT_B, SPAWN, createStation, roomNames, type RoomId, type Station } from "./stationWorld";
 import { createStationAudio, type StationAudio } from "./stationAudio";
@@ -230,10 +231,21 @@ export default function DeathStarStation({ start, reduced, sound, onClose }: Pro
       tmp = new THREE.Vector3(),
       tmp2 = new THREE.Vector3();
     const firstPerson = new THREE.Euler(0, 0, 0, "YXZ");
+    const drill = eventLevels("station");
+    let drillShown = 0;
     const stage = createStage(
       el,
       (dt, time) => {
         if (!s) return;
+        // A drill: the whole station goes to red for a moment. The record's panels are HTML, untouched.
+        if (stage?.pipeline && !live.current.reduced) {
+          const level = drill("station-drill", dt, 0.8) * (0.7 + 0.3 * Math.sin(time * 3));
+          if (Math.abs(level - drillShown) > 0.004) {
+            drillShown = level;
+            const base = looks.deathstar.grade;
+            stage.pipeline.setGrade({ ...base, lift: [base.lift[0] + level * 0.05, base.lift[1] - level * 0.006, base.lift[2] - level * 0.012], gain: [base.gain[0] + level * 0.12, base.gain[1] - level * 0.14, base.gain[2] - level * 0.16], saturation: base.saturation + level * 0.2 });
+          }
+        }
         const camera = stage!.camera;
         const p = player.current;
         const { reduced } = live.current;

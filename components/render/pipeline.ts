@@ -158,6 +158,29 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
   });
   const quad = new FullScreenQuad(material);
   let ao: GTAOPass | null = null;
+  // The occlusion pass redraws everything as plain opaque surfaces: a glow sprite, a shaft of light
+  // or a leaf cut out of a card would become a solid black quad. Only what fills its shape takes part.
+  const seeThrough = (surface: THREE.Material) =>
+    surface.transparent || !surface.depthWrite || surface.alphaTest > 0 || surface.blending !== THREE.NormalBlending;
+  // Small props darken nothing that can be seen at half resolution, and each one is another draw.
+  const tooSmall = (mesh: THREE.Mesh) => {
+    if (mesh instanceof THREE.InstancedMesh) return false;
+    if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+    return mesh.geometry.boundingSphere!.radius * mesh.matrixWorld.getMaxScaleOnAxis() < 0.18;
+  };
+  const leftOut: THREE.Object3D[] = [];
+  const renderOcclusion = (pass: GTAOPass, into: THREE.WebGLRenderTarget, from: THREE.WebGLRenderTarget) => {
+    scene.traverseVisible((object) => {
+      const surface = (object as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (object instanceof THREE.Sprite || (surface && (Array.isArray(surface) ? surface.some(seeThrough) : seeThrough(surface))) || ((object as THREE.Mesh).isMesh && tooSmall(object as THREE.Mesh))) {
+        object.visible = false;
+        leftOut.push(object);
+      }
+    });
+    pass.render(renderer, into, from, 0, false);
+    leftOut.forEach((object) => (object.visible = true));
+    leftOut.length = 0;
+  };
   const sizeOf = () => {
     const ratio = renderer.getPixelRatio();
     return [Math.max(1, Math.floor(width * ratio)), Math.max(1, Math.floor(height * ratio))] as const;
@@ -250,14 +273,15 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
       renderer.render(scene, camera);
       let read: THREE.WebGLRenderTarget = sceneTarget;
       if (ao) {
-        ao.render(renderer, spare, read, 0, false);
+        renderOcclusion(ao, spare, read);
         read = spare;
       }
       if (tier >= 2) {
         prefilter.uniforms.tDiffuse.value = read.texture;
         prefilter.uniforms.texel.value.set(1 / w, 1 / h);
-        pass(prefilter, near[1]);
-        blurInto(near, near[1].texture);
+        // Into near[0]: blurInto draws its first pass into near[1], which must not be its source.
+        pass(prefilter, near[0]);
+        blurInto(near, near[0].texture);
         blurInto(far, near[0].texture);
         material.uniforms.bloomNear.value = near[0].texture;
         material.uniforms.bloomFar.value = far[0].texture;

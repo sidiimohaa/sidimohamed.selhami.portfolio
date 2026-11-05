@@ -3,7 +3,7 @@ import { bakePart, part, pipe, rounded } from "./tatooineCharacters";
 
 type XYZ = [number, number, number];
 
-// A standing human for the cameos (Obi-Wan, Luke, Jon Snow): facing +Z, feet at y = 0, with
+// A standing human for the cameos (Obi-Wan, Luke) and the riders on Hoth: facing +Z, feet at y = 0, with
 // jointed hips, knees, shoulders and elbows, and a face whose eyes look about and blink.
 
 export type HumanLook = {
