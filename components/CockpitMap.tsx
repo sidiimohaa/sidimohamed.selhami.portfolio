@@ -36,10 +36,23 @@ import { createArcadeAudio, type ArcadeAudio } from "./arcade/arcadeAudio";
 import { equippedValue, recordResult, useArcade, type GameResult, type ResultSummary } from "./arcade/arcadeStore";
 import { gameById, type ArcadeGameId } from "./arcade/catalog";
 import { hush } from "./arcade/droid";
+import type { PodResult } from "./podracing/types";
 import type { CockpitGameKind, CockpitGameRuntime, CockpitGameView } from "./arcade/cockpitGames";
 const ArcadeGameHUD = dynamic(() => import("./arcade/ArcadeGameHUD"), { ssr: false });
 const ImperialHacking = dynamic(() => import("./arcade/ImperialHacking"), { ssr: false });
 const SpeederRace = dynamic(() => import("./arcade/SpeederRace"), { ssr: false });
+const PodRacing = dynamic(() => import("./podracing/PodRacing"), { ssr: false });
+
+function recordPodResult(result: PodResult) {
+  const won = result.finished && result.position === 1 && result.standings.length > 1;
+  recordResult({
+    gameId: "podracing",
+    score: Math.round(result.topSpeed * 3.6 + result.miniTurbos * 30 + result.shortcuts * 60 + result.nearMisses * 15 + (won ? 500 : 0)),
+    won,
+    perfect: won && result.crashes === 0,
+    seconds: Math.round(result.time),
+  });
+}
 
 type Props = {
   initialSelection: number;
@@ -452,7 +465,7 @@ export default function CockpitMap({
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       // The speeder race draws its own forest: the cockpit rests underneath.
-      if (live.current.arcadeGame === "speeder-racing") {
+      if (live.current.arcadeGame === "speeder-racing" || live.current.arcadeGame === "podracing") {
         frame = requestAnimationFrame(animate);
         return;
       }
@@ -874,6 +887,9 @@ export default function CockpitMap({
         />
       )}
       {arcadeGame === "imperial-hacking" && <ImperialHacking reduced={reduced} audio={arcadeAudio.current} onFinish={(result) => onGameFinish.current(result)} onQuit={() => endArcadeGame(null)} />}
+      {arcadeGame === "podracing" && (
+        <PodRacing reduced={reduced} sound={sound} onQuit={() => endArcadeGame(null)} onResult={recordPodResult} />
+      )}
       {arcadeGame === "speeder-racing" && (
         <SpeederRace reduced={reduced} audio={arcadeAudio.current} trail={trail.startsWith("#") ? trail : "#ffb36b"} best={arcadeData.stats["speeder-racing"].bestTime} onFinish={(result) => onGameFinish.current(result)} onQuit={() => endArcadeGame(null)} />
       )}

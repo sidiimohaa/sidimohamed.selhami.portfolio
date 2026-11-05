@@ -256,7 +256,8 @@ export function recordResult(result: GameResult): ResultSummary {
   unlock("imperial-ghost", result.gameId === "imperial-hacking" && result.won && result.errors === 0);
   unlock("speed-demon", result.gameId === "speeder-racing" && result.won && result.time !== undefined && result.time < SPEED_TARGET);
   unlock("defender-of-hoth", result.gameId === "defense-of-hoth" && result.won);
-  unlock("galactic-legend", arcadeGames.every((item) => item.status === "available") && arcadeGames.every((item) => next.stats[item.id].wins > 0));
+  const legendGames: ArcadeGameId[] = ["space-battle", "asteroid-survival", "imperial-hacking", "speeder-racing", "defense-of-hoth"];
+  unlock("galactic-legend", legendGames.every((id) => gameById(id).status === "available" && next.stats[id].wins > 0));
   commit(next);
   return { result, credits, record, previousBest, achievements: achievements.filter((item) => earned.includes(item.id)), grade: { from: fromGrade, to: gradeFor(next) } };
 }

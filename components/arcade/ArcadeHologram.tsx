@@ -51,6 +51,15 @@ function Preview({ id }: { id: ArcadeGameId }) {
       )}
       {id === "speeder-racing" &&
         [0, 1, 2, 3, 4, 5].map((i) => <rect key={i} className="pv-trunk" style={{ animationDelay: `${i * -0.33}s` }} x={i % 2 ? 108 : 44} y="10" width="6" height="70" />)}
+      {id === "podracing" && (
+        <>
+          <path d="M8 72l28-23 22 15m47-9 23-27 24 38M40 36l13-13 12 3 2 23-13 13-12-3zM94 36l13-13 12 3 2 23-13 13-12-3z" />
+          <path className="pv-pulse" d="M65 41l8-3 5 7 7-8 11 4" />
+          <path d="M51 61l19 12m39-12L90 73M70 73l3-9h14l3 9-6 8h-8z" />
+          <circle cx="28" cy="22" r="7" />
+          <circle cx="40" cy="12" r="4" />
+        </>
+      )}
       {id === "defense-of-hoth" && (
         <>
           <g className="pv-atat">
@@ -251,7 +260,7 @@ export const ArcadeHologram = forwardRef<HTMLElement, Props>(function ArcadeHolo
         {view.kind === "boot" && (
           <motion.div key="boot" className="arcade-boot mono" exit={{ opacity: 0 }} role="status">
             <span>INITIALISATION DU CENTRE DE SIMULATION…</span>
-            <span>CHARGEMENT DES PROGRAMMES · 5 ENREGISTRÉS</span>
+            <span>CHARGEMENT DES PROGRAMMES · {arcadeGames.length} ENREGISTRÉS</span>
             <span>SYNCHRONISATION DU PROFIL PILOTE</span>
           </motion.div>
         )}

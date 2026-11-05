@@ -1,7 +1,7 @@
 // Art direction per destination: the colour grade applied after rendering and the surface detail
 // added to every architectural material. One entry per place, so each world reads at a glance.
 
-export type LookId = "hoth" | "tatooine" | "coruscant" | "endor" | "deathstar" | "taxi";
+export type LookId = "hoth" | "tatooine" | "coruscant" | "endor" | "deathstar" | "taxi" | "podDay" | "podSunset" | "podNight";
 
 export type Grade = {
   // Lift (shadows), gamma (mid-tones) and gain (highlights), per channel, in display space.
@@ -64,7 +64,7 @@ const neutral: Grade = {
   aoStrength: 0.8,
 };
 
-export const looks: Record<LookId, Look> = {
+const worldLooks: Record<Exclude<LookId, "podDay" | "podSunset" | "podNight">, Look> = {
   // Cold, clean light: blue shadows, a slightly lifted white, little saturation. The cold reads
   // in the shadows more than in the highlights.
   hoth: {
@@ -259,6 +259,25 @@ export const looks: Record<LookId, Look> = {
   },
 };
 
+// The podracing circuits only use the grade: their own materials are not given surface detail.
+const noDetail: Detail = { groundY: 0, contactHeight: 0, contactStrength: 0, grain: 1, bump: 0, roughVar: 0, albedoVar: 0, grime: [0, 0, 0], streaks: 0, top: [0, 0, 0], topAmount: 0, seams: false, panel: [1, 1] };
+// The three times of day of the podracing circuits, each with its own colour.
+export const looks: Record<LookId, Look> = {
+  ...worldLooks,
+  podDay: {
+    detail: noDetail,
+    grade: { ...worldLooks.tatooine.grade, contrast: 1.1, saturation: 1.06, bloomStrength: .2, bloomThreshold: .93 },
+  },
+  podSunset: {
+    detail: noDetail,
+    grade: { ...worldLooks.tatooine.grade, shadowTint: [.006, -.004, .022], highlightTint: [.036, .01, -.022], contrast: 1.1, saturation: 1.1, bloomStrength: .3, bloomThreshold: .86, vignette: .16 },
+  },
+  podNight: {
+    detail: noDetail,
+    grade: { ...worldLooks.coruscant.grade, lift: [-.004, 0, .014], shadowTint: [-.006, .002, .03], highlightTint: [0, .012, .016], contrast: 1.12, saturation: 1.04, bloomStrength: .44, bloomThreshold: .74, vignette: .18 },
+  },
+};
+
 export const lookFor = (planet: string): LookId =>
   planet === "Hoth" ? "hoth" : planet === "Tatooine" ? "tatooine" : planet === "Endor" ? "endor" : "coruscant";
 
@@ -267,7 +286,7 @@ export const lookFor = (planet: string): LookId =>
 // glass reflect the world they stand in.
 export type Sky = { top: number; horizon: number; ground: number; sun: number; sunDir: [number, number, number]; intensity: number };
 
-export const skies: Record<Exclude<LookId, "taxi" | "deathstar">, Sky> = {
+export const skies: Record<Exclude<LookId, "taxi" | "deathstar" | "podDay" | "podSunset" | "podNight">, Sky> = {
   hoth: { top: 0x9db3cb, horizon: 0xe4edf5, ground: 0xc4d2df, sun: 0xffffff, sunDir: [30, 70, 90], intensity: 0.5 },
   tatooine: { top: 0x6f9ccc, horizon: 0xf0c08a, ground: 0xb7834f, sun: 0xfff0d0, sunDir: [0.02, 0.139, -0.99], intensity: 0.5 },
   coruscant: { top: 0x261f4a, horizon: 0xc8743e, ground: 0x17121c, sun: 0xffb27a, sunDir: [-160, 110, 140], intensity: 0.38 },

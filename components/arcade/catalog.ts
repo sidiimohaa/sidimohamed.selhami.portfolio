@@ -1,7 +1,7 @@
 // Galactic Arcade's catalogue: one entry per simulation. Adding a game means adding an entry here
 // and a player for its `mode`; the console, scores, credits and achievements read from this list.
 
-export type ArcadeGameId = "space-battle" | "asteroid-survival" | "imperial-hacking" | "speeder-racing" | "defense-of-hoth";
+export type ArcadeGameId = "space-battle" | "asteroid-survival" | "imperial-hacking" | "speeder-racing" | "defense-of-hoth" | "podracing";
 export type ArcadeStatus = "available" | "locked" | "soon";
 // How a simulation runs: inside the cockpit scene, as a hologram puzzle, in its own environment,
 // or through the Defense of Hoth simulator that already lives in the cockpit.
@@ -112,6 +112,23 @@ export const arcadeGames: ArcadeGame[] = [
     scoring: "score",
     transition: { title: "Activation de la simulation de défense", lines: ["Liaison avec la Base Echo", "Tourelles de défense synchronisées", "Offensive impériale détectée"] },
     announce: "Simulation de défense de Hoth activée. La Base Echo compte sur vous.",
+  },
+  {
+    id: "podracing",
+    number: "06",
+    name: "Podracing",
+    planet: "Tatooine",
+    location: "Arène de Mos Espa",
+    description: "Deux moteurs et un pod lancé entre les falaises. Affrontez Sebulba ou chassez votre meilleur temps dans les canyons de Tatooine.",
+    rules: ["Choisissez un circuit, une difficulté et l’un des cinq modes au hangar.", "Dérapez puis relâchez pour déclencher un mini-turbo.", "Surveillez la température des deux moteurs et réparez en roulant.", "Gagnez des crédits pour améliorer votre pod."],
+    controls: ["ZQSD, WASD ou flèches pour conduire", "Espace pour le boost · Maj pour déraper", "R pour réparer · C pour la caméra · Échap pour la pause", "Commandes tactiles disponibles"],
+    difficulty: 3,
+    duration: "Environ 1 min par course",
+    status: "available",
+    mode: "environment",
+    scoring: "score",
+    transition: { title: "Liaison avec Mos Espa", lines: ["Turbines synchronisées", "Pod en position", "Accès au hangar de course"] },
+    announce: "Les deux moteurs sont prêts. Bienvenue à Mos Espa, Commandant.",
   },
 ];
 

@@ -9,7 +9,7 @@ const pick = <T,>(list: T[], seed = Math.random()) => list[Math.floor(seed * lis
 
 export const droidLines = {
   boot: "Centre de simulation galactique activé. Sélectionnez votre programme d’entraînement, Commandant.",
-  open: "Galactic Arcade opérationnel. Cinq programmes de simulation enregistrés. Quel défi souhaitez-vous relever, Commandant ?",
+  open: "Galactic Arcade opérationnel. Les programmes de simulation sont prêts. Quel défi souhaitez-vous relever, Commandant ?",
   impatient: [
     "Commandant ? Les simulations ne vont pas se lancer toutes seules. Enfin, techniquement, si, mais ce serait moins drôle.",
     "Je calcule qu’à ce rythme, l’Empire aura le temps de construire une troisième station avant votre premier choix.",
