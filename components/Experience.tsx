@@ -464,6 +464,8 @@ export default function Experience() {
     setStation(start);
     if (start === "explore") logDocking();
   };
+  const enterStationRef = useRef(enterStation);
+  enterStationRef.current = enterStation;
   const leaveStation = () => {
     setStation(null);
     setCombat(false);
@@ -533,6 +535,9 @@ export default function Experience() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") (window as unknown as { __boardTaxi?: () => void }).__boardTaxi = boardTaxi;
   }, [boardTaxi]);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __enterStation?: () => void }).__enterStation = () => enterStationRef.current("explore");
+  }, []);
   const leaveTaxi = () => {
     setTaxi(false);
     setCombat(false);

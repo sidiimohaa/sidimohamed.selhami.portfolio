@@ -5,6 +5,7 @@ import { Briefcase, Gauge, LogOut, Map as MapIcon } from "lucide-react";
 import * as THREE from "three";
 import { createStage } from "../jedi/stage";
 import { enrichMaterials } from "../render/materialDetail";
+import { breathe, warmUp } from "../render/warmUp";
 import { eventLevels } from "../galaxy/worldEvents";
 import { looks } from "../render/looks";
 import { LIFT_A, LIFT_B, SPAWN, createStation, roomNames, type RoomId, type Station } from "./stationWorld";
@@ -15,6 +16,8 @@ import { SECTIONS, identity, type Section } from "./cvData";
 import { loadDossier as load, saveDossier as save } from "./dossierProgress";
 import { IMPERIAL_PRESENCES, type ImperialPresenceId } from "./imperialRoster";
 import type { PerformanceKind } from "./stationPresences";
+import { COMPACTOR, DETENTION_EXIT, TRACTOR_CENTRE } from "./stationWings";
+import { createEscapeRun, type EscapeRun, type EscapeStatus } from "./stationEscape";
 
 // The Death Star, inside: a professional record to explore in the first person. The approach and
 // landing in the hangar play first (skippable), then the visitor walks the station; the Recruiter
@@ -31,9 +34,23 @@ const destinations: Destination[] = [
   { id: "formation", label: "Centre de formation", short: "Formation", room: "formation", x: 42, z: -90, face: [48, -90] },
   { id: "skills", label: "Salle des compétences", short: "Compétences", room: "skills", x: 0, z: -130, face: [0, -140] },
   { id: "command", label: "Commandement · Projets", short: "Projets", room: "command", x: 102, z: -35, face: [102, -60] },
+  { id: "superlaser", label: "Salle de tir du superlaser", short: "Superlaser", room: "superlaser", x: 94, z: -88, face: [94, -150] },
+  { id: "tractor", label: "Puits du rayon tracteur", short: "Tracteur", room: "tractor", x: 58, z: -46, face: [50, -46] },
 ];
+// What the loudspeakers say. The second line holds the code of the restricted terminal.
+const ANNOUNCEMENTS = [
+  "TK-421, pourquoi n’êtes-vous pas à votre poste ?",
+  "Bloc AA-23 : transfert d’un prisonnier du bloc 1138 en cours.",
+  "Générateur du rayon tracteur à pleine puissance. Accès par la salle de commandement.",
+  "Escadrille Noire, rejoignez la baie d’arrimage 327.",
+  "Tir d’essai du superlaser autorisé. Salle de tir : niveau de commandement.",
+  "Équipe de maintenance attendue au compacteur 3263827.",
+  "Le Grand Moff Tarkin attend le rapport de chaque section.",
+  "Tout le personnel : vérifiez vos codes d’accès.",
+];
+const CAPTURE_SECONDS = 4.6;
 const encounters: Destination[] = IMPERIAL_PRESENCES.map((actor) => ({ id: `meet-${actor.id}`, label: actor.name, short: actor.name, room: actor.room, x: actor.approach[0], z: actor.approach[1], face: [actor.position[0], actor.position[2]] }));
-const upper = (room: RoomId | null) => room === "command" || room === "liftB";
+const upper = (room: RoomId | null) => room === "command" || room === "liftB" || room === "laserhall" || room === "superlaser" || room === "tractorway" || room === "tractor";
 function panelFor(id: string): { id: PanelId; focus?: string } | null {
   if (id.startsWith("presence:") && IMPERIAL_PRESENCES.some((actor) => actor.id === id.slice(9))) return { id: "presence", focus: id.slice(9) };
   if (id === "accueil") return { id: "accueil" };
@@ -51,13 +68,14 @@ function panelFor(id: string): { id: PanelId; focus?: string } | null {
   if (id === "maintenance") return { id: "transmission" };
   if (id === "vader") return { id: "vader" };
   if (id === "mouse-droid") return { id: "droid" };
+  if (id === "cell-2187") return { id: "cell" };
   return null;
 }
 
 export default function DeathStarStation({ start, section, reduced, sound, onClose }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const shell = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<"intro" | "explore">(start === "recruiter" || reduced ? "explore" : "intro");
+  const [phase, setPhase] = useState<"intro" | "explore" | "escape">(start === "recruiter" || reduced ? "explore" : "intro");
   const [caption, setCaption] = useState(0);
   const [recruiter, setRecruiter] = useState<{ view: "sections" | "complete"; title: string } | null>(start === "recruiter" ? { view: "sections", title: "Mode Recruteur" } : null);
   const [panel, setPanel] = useState<{ id: PanelId; focus?: string } | null>(null);
@@ -67,11 +85,18 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
   const [quality, setQuality] = useState<"high" | "light">("high");
   const [fallback, setFallback] = useState(false);
   const [fade, setFade] = useState(false);
+  const [crush, setCrush] = useState<"idle" | "closing" | "stopped">("idle");
+  const [announce, setAnnounce] = useState<string | null>(null);
+  const [flight, setFlight] = useState<EscapeStatus | null>(null);
   const [touch, setTouch] = useState(false);
   const [plan, setPlan] = useState<{ x0: number; x1: number; z0: number; z1: number; room: RoomId }[]>([]);
   const [progress, setProgress] = useState(() => (typeof window === "undefined" ? { seen: [] as Section[], secret: false } : load()));
   const station = useRef<Station | null>(null);
   const renderer = useRef<THREE.WebGLRenderer | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const stageRef = useRef<ReturnType<typeof createStage>>(null),
+    built = useRef(false);
   const stagePipeline = useRef<import("../render/pipeline").Pipeline | null>(null),
     stageTier = useRef<import("../render/pipeline").Tier>(0);
   const view = useRef<THREE.PerspectiveCamera | null>(null);
@@ -85,6 +110,10 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
   const [act, setAct] = useState<{ kind: PerformanceKind; line: string } | null>(null);
   const facing = useRef<[number, number] | null>(null);
   const ride = useRef<{ to: "A" | "B"; t: number; then?: () => void } | null>(null);
+  // A short passage through black: the garbage chute and the way back up.
+  const warp = useRef<{ t: number; x: number; z: number; yaw: number; moved: boolean } | null>(null);
+  const escape = useRef<EscapeRun | null>(null);
+  const reticle = useRef<HTMLDivElement>(null);
   const skip = useRef(false);
   const marker = useRef<SVGGElement>(null);
   const live = useRef({ phase, panel, recruiter, menu, reduced, prompt, fade });
@@ -138,27 +167,51 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
       startRide(id === "lift-up" ? "B" : "A");
       return;
     }
+    if (id === "chute") {
+      route.current = null;
+      warp.current = { t: 0, x: COMPACTOR.x, z: COMPACTOR.z + 3, yaw: 0, moved: false };
+      audio.current?.lift();
+      return;
+    }
+    if (id === "compactor-exit") {
+      if (station.current?.wings.compactorState() !== "stopped") return;
+      route.current = null;
+      warp.current = { t: 0, x: DETENTION_EXIT.x, z: DETENTION_EXIT.z, yaw: DETENTION_EXIT.yaw, moved: false };
+      audio.current?.door();
+      return;
+    }
     // The Sith and Vader first play their easter egg; their record opens once it is over.
-    const actor = id === "vader" ? "vader" : id.startsWith("presence:") ? (id.slice(9) as ImperialPresenceId) : null;
+    const actor = id === "vader" || id === "superlaser" || id === "tractor" ? id : id === "cell-2187" ? "leia" : id.startsWith("presence:") ? (id.slice(9) as ImperialPresenceId) : null;
     if (actor && station.current) {
       if (acting.current) return;
       const show = station.current.perform(actor);
+      if (!show && (id === "superlaser" || id === "tractor")) return;
       if (show) {
-        // Face whoever is performing.
-        const where = actor === "vader" ? [121.6, -46] : IMPERIAL_PRESENCES.find((entry) => entry.id === actor)?.position;
-        if (where) facing.current = [where[0], actor === "vader" ? where[1] : where[2]];
+        // Face whoever is performing, or the target of the shot.
+        const where = actor === "vader" ? [121.6, -46] : actor === "superlaser" ? [94, -150] : actor === "tractor" ? [TRACTOR_CENTRE.x, TRACTOR_CENTRE.z] : actor === "leia" ? [-44.75, -15] : IMPERIAL_PRESENCES.find((entry) => entry.id === actor)?.position;
+        if (where) facing.current = actor === "vader" || actor === "superlaser" || actor === "tractor" || actor === "leia" ? [where[0], where[1]] : [where[0], where[2]];
         acting.current = { kind: show.kind, start: -1, duration: show.duration };
         setAct({ kind: show.kind, line: show.line });
         const sound = audio.current;
         if (show.kind === "lightning") sound?.lightning(show.duration);
-        if (show.kind === "spin") (sound?.spin(show.duration - 0.6), sound?.cough(show.duration - 0.45));
-        if (show.kind === "twirl") sound?.twirl(show.duration);
-        if (show.kind === "salute") sound?.salute();
+        if (show.kind === "gesture") sound?.open();
+        if (show.kind === "gasp") (sound?.choke(show.duration), sound?.cough(show.duration - 0.45));
         if (show.kind === "choke") sound?.choke(show.duration);
+        if (show.kind === "superlaser") sound?.superlaser();
+        if (show.kind === "tractor") sound?.tractorOff();
         const after = panelFor(id);
         window.setTimeout(() => {
           acting.current = null;
           setAct(null);
+          if (id === "tractor") {
+            station.current?.wings.setTractorOff();
+            setProgress((current) => {
+              const next = { ...current, tractor: true };
+              save(next);
+              return next;
+            });
+            setAnnounce("Alerte : rayon tracteur hors service. Votre vaisseau peut quitter la baie 327.");
+          }
           if (after) setPanel(after);
         }, show.duration * 1000 + 150);
         return;
@@ -213,6 +266,51 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     walkTo(p.x + (at.x - p.x) * k, p.z + (at.z - p.z) * k, () => open(id));
   };
 
+  // Leaving: the first time the whole record has been read, by way of the flight out.
+  const leave = () => {
+    const s = station.current,
+      run = escape.current;
+    const eligible = start === "explore" && !reduced && !fallback && phase === "explore" && !progress.escaped && SECTIONS.every((item) => progress.seen.includes(item));
+    if (!eligible || !s || !run) return onClose();
+    const next = { ...progress, escaped: true };
+    setProgress(next);
+    save(next);
+    setPanel(null);
+    setMenu(false);
+    setPrompt(null);
+    setAnnounce(null);
+    route.current = null;
+    setHover(null);
+    s.setView("far", [s.root.children.find((child) => child === s.xwing.parent)!, run.group]);
+    run.start();
+    setFlight({ kills: 0, goal: 5, shield: 1, jumping: false, done: false });
+    setPhase("escape");
+  };
+
+  const leaveRef = useRef(leave);
+  leaveRef.current = leave;
+
+  // The station's loudspeakers, now and then, while the visitor walks.
+  const announced = useRef(0);
+  useEffect(() => {
+    if (phase !== "explore" || fallback) return;
+    let timer = 0;
+    const speak = () => {
+      const state = live.current;
+      if (!state.panel && !state.recruiter && !state.menu && !acting.current) {
+        setAnnounce(ANNOUNCEMENTS[announced.current++ % ANNOUNCEMENTS.length]);
+      }
+      timer = window.setTimeout(speak, 26000 + Math.random() * 14000);
+    };
+    timer = window.setTimeout(speak, 12000);
+    return () => window.clearTimeout(timer);
+  }, [phase, fallback]);
+  useEffect(() => {
+    if (!announce) return;
+    const timer = window.setTimeout(() => setAnnounce(null), 6500);
+    return () => window.clearTimeout(timer);
+  }, [announce]);
+
   // The 3D station.
   useEffect(() => {
     const el = mount.current;
@@ -222,10 +320,16 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     const parked = new THREE.Vector3();
     const parkedQuat = new THREE.Quaternion();
     let path: THREE.CatmullRomCurve3 | null = null;
+    let far = false,
+      arrivalShown = false;
+    const globeAt = new THREE.Vector3(0, 60, -1020),
+      captureFrom = new THREE.Vector3(18, -6, 150),
+      captureTo = new THREE.Vector3(2, 18, -300);
     let intro = 0,
       uiClock = 0,
       lastRoom: RoomId | null = null,
-      lastPrompt = "";
+      lastPrompt = "",
+      lastCrush: "idle" | "closing" | "stopped" = "idle";
     const eye = new THREE.Vector3(),
       look = new THREE.Vector3(),
       tmp = new THREE.Vector3(),
@@ -249,35 +353,75 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
         const camera = stage!.camera;
         const p = player.current;
         const { reduced } = live.current;
-        // --- The approach: the ship flies into the bay and sets down, then the view drops to eye level.
+        // --- The flight out: everything else stops.
+        if (live.current.phase === "escape" && escape.current) {
+          const status = escape.current.tick(dt, time, reduced);
+          if ((uiClock += dt) > 0.12 || status.done) {
+            uiClock = 0;
+            setFlight(status);
+          }
+          s.tick(dt, time, tmp.set(0, 0, -200), "hangar", reduced, { a: 0, b: 0 });
+          if (status.done) closeRef.current();
+          return;
+        }
+        // --- The arrival: the tractor beam takes the ship, seen from afar, then draws it into the bay.
         if (live.current.phase === "intro" && path) {
           intro += dt;
           if (skip.current) intro = 99;
-          const fly = THREE.MathUtils.smootherstep(Math.min(1, intro / 7.2), 0, 1);
-          const shipAt = path.getPointAt(fly);
-          holder.position.copy(shipAt);
-          if (fly < 0.995) {
-            holder.lookAt(path.getPointAt(Math.min(1, fly + 0.01)));
-            holder.rotateY(Math.PI);
-            holder.quaternion.slerp(parkedQuat, THREE.MathUtils.smoothstep(fly, 0.9, 1));
-          } else holder.quaternion.copy(parkedQuat);
-          const camAt = path.getPointAt(Math.max(0, fly - 0.045)).add(tmp.set(0, 3 + (1 - fly) * 6, 0));
-          const blend = THREE.MathUtils.smootherstep((intro - 7.0) / 2.4, 0, 1);
-          eye.copy(camAt).lerp(tmp2.set(p.x, 1.7, p.z), blend);
-          look.copy(shipAt).lerp(tmp.set(p.x - Math.sin(p.yaw) * 10, 1.7 + Math.sin(p.pitch) * 10, p.z - Math.cos(p.yaw) * 10), blend);
-          camera.position.copy(eye);
-          camera.lookAt(look);
-          if (intro > 1.0 && intro < 8.6) setCaption(intro > 4.0 ? 2 : 1);
-          if (intro >= 9.4) {
-            holder.position.copy(parked);
-            holder.quaternion.copy(parkedQuat);
-            setCaption(0);
-            setPhase("explore");
+          if (intro < CAPTURE_SECONDS) {
+            if (!far) {
+              far = true;
+              s.setView("far", [holder]);
+              s.exterior.globe.position.copy(globeAt);
+              s.exterior.beam.visible = true;
+              setCaption(1);
+            }
+            const k = intro / CAPTURE_SECONDS;
+            // At first the ship still flies its course; then it is dragged, nose first, without a tremor.
+            holder.position.lerpVectors(captureFrom, captureTo, k * k * (3 - 2 * k));
+            holder.quaternion.setFromUnitVectors(tmp.set(0, 0, -1), tmp2.copy(globeAt).sub(holder.position).normalize());
+            s.exterior.holdBeam(tmp.copy(globeAt).add(tmp2.set(0.22, 0.2, 0.95).normalize().multiplyScalar(415)), holder.position);
+            s.exterior.charge(0);
+            camera.position.set(52 - k * 26, 22 - k * 4, 250 - k * 30);
+            camera.lookAt(tmp.copy(holder.position).lerp(globeAt, 0.25 + k * 0.5));
+            if (intro > CAPTURE_SECONDS - 0.55 && !live.current.fade) setFade(true);
+          } else {
+            if (far || !arrivalShown) {
+              far = false;
+              arrivalShown = true;
+              s.setView("inside");
+              if (live.current.fade) setFade(false);
+            }
+            const run = intro - CAPTURE_SECONDS;
+            // The bay's great doors part as the ship is drawn towards them.
+            s.setBayDoors(THREE.MathUtils.smoothstep(run, 1.8, 4.2));
+            const fly = THREE.MathUtils.smootherstep(Math.min(1, run / 7.2), 0, 1);
+            const shipAt = path.getPointAt(fly);
+            holder.position.copy(shipAt);
+            if (fly < 0.995) {
+              holder.lookAt(path.getPointAt(Math.min(1, fly + 0.01)));
+              holder.rotateY(Math.PI);
+              holder.quaternion.slerp(parkedQuat, THREE.MathUtils.smoothstep(fly, 0.9, 1));
+            } else holder.quaternion.copy(parkedQuat);
+            const camAt = path.getPointAt(Math.max(0, fly - 0.045)).add(tmp.set(0, 3 + (1 - fly) * 6, 0));
+            const blend = THREE.MathUtils.smootherstep((run - 7.0) / 2.4, 0, 1);
+            eye.copy(camAt).lerp(tmp2.set(p.x, 1.7, p.z), blend);
+            look.copy(shipAt).lerp(tmp.set(p.x - Math.sin(p.yaw) * 10, 1.7 + Math.sin(p.pitch) * 10, p.z - Math.cos(p.yaw) * 10), blend);
+            camera.position.copy(eye);
+            camera.lookAt(look);
+            if (run > 1.0 && run < 8.6) setCaption(run > 4.0 ? 3 : 2);
+            if (run >= 9.4) {
+              holder.position.copy(parked);
+              holder.quaternion.copy(parkedQuat);
+              s.setBayDoors(1);
+              setCaption(0);
+              setPhase("explore");
+            }
           }
         }
         // --- Walking: keys or the thumb stick, or a route to follow after a click.
         const exploring = live.current.phase === "explore";
-        const busy = !!(live.current.panel || live.current.recruiter || live.current.menu || acting.current);
+        const busy = !!(live.current.panel || live.current.recruiter || live.current.menu || acting.current || warp.current);
         const held = keys.current;
         let forward = 0,
           strafe = 0,
@@ -349,6 +493,21 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
             audio.current?.step();
           }
         }
+        s.wings.constrain(p);
+        // --- The chute and the way back: through black to another part of the station.
+        const w = warp.current;
+        if (w) {
+          w.t += dt;
+          if (w.t > 0.1 && w.t < 1 && !live.current.fade) setFade(true);
+          if (w.t >= 0.65 && !w.moved) {
+            w.moved = true;
+            p.x = w.x;
+            p.z = w.z;
+            p.yaw = w.yaw;
+          }
+          if (w.t > 1 && live.current.fade) setFade(false);
+          if (w.t > 1.5) warp.current = null;
+        }
         // --- The lift: doors close, the cabin travels, doors open on the other level.
         let doors = { a: Math.hypot(p.x - LIFT_A.x, p.z - -100.3) < 4.2 ? 1 : 0, b: Math.hypot(p.x - LIFT_B.x, p.z - -29.7) < 4.2 ? 1 : 0 };
         const r = ride.current;
@@ -385,11 +544,19 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
               camera.position.y += lift * 0.32 + Math.sin(t * 38) * 0.008 * lift;
               camera.rotateX(lift * 0.08);
             }
+            // The shot of the superlaser shakes the whole station.
+            if (a.kind === "superlaser" && t > 3.9 && t < 5.6) camera.position.add(tmp.set((Math.random() - 0.5) * 0.09, (Math.random() - 0.5) * 0.07, 0).multiplyScalar(1 - (t - 3.9) / 1.7));
           }
         }
         const here = exploring ? s.roomAt(p.x, p.z) : "hangar";
         const events = s.tick(dt, time, exploring ? camera.position : tmp.set(0, 0, -200), here, reduced, doors);
         if (events.opened && exploring) audio.current?.door();
+        const crushing = s.wings.compactorState();
+        if (crushing !== lastCrush) {
+          if (crushing === "closing") audio.current?.rumble(6);
+          lastCrush = crushing;
+          setCrush(crushing);
+        }
         if (marker.current) marker.current.setAttribute("transform", `translate(${p.x.toFixed(2)} ${p.z.toFixed(2)}) rotate(${((-p.yaw * 180) / Math.PI).toFixed(1)})`);
         if ((uiClock += dt) > 0.1) {
           uiClock = 0;
@@ -423,7 +590,7 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
           }
         }
       },
-      { fov: 62, exposure: 1.05, look: "deathstar" },
+      { fov: 62, exposure: 1.05, look: "deathstar", adaptive: true },
     );
     if (!stage) {
       setFallback(true);
@@ -434,7 +601,15 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     stagePipeline.current = stage.pipeline;
     stageTier.current = stage.pipeline?.tier() ?? 0;
     view.current = stage.camera;
-    stage.camera.far = 1600;
+    stageRef.current = stage;
+    // Nothing moves until the station is ready: built after a first paint, shaders compiled in the
+    // background, textures uploaded a few at a time, the first long walk already worked out.
+    stage.pause(true);
+    let left = false;
+    const build = async () => {
+    await breathe();
+    if (left) return;
+    stage.camera.far = 2400;
     stage.camera.near = 0.08;
     stage.camera.updateProjectionMatrix();
     stage.scene.background = new THREE.Color(0x010204);
@@ -463,8 +638,35 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     const p = player.current;
     stage.camera.position.set(p.x, 1.7, p.z);
     stage.camera.quaternion.setFromEuler(firstPerson.set(p.pitch, p.yaw, 0));
+    if (progress.detention) s.unlockDetention();
+    if (progress.tractor) s.wings.setTractorOff();
+    const run = createEscapeRun(stage.camera, s.tieParts(), holder, s.exterior.globe, {
+      shot: () => audio.current?.laser(),
+      blast: () => audio.current?.blast(),
+      jump: () => audio.current?.hyperdrive(),
+    });
+    s.root.add(run.group);
+    escape.current = run;
+    await warmUp(stage.renderer, stage.scene, stage.camera);
+    if (left) return;
+    s.navigate(new THREE.Vector3(p.x, 0, p.z), new THREE.Vector3(0, 0, -86));
+    await breathe();
+    if (left) return;
+    stage.pause(!!live.current.recruiter);
+    built.current = true;
     if (live.current.phase === "intro") audio.current?.intro();
+    // Development only: to inspect any corner of the station at a fixed view.
+    if (process.env.NODE_ENV !== "production") {
+      (window as unknown as { __station?: object }).__station = { stage, station: s, player: player.current, skip: () => (skip.current = true), renderer: stage.renderer, pipeline: stage.pipeline };
+    }
+    };
+    void build();
     return () => {
+      left = true;
+      built.current = false;
+      stageRef.current = null;
+      escape.current?.dispose();
+      escape.current = null;
       s?.dispose();
       station.current = null;
       renderer.current = null;
@@ -493,6 +695,11 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     renderer.current?.setPixelRatio(quality === "light" ? 1 : Math.min(window.devicePixelRatio, 2));
   }, [quality]);
 
+  // The recruiter's record covers the whole screen: the station behind it costs nothing meanwhile.
+  useEffect(() => {
+    if (built.current) stageRef.current?.pause(!!recruiter);
+  }, [recruiter]);
+
   // Keyboard: walk, interact, map; Escape closes what is open, then leaves the station.
   useEffect(() => {
     shell.current?.focus();
@@ -505,12 +712,19 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
         if (state.panel) setPanel(null);
         else if (state.menu) setMenu(false);
         else if (state.recruiter && !fallback) setRecruiter(null);
-        else onClose();
+        else leaveRef.current();
         return;
       }
       if (typing) return;
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       const state = live.current;
+      if (state.phase === "escape") {
+        if (key === " ") {
+          event.preventDefault();
+          escape.current?.setFiring(true);
+        }
+        return;
+      }
       if (key === "e" && !event.repeat && state.phase === "explore" && !state.panel && !state.recruiter && !state.menu && state.prompt) {
         event.preventDefault();
         open(state.prompt.id);
@@ -529,6 +743,7 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     const up = (event: KeyboardEvent) => {
       const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
       keys.current.delete(key);
+      if (key === " " && live.current.phase === "escape") escape.current?.setFiring(false);
     };
     const blur = () => keys.current.clear();
     window.addEventListener("keydown", down, true);
@@ -544,7 +759,18 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
   // Pointer: drag to look (right half on a phone), thumb stick on the left half, click to go.
   const gesture = useRef<{ id: number; x: number; y: number; lx: number; ly: number; t: number; stick: boolean; moved: number } | null>(null);
   const [stickAt, setStickAt] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
+  // In the flight out, the pointer aims and pressing it fires.
+  const aimAt = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    escape.current?.setAim(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+    if (reticle.current) reticle.current.style.transform = `translate(${event.clientX - bounds.left}px, ${event.clientY - bounds.top}px)`;
+  };
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (live.current.phase === "escape") {
+      aimAt(event);
+      escape.current?.setFiring(true);
+      return;
+    }
     if (live.current.phase !== "explore") return;
     const isTouch = event.pointerType !== "mouse";
     if (isTouch && !touch) setTouch(true);
@@ -571,6 +797,7 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     return object;
   };
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (live.current.phase === "escape") return aimAt(event);
     const g = gesture.current;
     if (!g && event.pointerType === "mouse" && live.current.phase === "explore") {
       const now = performance.now();
@@ -603,6 +830,10 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     g.ly = event.clientY;
   };
   const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (live.current.phase === "escape") {
+      escape.current?.setFiring(false);
+      return;
+    }
     const g = gesture.current;
     gesture.current = null;
     stick.current = { x: 0, y: 0 };
@@ -631,8 +862,10 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
   const skipIntro = () => {
     skip.current = true;
   };
-  const bounds = plan.length
-    ? plan.reduce((b, a) => ({ x0: Math.min(b.x0, a.x0), x1: Math.max(b.x1, a.x1), z0: Math.min(b.z0, a.z0), z1: Math.max(b.z1, a.z1) }), { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity })
+  // The block AA-23 stays off the map until it has been opened, the compactor until one falls in.
+  const shownPlan = plan.filter((a) => (a.room === "detention" || a.room === "cell" ? progress.detention : a.room === "compactor" ? room === "compactor" : true));
+  const bounds = shownPlan.length
+    ? shownPlan.reduce((b, a) => ({ x0: Math.min(b.x0, a.x0), x1: Math.max(b.x1, a.x1), z0: Math.min(b.z0, a.z0), z1: Math.max(b.z1, a.z1) }), { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity })
     : null;
 
   return (
@@ -656,12 +889,14 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
       <header className="ds-hud-top">
         <div className="ds-place">
           <span className="mono">ÉTOILE DE LA MORT · ARCHIVES IMPÉRIALES</span>
-          <strong>{phase === "intro" ? "Approche de la station" : roomNames[room]}</strong>
+          <strong>{phase === "intro" ? "Capture par rayon tracteur" : phase === "escape" ? "Fuite de la station" : roomNames[room]}</strong>
         </div>
         <div className="ds-hud-actions">
-          <button className="ds-recruiter-button" onClick={() => setRecruiter({ view: "sections", title: "Mode Recruteur" })}>
-            <Briefcase size={15} /> Mode Recruteur
-          </button>
+          {phase !== "escape" && (
+            <button className="ds-recruiter-button" onClick={() => setRecruiter({ view: "sections", title: "Mode Recruteur" })}>
+              <Briefcase size={15} /> Mode Recruteur
+            </button>
+          )}
           {phase === "explore" && !fallback && (
             <>
               <button onClick={() => setMenu((value) => !value)} aria-expanded={menu}>
@@ -672,8 +907,8 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
               </button>
             </>
           )}
-          <button onClick={onClose}>
-            <LogOut size={15} /> <span>Retour à la galaxie</span>
+          <button onClick={() => (phase === "escape" ? onClose() : leave())}>
+            <LogOut size={15} /> <span>{phase === "escape" ? "Passer la fuite" : "Retour à la galaxie"}</span>
           </button>
         </div>
       </header>
@@ -685,8 +920,13 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
               <motion.div key={caption} className="ds-transmission" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6 }} role="status">
                 {caption === 1 ? (
                   <>
+                    <span className="mono">ALERTE · RAYON TRACTEUR</span>
+                    <strong>Vaisseau capturé : guidage automatique vers la baie 327</strong>
+                  </>
+                ) : caption === 2 ? (
+                  <>
                     <span className="mono">TRANSMISSION HOLOGRAPHIQUE</span>
-                    <strong>IMPERIAL ARCHIVES — Personnel File Access Granted</strong>
+                    <strong>Archives impériales : accès au dossier accordé</strong>
                   </>
                 ) : (
                   <>
@@ -706,8 +946,8 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
       {phase === "explore" && !fallback && (
         <>
           {bounds && !touch && (
-            <svg className="ds-minimap" viewBox={`${bounds.x0 - 12} ${bounds.z0 - 8} ${bounds.x1 - bounds.x0 + 24} ${bounds.z1 - bounds.z0 + 16}`} aria-hidden="true">
-              {plan.map((a, i) =>
+            <svg className="ds-minimap" viewBox={`${bounds.x0 - 26} ${bounds.z0 - 8} ${bounds.x1 - bounds.x0 + 40} ${bounds.z1 - bounds.z0 + 16}`} aria-hidden="true">
+              {shownPlan.map((a, i) =>
                 a.room === "skills" ? <circle key={i} cx={(a.x0 + a.x1) / 2} cy={(a.z0 + a.z1) / 2} r={(a.x1 - a.x0) / 2} data-on={room === a.room} /> : <rect key={i} x={a.x0} y={a.z0} width={a.x1 - a.x0} height={a.z1 - a.z0} data-on={room === a.room} />,
               )}
               {destinations.map((d) => (
@@ -734,6 +974,39 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
               <i style={{ transform: `translate(${stickAt.dx}px, ${stickAt.dy}px)` }} />
             </div>
           )}
+        </>
+      )}
+
+      <AnimatePresence>
+        {announce && phase === "explore" && !recruiter && !panel && (
+          <motion.p key={announce} className="ds-announce" role="status" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <span className="mono">HAUT-PARLEURS</span> {announce}
+          </motion.p>
+        )}
+      </AnimatePresence>
+      {phase === "explore" && crush !== "idle" && room === "compactor" && !panel && (
+        <div className="ds-crush" role="status">
+          {crush === "closing" ? (
+            <>
+              <span className="mono">COMPACTEUR 3263827 · LES MURS SE REFERMENT</span>
+              <button onClick={() => { station.current?.wings.stopCompactor(); audio.current?.droid(); }}>R-X7, arrête les compacteurs !</button>
+            </>
+          ) : (
+            <>
+              <span className="mono">R-X7 · COMPACTEURS À L’ARRÊT</span>
+              <strong>Bip-bip ! La porte du fond est ouverte.</strong>
+            </>
+          )}
+        </div>
+      )}
+      {phase === "escape" && flight && (
+        <>
+          <div ref={reticle} className="ds-reticle" aria-hidden="true" />
+          <div className="ds-flight" role="status">
+            <span className="mono">{flight.jumping ? "SAUT EN HYPERESPACE" : `CHASSEURS TIE ABATTUS · ${flight.kills}/${flight.goal}`}</span>
+            <i aria-hidden="true"><b style={{ width: `${Math.round(flight.shield * 100)}%` }} /></i>
+            <small className="mono">{flight.jumping ? "R-X7 : COORDONNÉES VERROUILLÉES" : "VISER À LA SOURIS · MAINTENIR LE CLIC OU ESPACE POUR TIRER"}</small>
+          </div>
         </>
       )}
 
@@ -782,6 +1055,12 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
                   return false;
                 }
                 audio.current?.granted();
+                station.current?.unlockDetention();
+                setProgress((current) => {
+                  const next = { ...current, detention: true };
+                  save(next);
+                  return next;
+                });
                 setPanel({ id: "bonus" });
                 return true;
               }}

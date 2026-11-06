@@ -1,19 +1,18 @@
 import * as THREE from "three";
-import { createDarthMaul, createCountDooku } from "./sithHumans";
-import { createGeneralGrievous, createEmperorPalpatine, createRoyalGuard, type FigureRig } from "./imperialCourt";
+import { createEmperorPalpatine, createRoyalGuard, type FigureRig, type ImperialFigure } from "./imperialCourt";
+import { createAdmiralMotti, createDirectorKrennic, createGrandMoffTarkin, type OfficerFigure } from "./imperialOfficers";
 import { IMPERIAL_PRESENCES, type ImperialPresenceId } from "./imperialRoster";
 import type { RoomId } from "./stationWorld";
 
 // What each presence does when the visitor interacts with it, before its record opens.
-export type PerformanceKind = "lightning" | "spin" | "twirl" | "salute" | "choke";
+export type PerformanceKind = "lightning" | "gesture" | "gasp" | "choke" | "superlaser" | "tractor";
 export type Performance = { kind: PerformanceKind; duration: number; line: string };
 export const PERFORMANCES: Record<ImperialPresenceId, Performance> = {
   palpatine: { kind: "lightning", duration: 3.2, line: "« Votre candidature m’intéresse… énormément. »" },
-  grievous: { kind: "spin", duration: 3, line: "« Un dossier de cette qualité ferait une belle pièce de collection. »" },
-  maul: { kind: "twirl", duration: 2.6, line: "Dark Maul fait tournoyer son sabre double, sans un mot." },
-  dooku: { kind: "salute", duration: 2.4, line: "Le comte Dooku vous adresse le salut des duellistes." },
+  tarkin: { kind: "gesture", duration: 2.8, line: "« Évacuer ? Alors que ce dossier est si prometteur ? »" },
+  motti: { kind: "gasp", duration: 3.2, line: "Motti porte les mains à sa gorge : son manque de foi le rattrape." },
+  krennic: { kind: "gesture", duration: 2.8, line: "« Cette station est mon œuvre. Votre dossier y a sa place. »" },
 };
-
 const smooth = (t: number, a: number, b: number) => THREE.MathUtils.smootherstep(t, a, b);
 
 // Force lightning: jagged bolts drawn as ribbons turned towards the visitor, a bright core inside
@@ -101,7 +100,7 @@ function createLightning() {
 export function createStationPresences() {
   const group = new THREE.Group();
   group.name = "imperial-presences";
-  const makers = { maul: createDarthMaul, dooku: createCountDooku, grievous: createGeneralGrievous, palpatine: createEmperorPalpatine };
+  const makers: Record<ImperialPresenceId, () => ImperialFigure | OfficerFigure> = { krennic: createDirectorKrennic, motti: createAdmiralMotti, tarkin: createGrandMoffTarkin, palpatine: createEmperorPalpatine };
   const actors = IMPERIAL_PRESENCES.map((entry) => {
     const model = makers[entry.id]();
     const placement = new THREE.Group();
@@ -112,10 +111,7 @@ export function createStationPresences() {
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(entry.radius * .82, 32), new THREE.MeshBasicMaterial({ color: 0x040508, transparent: true, opacity: .4, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2; shadow.scale.y = .65; shadow.position.y = .014; placement.add(shadow);
     model.tick(0, true);
-    // Rest poses, to return to after an easter egg.
-    const weapon = model.rig?.weapon;
-    const rest = { weaponPosition: weapon?.position.clone(), weaponRotation: weapon?.rotation.clone() };
-    return { ...entry, placement, model, rest };
+    return { ...entry, placement, model };
   });
 
   // The Emperor is accompanied by the red-robed Royal Guard from the reference images.
@@ -164,38 +160,13 @@ export function createStationPresences() {
       spark.position.copy(hands[0]).lerp(hands[1], 0.5);
       spark.intensity = live ? (reduced ? 25 : 15 + Math.random() * 45) : 0;
     }
-    if (actor.id === "grievous" && rig?.arms) {
-      // The four arms whirl their blades like the blades of a fan, faster then slower.
-      const turns = duration * 0.8 * smooth(t, 0, duration - 0.5) * (reduced ? 0.3 : 1);
-      rig.arms.forEach((arm, i) => (arm.rotation.x = (i % 2 ? 1 : -1) * turns * Math.PI * 2 * 0.9));
-      if (rig.head) rig.head.rotation.x = -0.055 + 0.12 * smooth(t, duration - 0.6, duration - 0.3) * (1 - smooth(t, duration - 0.2, duration));
-    }
-    if (actor.id === "maul" && rig?.weapon && actor.rest.weaponPosition) {
-      // The double blade spins before him, lifted clear of the floor.
-      const turns = 3.2 * smooth(t, 0, duration) * (reduced ? 0.25 : 1);
-      rig.weapon.rotation.z = actor.rest.weaponRotation!.z + turns * Math.PI * 2;
-      rig.weapon.position.y = actor.rest.weaponPosition.y + 0.18 * on;
-    }
-    if (actor.id === "dooku" && rig?.weapon && actor.rest.weaponPosition) {
-      // The duellist's salute: blade up before the face, a bow, then a sweep down and back to rest.
-      const raise = smooth(t, 0, 0.6) * (1 - smooth(t, 1.5, 2.0));
-      const sweep = smooth(t, 1.5, 1.9) * (1 - smooth(t, 1.95, 2.4));
-      const rest = actor.rest;
-      rig.weapon.position.copy(rest.weaponPosition!).lerp(new THREE.Vector3(-0.06, 1.26, 0.3), raise).lerp(new THREE.Vector3(0.16, 0.92, 0.34), sweep);
-      rig.weapon.rotation.set(rest.weaponRotation!.x * (1 - raise), 0, THREE.MathUtils.lerp(THREE.MathUtils.lerp(rest.weaponRotation!.z, 0, raise), -2.4, sweep));
-      if (rig.upper) rig.upper.rotation.x = 0.1 * smooth(t, 0.6, 0.9) * (1 - smooth(t, 1.3, 1.6));
-    }
+    if ("perform" in actor.model) actor.model.perform(t, on, reduced);
   };
   const finish = (actor: (typeof actors)[number]) => {
     const rig: FigureRig | undefined = actor.model.rig;
     lightning.group.visible = false;
     spark.intensity = 0;
-    rig?.arms?.forEach((arm) => (arm.rotation.x = 0));
-    if (rig?.weapon && actor.rest.weaponPosition) {
-      rig.weapon.position.copy(actor.rest.weaponPosition);
-      rig.weapon.rotation.copy(actor.rest.weaponRotation!);
-    }
-    if (rig?.upper) rig.upper.rotation.x = 0;
+    if ("finish" in actor.model) actor.model.finish();
     if (rig?.body) rig.body.rotation.x = 0;
   };
 

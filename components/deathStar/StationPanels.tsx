@@ -9,7 +9,7 @@ import { IMPERIAL_PRESENCES } from "./imperialRoster";
 // The holographic sheets the station's consoles open: one per kind of terminal. Content comes
 // from cvData only; the panels are ordinary HTML, readable by keyboard and screen readers.
 
-export type PanelId = "accueil" | "experience" | "experiences" | "formation" | "skills" | "projects" | "code" | "bonus" | "transmission" | "vader" | "droid" | "secret" | "presence";
+export type PanelId = "accueil" | "experience" | "experiences" | "formation" | "skills" | "projects" | "code" | "bonus" | "transmission" | "vader" | "droid" | "secret" | "cell" | "presence";
 type Props = {
   id: PanelId;
   focus?: string;
@@ -62,6 +62,7 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
     vader: "Observation",
     droid: "Contact inattendu",
     secret: "Message du Haut Commandement",
+    cell: "Bloc de détention AA-23",
     presence: "Présence impériale",
   };
 
@@ -242,6 +243,7 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
         <p>Langues : {languages.join(", ")}.</p>
         <p>Une présentation interactive raconte mes passions, de l’infiniment grand à l’infiniment petit : l’espace, l’horlogerie, l’art et les livres.</p>
         <a className="ds-link" href="/passions/index.html" target="_blank" rel="noopener noreferrer">Ouvrir « Mes passions » ↗</a>
+        <p className="ds-holo-kicker">Ce code ouvre aussi une porte : derrière vous, le bloc de détention AA-23 vient de se déverrouiller.</p>
       </>
     );
   if (id === "transmission")
@@ -250,6 +252,15 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
         <p className="ds-holo-kicker">Fréquence non répertoriée · source inconnue</p>
         <h2>« Ce dossier n’attendra pas longtemps. »</h2>
         <p>Message intercepté dans le réseau de maintenance : le candidat de ce dossier cherche une alternance d’assistant marketing digital pour l’année 2026-2027. Les services de recrutement sont priés d’agir avant qu’une autre flotte ne le recrute.</p>
+        <Contact />
+      </>
+    );
+  if (id === "cell")
+    body = (
+      <>
+        <p className="ds-holo-kicker">Cellule 2187 · princesse Leia Organa</p>
+        <h2>« Aidez-moi, recruteur. Vous êtes mon seul espoir. »</h2>
+        <p>{identity.search} Le dossier complet attend au hangar, et personne n’a besoin de forcer une porte pour y répondre.</p>
         <Contact />
       </>
     );

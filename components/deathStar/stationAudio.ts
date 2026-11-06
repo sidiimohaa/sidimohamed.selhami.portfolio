@@ -121,13 +121,6 @@ export function createStationAudio() {
       for (let t = 0; t < seconds; t += 0.04 + Math.random() * 0.07) hiss(0.06 + Math.random() * 0.08, 0.12 + Math.random() * 0.14, 5200, 1400, t);
       tone(70, 52, seconds, 0.08, "sawtooth");
     },
-    spin(seconds: number) {
-      saber(seconds, Math.round(seconds * 3), 0.07);
-      for (let t = 0.2; t < seconds - 0.4; t += 0.32) hiss(0.25, 0.08, 1800, 600, t);
-    },
-    twirl(seconds: number) {
-      saber(seconds, Math.round(seconds * 2.5), 0.08);
-    },
     salute() {
       saber(2.2, 3, 0.06);
     },
@@ -139,6 +132,27 @@ export function createStationAudio() {
       tone(48, 40, seconds, 0.1, "sine");
       hiss(0.5, 0.18, 2600, 4200, seconds - 0.4);
     },
+    superlaser() {
+      // The charge climbing, the eight tributaries one by one, then the shot and its roar.
+      tone(44, 170, 3.9, 0.14, "sawtooth");
+      for (let i = 0; i < 8; i++) tone(320 + i * 90, 340 + i * 90, 0.25, 0.05, "square", 0.5 + i * 0.32);
+      tone(900, 90, 0.9, 0.2, "sawtooth", 3.95);
+      hiss(1.1, 0.3, 3000, 300, 3.95);
+      tone(60, 26, 3.2, 0.26, "sine", 4.1);
+      hiss(3, 0.28, 900, 90, 4.1);
+    },
+    rumble(seconds: number) {
+      tone(46, 38, seconds, 0.16, "sawtooth");
+      for (let t = 0; t < seconds; t += 1.6) hiss(0.5, 0.05, 240, 90, t);
+    },
+    tractorOff() {
+      [0, 0.45].forEach((d) => tone(180, 90, 0.16, 0.1, "square", d));
+      tone(120, 26, 2.4, 0.16, "sawtooth", 0.5);
+    },
+    flyby: () => hiss(0.6, 0.1, 500, 2400),
+    laser: () => tone(1500, 240, 0.14, 0.05, "square"),
+    blast: () => (hiss(0.7, 0.3, 1400, 120), tone(90, 30, 0.7, 0.2, "sine")),
+    hyperdrive: () => (tone(70, 900, 1.9, 0.16, "sawtooth"), hiss(1.9, 0.18, 300, 4200)),
     setEnabled(value: boolean) {
       enabled = value;
       if (value && ctx?.state === "suspended") void ctx.resume().catch(() => undefined);

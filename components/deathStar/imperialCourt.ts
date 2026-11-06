@@ -23,7 +23,7 @@ function plate(g: THREE.Object3D, points: [number, number][], m: THREE.Material,
 }
 
 // An actual folded garment: several elliptical body profiles, not a cylinder/cone silhouette.
-function robeGeometry(profiles: { y: number; x: number; z: number; offset?: number }[], folds: number, strength: number) {
+export function robeGeometry(profiles: { y: number; x: number; z: number; offset?: number }[], folds: number, strength: number) {
   const around = 48, positions: number[] = [], uv: number[] = [], indices: number[] = [];
   profiles.forEach((p, row) => {
     for (let column = 0; column <= around; column++) {
@@ -40,7 +40,7 @@ function robeGeometry(profiles: { y: number; x: number; z: number; offset?: numb
   const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geometry.setIndex(indices); geometry.computeVertexNormals();
   return geometry;
 }
-function capeGeometry(height: number, shoulder: number, hem: number) {
+export function capeGeometry(height: number, shoulder: number, hem: number) {
   const across = 32, down = 16, positions: number[] = [], uv: number[] = [], indices: number[] = [];
   for (let row = 0; row <= down; row++) {
     const v = row / down, width = THREE.MathUtils.lerp(hem, shoulder, Math.pow(v, .65));

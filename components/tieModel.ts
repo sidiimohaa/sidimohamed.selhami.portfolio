@@ -30,11 +30,15 @@ export function tieGeometry() {
     hub = new THREE.CylinderGeometry(0.48, 0.48, 0.3, 12).rotateZ(Math.PI / 2),
     frame = hex(3.1, 0.1),
     panel = hex(2.86, 0.16),
-    strut = new THREE.BoxGeometry(0.2, 3.0, 0.14);
+    strut = new THREE.BoxGeometry(0.2, 3.0, 0.14),
+    engine = new THREE.CylinderGeometry(0.17, 0.2, 0.42, 10).rotateX(Math.PI / 2);
   const hull: [THREE.BufferGeometry, THREE.Matrix4][] = [
     [ball, at(0, 0, 0)],
     [collar, at(0, 0, 0.92)],
     [ring, at(0, 0, 1.1)],
+    // The twin ion engines at the back of the ball.
+    [engine, at(-0.3, 0.1, -1)],
+    [engine, at(0.3, 0.1, -1)],
   ];
   for (let i = 0; i < 8; i++) hull.push([spoke, at(Math.cos((i * Math.PI) / 4) * 0.28, Math.sin((i * Math.PI) / 4) * 0.28, 1.1, 0, 0, (i * Math.PI) / 4 - Math.PI / 2)]);
   for (const side of [-1, 1]) {
@@ -43,12 +47,17 @@ export function tieGeometry() {
       const a = Math.PI / 2 + (i * Math.PI) / 3;
       hull.push([strut, at(side * 2.7, Math.sin(a) * 1.5, -Math.cos(a) * 1.5, a - Math.PI / 2)]);
     }
+    // Ribs across the solar panel, proud of it on both faces.
+    for (const z of [-1.9, -1, 1, 1.9]) {
+      const rib = new THREE.BoxGeometry(0.2, 2 * (2.86 - Math.abs(z) * 0.577), 0.035);
+      hull.push([rib, at(side * 2.7, 0, z)]);
+    }
   }
   const panels = baked([
     [panel, at(-2.7, 0, 0)],
     [panel, at(2.7, 0, 0)],
   ]);
   const glass = new THREE.CircleGeometry(0.58, 8).translate(0, 0, 1.095);
-  [ball, collar, ring, spoke, pylon, hub, frame, panel, strut].forEach((g) => g.dispose());
+  [ball, collar, ring, spoke, pylon, hub, frame, panel, strut, engine].forEach((g) => g.dispose());
   return { hull: baked(hull), panels, glass };
 }

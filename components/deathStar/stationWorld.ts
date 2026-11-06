@@ -8,6 +8,9 @@ import { createSurfaceNavigator } from "../surfaceNavigation";
 import { createDarkLord } from "../jedi/vaderModel";
 import { education, experiences, identity, skillTree, statusLabel } from "./cvData";
 import { createStationPresences, type Performance } from "./stationPresences";
+import { createStationExterior } from "./stationExterior";
+import { createStarDestroyer } from "./stationShips";
+import { createStationWings, type WingsContext } from "./stationWings";
 import type { ImperialPresenceId } from "./imperialRoster";
 
 // The inside of the Death Star, built for the professional record: a hangar that welcomes the
@@ -16,7 +19,7 @@ import type { ImperialPresenceId } from "./imperialRoster";
 // of the hangar leads straight to the confidential archive holding the full CV.
 // Static architecture is merged per material; doors, holograms and figures stay separate.
 
-export type RoomId = "hangar" | "passage" | "dossier" | "corridor" | "hub" | "west" | "archives" | "east" | "formation" | "north" | "skills" | "liftA" | "liftB" | "command";
+export type RoomId = "hangar" | "passage" | "dossier" | "corridor" | "hub" | "west" | "archives" | "east" | "formation" | "north" | "skills" | "liftA" | "liftB" | "command" | "detention" | "cell" | "compactor" | "laserhall" | "superlaser" | "tractorway" | "tractor";
 export const roomNames: Record<RoomId, string> = {
   hangar: "Hangar impérial · Accueil",
   passage: "Accès aux archives confidentielles",
@@ -32,6 +35,13 @@ export const roomNames: Record<RoomId, string> = {
   liftA: "Ascenseur",
   liftB: "Ascenseur",
   command: "Salle de commandement · Projets",
+  detention: "Bloc de détention AA-23",
+  cell: "Cellule 2187",
+  compactor: "Compacteur 3263827",
+  laserhall: "Accès à la salle de tir",
+  superlaser: "Salle de tir du superlaser",
+  tractorway: "Accès au rayon tracteur",
+  tractor: "Puits du rayon tracteur",
 };
 type Rect = { x0: number; x1: number; z0: number; z1: number };
 type Area = Rect & { room: RoomId };
@@ -376,8 +386,10 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   pmrem.dispose();
 
   const areas: Area[] = [];
-  const blocked: { x: number; z: number; r: number }[] = [];
-  const block = (x: number, z: number, r: number) => blocked.push({ x, z, r });
+  const blocked: { x: number; z: number; r: number; decor?: boolean }[] = [];
+  const block = (x: number, z: number, r: number, decorOnly = false) => blocked.push({ x, z, r, decor: decorOnly });
+  // The light profile hides the decor: what it hides must not block the way either.
+  let decorHidden = options.light;
   const doors: { leaves: THREE.Mesh[]; axis: THREE.Vector3; base: THREE.Vector3[]; span: number; x: number; z: number; open: number; locked?: boolean }[] = [];
   const signs: THREE.Mesh[] = [];
   const lightSlots: Partial<Record<RoomId, LightSlot[]>> = {};
@@ -625,7 +637,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     decor.add(ship);
     kit.box(trim, 3.4, 0.3, 3.4, x, 0.15, z);
     kit.box(dark, 0.5, 2.0, 0.5, x, 1.2, z);
-    block(x, z, 3.9);
+    block(x, z, 3.9, true);
   }
   for (const [x, z, n] of [
     [-19, -4.5, 5],
@@ -653,7 +665,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     trooper.group.position.set(x, 0, -48.2);
     trooper.tick(0, false, true);
     decor.add(trooper.group);
-    block(x, -48.2, 0.7);
+    block(x, -48.2, 0.7, true);
   }
   // The visitor's X-wing, parked where it set down.
   const xwing = createShipModel();
@@ -664,7 +676,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   // Passage and confidential archive (the full CV).
   room("passage", { x0: -28, x1: -22, z0: -40, z1: -36, h: 4.2, walls: ["n", "s"], panels: false, strips: 1 });
   passage("passage", { x0: -28, x1: -22, z0: -40, z1: -36 }, "x");
-  room("dossier", { x0: -42, x1: -28, z0: -46, z1: -30, h: 7, strips: 2, panelSides: ["s", "e"], gaps: [{ side: "e", at: -38, width: 4, height: 3.6 }], inset: { n: 1.6, w: 1.6 } });
+  room("dossier", { x0: -42, x1: -28, z0: -46, z1: -30, h: 7, strips: 2, panelSides: ["e"], gaps: [{ side: "e", at: -38, width: 4, height: 3.6 }, { side: "s", at: -35, width: 3, height: 3.2, door: true }], inset: { n: 1.6, w: 1.6 } });
   lightSlots.dossier = [
     { at: [-35, 5.5, -38], color: 0xdfe8ff, power: 58, range: 22 },
     { at: [-35, 2.4, -42.5], color: 0x4aa8ff, power: 19, range: 10 },
@@ -838,6 +850,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     );
     root.remove(mesh);
     mesh.position.copy(at);
+    mesh.userData.restY = at.y;
     mesh.userData.education = item.id;
     docs.add(mesh);
     docMeshes.push(mesh);
@@ -987,7 +1000,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   sign("SALLE DES COMPÉTENCES", "SÉLECTIONNEZ UN NŒUD DE L’ARBRE", sx, 7.2, sz + SKILLS_RADIUS - 0.05, Math.PI, 6.4);
 
   // The command room (projects), on its own level, reached by lift.
-  room("command", { x0: 80, x1: 124, z0: -62, z1: -30, h: 12, strips: 4, gaps: [{ side: "s", at: 102, width: 3, height: 3.2, door: true }, { side: "e", at: -46, width: 12, height: 6.6, bottom: 0.9 }], inset: { e: 1.4 } });
+  room("command", { x0: 80, x1: 124, z0: -62, z1: -30, h: 12, strips: 4, gaps: [{ side: "s", at: 102, width: 3, height: 3.2, door: true }, { side: "e", at: -46, width: 12, height: 6.6, bottom: 0.9 }, { side: "n", at: 84, width: 3, height: 3.2, door: true }, { side: "w", at: -46, width: 3.2, height: 3.3, door: true }], inset: { e: 1.4 } });
   lightSlots.command = [
     { at: [102, 10, -46], color: 0xdfe8ff, power: 96, range: 36 },
     { at: [102, 5, -58], color: 0x4aa8ff, power: 64, range: 22 },
@@ -1085,7 +1098,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     officer.group.rotation.y = Math.PI;
     decor.add(officer.group);
     officers.push(officer);
-    block(x, z, 0.6);
+    block(x, z, 0.6, true);
   }
 
   const VADER: Performance = { kind: "choke", duration: 3.4, line: "« Ce dossier mérite d’être lu jusqu’au bout. »" };
@@ -1125,6 +1138,17 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   mouse.position.set(1.6, 0, -60);
   root.add(mouse);
   interact("mouse-droid", "Un petit droïde ?", "corridor", 1.6, 0.4, -60, 1.8, shell, top2);
+  // Two more MSE-6 about their errands, along the galleries.
+  const scurriers = [
+    { from: [-12, -90.9], to: [-35, -90.9], speed: 0.1, phase: 0.3 },
+    { from: [12, -89.1], to: [35, -89.1], speed: 0.13, phase: 1.1 },
+    { from: [12, -6], to: [12, -44], speed: 0.07, phase: 0.7 },
+  ].map((run) => {
+    const droid = mouse.clone();
+    droid.position.set(run.from[0], 0, run.from[1]);
+    root.add(droid);
+    return { droid, ...run };
+  });
 
   // Outside: the hull of the station round the bay, the stars, a Star Destroyer and patrols.
   const outside = new THREE.Group();
@@ -1146,7 +1170,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   const starPositions = new Float32Array(starCount * 3);
   for (let i = 0; i < starCount; i++) {
     const dir = new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
-    dir.multiplyScalar(rand(560, 760)).toArray(starPositions, i * 3);
+    dir.multiplyScalar(rand(1320, 1560)).toArray(starPositions, i * 3);
   }
   const starGeometry = new THREE.BufferGeometry();
   starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
@@ -1154,19 +1178,33 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   owned.push(starMaterial);
   const stars = new THREE.Points(starGeometry, starMaterial);
   root.add(stars);
-  const destroyerShape = new THREE.Shape([new THREE.Vector2(0, 60), new THREE.Vector2(-22, -20), new THREE.Vector2(22, -20)]);
-  const destroyer = new THREE.Mesh(new THREE.ExtrudeGeometry(destroyerShape, { depth: 6, bevelEnabled: true, bevelSize: 3, bevelThickness: 3 }), new THREE.MeshStandardMaterial({ color: 0x8b9097, roughness: 0.7, metalness: 0.4 }));
-  owned.push(destroyer.material as THREE.Material);
-  destroyer.rotation.set(-Math.PI / 2, 0, -0.9);
-  destroyer.position.set(-160, 70, 420);
-  const bridge = new THREE.Mesh(new THREE.BoxGeometry(12, 14, 8), destroyer.material);
-  bridge.position.set(0, -12, 12);
-  destroyer.add(bridge);
-  outside.add(destroyer);
-  const patrols = [0, 1].map((i) => {
+  const destroyer = createStarDestroyer();
+  destroyer.group.position.set(-170, 62, 440);
+  destroyer.group.rotation.set(0, Math.PI - 0.3, -0.06, "YXZ");
+  // Rolled towards the bay, so that its deck and tower face the visitor.
+  destroyer.group.rotateX(0.6);
+  outside.add(destroyer.group);
+  const exterior = createStationExterior();
+  root.add(exterior.globe, exterior.beam);
+  // The bay's great doors, shut only for the moment of the arrival.
+  const bayDoorMaterial = new THREE.MeshStandardMaterial({ color: 0x3b4047, map: wallMap, roughness: 0.5, metalness: 0.6 });
+  owned.push(bayDoorMaterial);
+  const bayDoors = [-1, 1].map((side) => {
+    const door = new THREE.Mesh(new THREE.BoxGeometry(17.2, 13.2, 0.5), bayDoorMaterial);
+    door.position.set(side * 8.6, 6.5, 0.1);
+    door.visible = false;
+    root.add(door);
+    return { door, side };
+  });
+  // Out there the room's lights do not reach them: they carry a little of their own, so that they
+  // read against the stars. They fly in two pairs.
+  const spaceHull = new THREE.MeshStandardMaterial({ color: 0x8f969d, roughness: 0.45, metalness: 0.4, emissive: 0x3c4148 }),
+    spacePanels = new THREE.MeshStandardMaterial({ color: 0x1a1f26, roughness: 0.55, metalness: 0.4, emissive: 0x0e1218 });
+  owned.push(spaceHull, spacePanels);
+  const patrols = [0, 1, 2, 3].map((i) => {
     const ship = new THREE.Group();
-    ship.add(new THREE.Mesh(tie.hull, tieHull), new THREE.Mesh(tie.panels, tiePanels), new THREE.Mesh(tie.glass, tieGlass));
-    ship.userData.phase = i * 3;
+    ship.add(new THREE.Mesh(tie.hull, spaceHull), new THREE.Mesh(tie.panels, spacePanels), new THREE.Mesh(tie.glass, tieGlass));
+    ship.userData.phase = i < 2 ? i * 0.07 : 3 + (i - 2) * 0.07;
     outside.add(ship);
     return ship;
   });
@@ -1174,6 +1212,27 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   sun.position.set(80, 120, 260);
   root.add(sun, new THREE.HemisphereLight(0x8a96a6, 0x0d0f12, 0.55));
 
+  const extraFree: ((x: number, z: number) => boolean)[] = [],
+    solids: ((x: number, z: number) => boolean)[] = [];
+  const wingsContext: WingsContext = {
+    root,
+    decor,
+    kit,
+    materials: { wall, dark, trim, floor, strip, red, doorMat },
+    room,
+    passage,
+    holoPanel,
+    sign,
+    interact,
+    block,
+    lightSlots,
+    owned,
+    doors,
+    addFree: (test) => extraFree.push(test),
+    addSolid: (test) => solids.push(test),
+  };
+  const wings = createStationWings(wingsContext);
+  const compactorExit = interactables.find((item) => item.id === "compactor-exit")!;
   kit.bake(root);
   glowKit.bake(glowLayer);
 
@@ -1195,21 +1254,23 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
       item.light.position.set(...slot.at);
       item.light.color.setHex(slot.color);
       item.light.distance = slot.range;
-      item.light.intensity = 0;
+      item.light.intensity *= 0.35;
     });
   };
 
   const inArea = (a: Rect, x: number, z: number) => x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1;
   const inSkills = (x: number, z: number) => Math.hypot(x - sx, z - sz) <= SKILLS_RADIUS - 0.9;
-  const isFree = (x: number, z: number) => (areas.some((a) => a.room !== "skills" && inArea(a, x, z)) || inSkills(x, z)) && !blocked.some((b) => Math.hypot(x - b.x, z - b.z) < b.r);
+  const isFree = (x: number, z: number) => (areas.some((a) => a.room !== "skills" && inArea(a, x, z)) || inSkills(x, z) || extraFree.some((test) => test(x, z))) && !solids.some((test) => test(x, z)) && !blocked.some((b) => !(b.decor && decorHidden) && Math.hypot(x - b.x, z - b.z) < b.r);
   const roomAt = (x: number, z: number): RoomId | null => {
     if (inSkills(x, z)) return "skills";
     // Rooms before corridors, which overlap them a little at their ends.
-    const order: RoomId[] = ["hangar", "dossier", "hub", "archives", "formation", "command", "liftA", "liftB", "passage", "corridor", "west", "east", "north"];
+    const order: RoomId[] = ["hangar", "dossier", "hub", "archives", "formation", "command", "superlaser", "compactor", "cell", "detention", "liftA", "liftB", "passage", "corridor", "west", "east", "north", "laserhall", "tractorway"];
     for (const id of order) if (areas.some((a) => a.room === id && inArea(a, x, z))) return id;
+    if (extraFree.some((test) => test(x, z))) return "tractor";
     return null;
   };
-  const navigate = createSurfaceNavigator(160, isFree);
+  let navigate = createSurfaceNavigator(160, isFree);
+  const shownInside = new Map<THREE.Object3D, boolean>();
   const shipSpot = { x: 7.5, z: -12 };
 
   return {
@@ -1222,11 +1283,48 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     docMeshes,
     isFree,
     roomAt,
-    navigate,
+    navigate: (from: THREE.Vector3, to: THREE.Vector3) => navigate(from, to),
+    wings,
+    exterior,
+    /** Opens block AA-23; the map of free ground is drawn again with its door open. */
+    unlockDetention: () => {
+      wings.unlockDetention();
+      navigate = createSurfaceNavigator(160, isFree);
+    },
+    /** What stands in the world: the interior, the far view of the arrival, or the open-space flight. */
+    setView: (view: "inside" | "far", keep: THREE.Object3D[] = []) => {
+      if (view === "far") {
+        // What was hidden inside (idle beams and the like) must stay hidden on the way back.
+        if (!shownInside.size) root.children.forEach((child) => shownInside.set(child, child.visible));
+        root.children.forEach((child) => {
+          if (child instanceof THREE.Light) return;
+          child.visible = child === stars || child === exterior.globe || child === exterior.beam || keep.includes(child);
+        });
+        exterior.globe.visible = true;
+        return;
+      }
+      root.children.forEach((child) => {
+        if (child instanceof THREE.Light) return;
+        child.visible = shownInside.get(child) ?? true;
+      });
+      shownInside.clear();
+      exterior.globe.visible = exterior.beam.visible = false;
+      bayDoors.forEach(({ door }) => (door.visible = false));
+    },
+    /** The bay doors at 0 are shut, at 1 fully open. */
+    setBayDoors: (open: number) => {
+      bayDoors.forEach(({ door, side }) => {
+        door.position.x = side * (8.6 + open * 17.4);
+        door.visible = open < 1;
+      });
+    },
+    /** The parts of a TIE fighter, for the flight out. */
+    tieParts: () => ({ ...tie, materials: [spaceHull, spacePanels, tieGlass] as [THREE.Material, THREE.Material, THREE.Material] }),
     /** The minimap's outline, from the walkable areas. */
     plan: () => [...areas.filter((a) => a.room !== "skills").map((a) => ({ ...a })), { room: "skills" as RoomId, x0: sx - SKILLS_RADIUS, x1: sx + SKILLS_RADIUS, z0: sz - SKILLS_RADIUS, z1: sz + SKILLS_RADIUS }],
     lightRoom,
     setLight: (light: boolean) => {
+      decorHidden = light;
       decor.visible = !light;
       presences.setLight(light);
       glowLayer.visible = true;
@@ -1235,6 +1333,8 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     tick: (dt: number, time: number, player: THREE.Vector3, room: RoomId | null, reduced: boolean, liftDoors: { a: number; b: number }) => {
       if (room) lightRoom(room);
       presences.tick(time, reduced, player, room);
+      wings.tick(dt, time, player, room, reduced);
+      compactorExit.reach = wings.compactorState() === "stopped" ? 3.4 : 0;
       // Vader's easter egg: he turns from the viewport, raises his hand, and the visitor chokes.
       if (choke) {
         if (choke.start < 0) choke.start = time;
@@ -1254,13 +1354,13 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
           lord.head.rotation.x = 0;
         }
       }
-      pool.forEach((item) => (item.light.intensity = THREE.MathUtils.damp(item.light.intensity, item.goal, 4, dt)));
+      pool.forEach((item) => (item.light.intensity = THREE.MathUtils.damp(item.light.intensity, item.goal, 9, dt)));
       let opened = false;
       for (const door of doors) {
         const near = Math.hypot(player.x - door.x, player.z - door.z) < 6.5;
         const liftA = Math.abs(door.x - LIFT_A.x) < 2 && Math.abs(door.z - -100.3) < 1;
         const liftB = Math.abs(door.x - LIFT_B.x) < 2 && Math.abs(door.z - -29.7) < 1;
-        const goal = liftA ? liftDoors.a : liftB ? liftDoors.b : near ? 1 : 0;
+        const goal = door.locked ? 0 : liftA ? liftDoors.a : liftB ? liftDoors.b : near ? 1 : 0;
         if (goal === 1 && door.open < 0.02) opened = true;
         door.open = reduced ? goal : THREE.MathUtils.damp(door.open, goal, 6, dt);
         door.leaves.forEach((leaf, i) => leaf.position.copy(door.base[i]).addScaledVector(door.axis, (i ? 1 : -1) * door.open * (door.span + 0.05)));
@@ -1269,6 +1369,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
         const material = holo.mesh.material as THREE.MeshBasicMaterial;
         material.opacity = reduced ? holo.base : holo.base * (0.88 + Math.sin(time * 2.1 + holo.phase) * 0.06 + (Math.sin(time * 37 + holo.phase) > 0.985 ? -0.3 : 0));
       }
+      destroyer.tick(time, reduced);
       if (!reduced) {
         figure.group.rotation.y = time * 0.35;
         skillGroup.rotation.y = time * 0.025;
@@ -1292,15 +1393,25 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
           ship.position.set(Math.sin(t) * 140, 30 + Math.sin(t * 2) * 10, 160 + Math.cos(t) * 70);
           ship.lookAt(Math.sin(t + 0.05) * 140, 30, 160 + Math.cos(t + 0.05) * 70);
         });
+        scurriers.forEach((run) => {
+          const q = (time * run.speed + run.phase) % 2,
+            along = q < 1 ? q : 2 - q;
+          run.droid.position.x = THREE.MathUtils.lerp(run.from[0], run.to[0], along);
+          run.droid.position.z = THREE.MathUtils.lerp(run.from[1], run.to[1], along);
+          run.droid.rotation.y = Math.atan2(run.to[0] - run.from[0], run.to[1] - run.from[1]) + (q < 1 ? 0 : Math.PI);
+        });
       }
       // The training centre's documents unfold as the visitor enters the room.
       const unfold = room === "formation" ? 1 : 0;
       docs.scale.y = THREE.MathUtils.damp(docs.scale.y, Math.max(0.02, unfold), reduced ? 30 : 2.5, dt);
-      docMeshes.forEach((mesh, i) => (mesh.position.y = docMeshes[i].position.y + (reduced ? 0 : Math.sin(time * 1.2 + i) * 0.0015)));
+      docMeshes.forEach((mesh, i) => (mesh.position.y = (mesh.userData.restY as number) + (reduced ? 0 : Math.sin(time * 1.2 + i) * 0.04)));
       return { opened };
     },
     /** Plays a presence's (or Vader's) easter egg; returns what to show and for how long. */
-    perform: (id: ImperialPresenceId | "vader"): Performance | null => {
+    perform: (id: ImperialPresenceId | "vader" | "superlaser" | "tractor" | "leia"): Performance | null => {
+      if (id === "superlaser") return wings.fire();
+      if (id === "tractor") return wings.tractor();
+      if (id === "leia") return wings.leia();
       if (id !== "vader") return presences.perform(id);
       choke = { start: -1 };
       return VADER;
