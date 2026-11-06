@@ -375,7 +375,7 @@ export function createCockpitGame(options: {
     audio?.damage();
     if (hull > 0 && hull < 35 && !warned) {
       warned = true;
-      say("R2 signale des dégâts critiques sur la coque !", 4);
+      say("R-X7 signale des dégâts critiques sur la coque !", 4);
       audio?.alarm();
     }
     if (hull <= 0) {
@@ -619,7 +619,7 @@ export function createCockpitGame(options: {
         phase = "playing";
         if (space) startWave(1);
         else {
-          say("R2 : champ dense droit devant. Mieux vaut ne pas calculer nos chances.", 4.5);
+          say("R-X7 : champ dense droit devant. Mieux vaut ne pas calculer nos chances.", 4.5);
           audio?.alarm();
         }
       }

@@ -29,7 +29,7 @@ export function createDefenseSimulation(initialSeed = 1980): DefenseSimulation {
   const rand=()=>{randomSeed=(Math.imul(randomSeed,1664525)+1013904223)>>>0;return randomSeed/4294967296;};
   const projectiles: DefenseProjectile[] = Array.from({length:POOL},(_,id)=>({id,owner:"player",position:[0,0,0],previous:[0,0,0],velocity:[0,0,0],damage:0,ttl:0,active:false}));
   const targets: ("base"|"ship"|null)[]=Array(POOL).fill(null);
-  const state: DefenseState={phase:"briefing",wave:0,time:0,phaseTime:0,base:100,shields:100,heat:0,overheated:false,specialReadyAt:0,coolingReadyAt:0,score:0,multiplier:1,shots:0,hits:0,kills:0,totalDamage:0,enemies:[],projectiles,message:"Base Echo : en attente de votre autorisation.",rank:null};
+  const state: DefenseState={phase:"briefing",wave:0,time:0,phaseTime:0,base:100,shields:100,heat:0,overheated:false,specialReadyAt:0,coolingReadyAt:0,score:0,multiplier:1,shots:0,hits:0,kills:0,totalDamage:0,enemies:[],projectiles,message:"Base Écho : en attente de votre autorisation.",rank:null};
   let events:DefenseEvent[]=[],waveTime=0,spawned=0,nextShot=0,enemyId=0,streak=0,misses=0,nextMissComment=0,nextStep=0;
   let pausedFrom:DefensePhase="playing";
   const meta=new Map<number,{spawn:number;homeX:number;fireAt:number;phase:number}>();
@@ -45,7 +45,7 @@ export function createDefenseSimulation(initialSeed = 1980): DefenseSimulation {
   };
   const miss=()=>{
     streak=0;state.multiplier=1;
-    if(++misses>=6&&state.time>nextMissComment){radio("Droïde : les flocons ne sont pas nos ennemis, capitaine.");nextMissComment=state.time+18;misses=0;}
+    if(++misses>=6&&state.time>nextMissComment){radio("Droïde : les flocons ne sont pas nos ennemis, commandant.");nextMissComment=state.time+18;misses=0;}
   };
   const finish=(won:boolean)=>{
     phase(won?"victory":"defeat");projectiles.forEach(p=>p.active=false);
@@ -53,8 +53,8 @@ export function createDefenseSimulation(initialSeed = 1980): DefenseSimulation {
       const accuracy=state.shots?state.hits/state.shots:0;
       state.score+=Math.round(state.base*15+state.shields*8);
       state.rank=state.totalDamage===0?"Légende":state.base>=75&&accuracy>=.35?"Or":state.base>=40?"Argent":"Bronze";
-      radio(state.totalDamage===0?"Transmission inconnue : la Force est puissante en vous. Canal 1138 fermé.":"Base Echo : offensive repoussée. Mission accomplie !");
-    }else radio(state.base<=0?"Base Echo : nos défenses sont tombées. Évacuez la zone !":"Droïde : boucliers épuisés. Liaison de combat interrompue.");
+      radio(state.totalDamage===0?"Transmission inconnue : la Force est puissante en vous. Canal 1138 fermé.":"Base Écho : offensive repoussée. Mission accomplie !");
+    }else radio(state.base<=0?"Base Écho : nos défenses sont tombées. Évacuez la zone !":"Droïde : boucliers épuisés. Liaison de combat interrompue.");
     emit({type:won?"victory":"defeat",text:state.message});
   };
   const hurt=(target:"base"|"ship",damage:number,position:Vec3)=>{
@@ -100,13 +100,13 @@ export function createDefenseSimulation(initialSeed = 1980): DefenseSimulation {
     state.enemies=state.enemies.filter(e=>e.alive);meta.clear();
     emit({type:"wave",amount:state.wave});
     if(state.wave===1)radio("Droïde : reconnaissance impériale. Interceptez les sondes avant qu’elles transmettent !");
-    if(state.wave===2)radio("Base Echo : blindés en approche. Certains appareils verrouillent votre vaisseau.");
+    if(state.wave===2)radio("Base Écho : blindés en approche. Certains appareils verrouillent votre vaisseau.");
     if(state.wave===3){spawn("atat",0);spawned=1;nextStep=state.time+1.4;radio("Droïde : blindage AT-AT impénétrable. Visez les articulations et les canons, puis la commande !");}
   };
   const advance=()=>{
     if(state.wave===3){finish(true);return;}
     state.wave++;phase("transition");waveTime=0;spawned=0;
-    if(state.wave===3){emit({type:"boss",position:[0,-8,-118]});radio("Base Echo : contact lourd dans le blizzard. Un AT-AT arrive !");}
+    if(state.wave===3){emit({type:"boss",position:[0,-8,-118]});radio("Base Écho : contact lourd dans le blizzard. Un AT-AT arrive !");}
     else radio("Droïde : première ligne neutralisée. Préparez-vous à l’offensive terrestre.");
     projectiles.forEach(p=>{if(p.owner==="enemy")p.active=false;});
   };
@@ -180,9 +180,9 @@ export function createDefenseSimulation(initialSeed = 1980): DefenseSimulation {
   const reset=()=>{
     randomSeed=initialSeed>>>0;events=[];waveTime=spawned=nextShot=enemyId=streak=misses=nextMissComment=nextStep=0;meta.clear();targets.fill(null);
     projectiles.forEach(p=>{p.active=false;p.ttl=0;p.damage=0;for(let a=0;a<3;a++)p.position[a]=p.previous[a]=p.velocity[a]=0;});
-    Object.assign(state,{phase:"briefing",wave:0,time:0,phaseTime:0,base:100,shields:100,heat:0,overheated:false,specialReadyAt:0,coolingReadyAt:0,score:0,multiplier:1,shots:0,hits:0,kills:0,totalDamage:0,enemies:[],message:"Base Echo : en attente de votre autorisation.",rank:null});
+    Object.assign(state,{phase:"briefing",wave:0,time:0,phaseTime:0,base:100,shields:100,heat:0,overheated:false,specialReadyAt:0,coolingReadyAt:0,score:0,multiplier:1,shots:0,hits:0,kills:0,totalDamage:0,enemies:[],message:"Base Écho : en attente de votre autorisation.",rank:null});
   };
-  const start=()=>{if(state.phase!=="briefing")return;state.wave=1;phase("transition");radio("Droïde : systèmes de défense actifs. Protégez la base Echo, capitaine !");};
+  const start=()=>{if(state.phase!=="briefing")return;state.wave=1;phase("transition");radio("Droïde : systèmes de défense actifs. Protégez la base Écho, commandant !");};
   return {
     state,start,restart:()=>{reset();start();},
     pause:()=>{if(state.phase==="playing"||state.phase==="transition"){pausedFrom=state.phase;state.phase="paused";}},

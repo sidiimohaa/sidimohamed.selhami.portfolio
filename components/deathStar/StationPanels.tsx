@@ -249,7 +249,7 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
       <>
         <p className="ds-holo-kicker">Fréquence non répertoriée · source inconnue</p>
         <h2>« Ce dossier n’attendra pas longtemps. »</h2>
-        <p>Message intercepté dans le réseau de maintenance : le candidat de ce dossier cherche une alternance d’assistant marketing digital pour septembre 2026. Les services de recrutement sont priés d’agir avant qu’une autre flotte ne le recrute.</p>
+        <p>Message intercepté dans le réseau de maintenance : le candidat de ce dossier cherche une alternance d’assistant marketing digital pour l’année 2026-2027. Les services de recrutement sont priés d’agir avant qu’une autre flotte ne le recrute.</p>
         <Contact />
       </>
     );

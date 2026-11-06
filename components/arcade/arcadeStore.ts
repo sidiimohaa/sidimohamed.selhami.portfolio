@@ -40,7 +40,7 @@ export const achievements: { id: AchievementId; icon: string; name: string; desc
   { id: "imperial-ghost", icon: "◎", name: "Imperial Ghost", description: "Réussir Imperial Hacking sans aucune erreur." },
   { id: "speed-demon", icon: "➤", name: "Speed Demon", description: `Terminer la course de speeder en moins de ${SPEED_TARGET} secondes.` },
   { id: "defender-of-hoth", icon: "✦", name: "Defender of Hoth", description: "Repousser l’assaut impérial sur Hoth." },
-  { id: "galactic-legend", icon: "✪", name: "Galactic Legend", description: "Remporter au moins une victoire dans chacun des cinq mini-jeux." },
+  { id: "galactic-legend", icon: "✪", name: "Galactic Legend", description: "Remporter une victoire dans chacune des cinq simulations de la console, hors podracing." },
 ];
 
 export type Grade = { id: string; title: string; rule: string };
@@ -65,7 +65,7 @@ export const cosmetics: Cosmetic[] = [
   { id: "theme-retro", kind: "theme", name: "Console rétro", price: 500, value: "retro" },
   { id: "title-cadet", kind: "title", name: "Cadet de l’Académie", price: 0, value: "Cadet de l’Académie" },
   { id: "title-rogue", kind: "title", name: "As de l’escadron Rogue", price: 300, value: "As de l’escadron Rogue" },
-  { id: "title-echo", kind: "title", name: "Gardien de la Base Echo", price: 250, value: "Gardien de la Base Echo" },
+  { id: "title-echo", kind: "title", name: "Gardien de la Base Écho", price: 250, value: "Gardien de la Base Écho" },
   { id: "title-shadow", kind: "title", name: "Ombre de l’Empire", price: 500, value: "Ombre de l’Empire" },
   { id: "accent-blue", kind: "accent", name: "Éclairage de cockpit bleu", price: 0, value: "#709cc6" },
   { id: "accent-amber", kind: "accent", name: "Éclairage de cockpit ambré", price: 250, value: "#d99a52" },

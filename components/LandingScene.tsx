@@ -9,6 +9,7 @@ import { createHothZone } from "./hothZone";
 import { landingArrival } from "./landingFlight";
 import { createTatooineZone } from "./tatooineZone";
 import AtmosphereEntry, { ENTRY_SECONDS } from "./AtmosphereEntry";
+import { breathe, warmUp } from "./render/warmUp";
 import BountyProjectPanel from "./BountyProjectPanel";
 import PassionsViewer from "./PassionsViewer";
 import { createEndorZone } from "./endorZone";
@@ -105,6 +106,7 @@ export default function LandingScene({
   const [coarse] = useState(
     () => window.matchMedia("(pointer: coarse)").matches,
   );
+  const sceneReady = useRef(false);
   const live = useRef({ reduced, paused, hidden });
   live.current = { reduced, paused, hidden };
   const cue = useRef(onCue),
@@ -145,6 +147,11 @@ export default function LandingScene({
   useEffect(() => {
     const el = mount.current;
     if (!el) return;
+    // The work is spread over several frames so that the descent, which starts on click, keeps
+    // moving. A scene left before it is ready finishes building and is disposed straight away.
+    let stop: (() => void) | undefined,
+      left = false;
+    const begin = async () => {
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -152,9 +159,11 @@ export default function LandingScene({
         powerPreference: "high-performance",
       });
     } catch {
+      sceneReady.current = true;
       setFallback(true);
       return;
     }
+    await breathe();
     // Phones start lighter; quality then adapts to the frame rate (see adapt below).
     const ceiling = Math.min(window.devicePixelRatio, coarse ? 1.5 : 2);
     renderer.setPixelRatio(ceiling);
@@ -179,6 +188,7 @@ export default function LandingScene({
         generator.dispose();room.dispose();
       }
     }
+    await breathe();
     const build = zones[planet] ?? createCoruscantZone;
     const seen = new Set<MissionId>();
     const zone = build(landing, (event) => cue.current(event), (id) => {
@@ -186,6 +196,7 @@ export default function LandingScene({
       seen.add(id);
       secret.current?.(id);
     });
+    await breathe();
     renderer.toneMappingExposure = zone.exposure;
     let ratio = ceiling,
       quality = coarse ? 1 : 2;
@@ -196,7 +207,9 @@ export default function LandingScene({
     // The ship keeps its own modelled detail; everything else gets the world's surface treatment.
     enrichMaterials(zone.group, worldLook.detail, tier, [zone.ship]);
     const pipeline = createPipeline(renderer, scene, camera, worldLook.grade, tier);
+    await breathe();
     zone.warmLights?.(() => renderer.compile(scene, camera));
+    await breathe();
     // Development only: what adaptive quality has settled on, for performance checks.
     if (process.env.NODE_ENV !== "production")
       (window as unknown as { __orbitalRender?: object }).__orbitalRender = { scene, renderer, walker: () => walker, tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
@@ -997,6 +1010,19 @@ export default function LandingScene({
       pipeline.render();
       frame = requestAnimationFrame(animate);
     };
+    // The long walks the visitor is offered: their paths are worked out now rather than on the click.
+    if (zone.routeTo) {
+      const here = new THREE.Vector3(walker.x, 0, walker.z);
+      for (const goal of [zone.interior?.entry, zone.explorePoint]) {
+        if (!goal) continue;
+        zone.routeTo(here, goal);
+        await breathe();
+      }
+    }
+    await warmUp(renderer, scene, camera);
+    await breathe();
+    sceneReady.current = true;
+    last = performance.now();
     frame = requestAnimationFrame(animate);
     return () => {
       cancelAnimationFrame(frame);
@@ -1013,6 +1039,10 @@ export default function LandingScene({
       controls.current = null;
       if(zone.interior)cue.current("cantina-leave");
       if(zone.music)music.current?.(0,false);
+      // Off the screen at once; the GPU memory is released just after, so that freeing a whole world
+      // does not hold up the first frames of what comes next.
+      renderer.domElement.remove();
+      window.setTimeout(() => {
       scene.traverse((object) => {
         if (
           object instanceof THREE.Mesh ||
@@ -1032,9 +1062,23 @@ export default function LandingScene({
         }
       });
       pipeline.dispose();
-      renderer.dispose();
       environment?.dispose();
-      renderer.domElement.remove();
+      renderer.dispose();
+      renderer.forceContextLoss();
+      }, 400);
+    };
+    };
+    const opening = window.setTimeout(() => {
+      void begin().then((dispose) => {
+        if (left) dispose?.();
+        else stop = dispose;
+      });
+    }, 120);
+    return () => {
+      left = true;
+      window.clearTimeout(opening);
+      stop?.();
+      sceneReady.current = false;
     };
   }, [landing, planet]);
 
@@ -1081,7 +1125,7 @@ export default function LandingScene({
         className={`surface-fade ${boarding === "on" ? "is-boarding" : boarding === "return" ? "is-return" : leaving ? "is-leaving" : quietFade ? "is-quiet" : ""}`}
         aria-hidden="true"
       />
-      {entering && phase === "arrival" && <AtmosphereEntry planet={planet} onDone={() => setEntering(false)} />}
+      {entering && phase === "arrival" && <AtmosphereEntry planet={planet} ready={sceneReady} onDone={() => setEntering(false)} />}
       <AnimatePresence>
         {phase === "arrival" && (
           <motion.div

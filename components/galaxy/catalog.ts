@@ -52,7 +52,7 @@ export const galacticEvents: GalacticEvent[] = [
     summary: "Une navette officielle se pose sur la plateforme voisine. Une garde d’honneur prend position.",
     line: "Une navette diplomatique approche de la plateforme voisine.",
     endLine: "La délégation a rejoint le Sénat.",
-    discovery: { title: "Note de la délégation", body: "Le protocole mentionne un développeur à recruter : « Son dossier est aux archives de la station impériale, en mode recruteur. »", project: true },
+    discovery: { title: "Note de la délégation", body: "Le protocole mentionne un profil à recruter : « Son dossier est aux archives de la station impériale, en mode recruteur. »", project: true },
   },
   {
     id: "city-outage", place: "coruscant", title: "Panne énergétique", priority: 2, weight: 2, duration: [30, 42], cooldown: 300,

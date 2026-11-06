@@ -11,10 +11,10 @@ export type PodRecord = { time: number; ghost: GhostFrame[] };
 export type ChallengeId = "clean" | "drift" | "route" | "tusken";
 type Challenge = { id: ChallengeId; name: string; goal: string; credits: number; passed: (result: PodResult) => boolean };
 export const challenges: Challenge[] = [
-  { id: "clean", name: "Trajectoire intacte", goal: "Termine un tour sans collision.", credits: 180, passed: (result) => result.finished && result.crashes === 0 },
-  { id: "drift", name: "Sortie de virage", goal: "Termine un tour avec au moins deux mini-turbos.", credits: 220, passed: (result) => result.finished && result.miniTurbos >= 2 },
-  { id: "tusken", name: "Terres Tusken", goal: "Évite trois tirs Tusken et termine le tour.", credits: 260, passed: (result) => result.finished && (result.dodges ?? 0) >= 3 },
-  { id: "route", name: "Passage clandestin", goal: "Emprunte une bifurcation et termine le tour.", credits: 230, passed: (result) => result.finished && result.shortcuts >= 1 },
+  { id: "clean", name: "Trajectoire intacte", goal: "Terminez un tour sans collision.", credits: 180, passed: (result) => result.finished && result.crashes === 0 },
+  { id: "drift", name: "Sortie de virage", goal: "Terminez un tour avec au moins deux mini-turbos.", credits: 220, passed: (result) => result.finished && result.miniTurbos >= 2 },
+  { id: "tusken", name: "Terres Tusken", goal: "Évitez trois tirs Tusken et terminez le tour.", credits: 260, passed: (result) => result.finished && (result.dodges ?? 0) >= 3 },
+  { id: "route", name: "Passage clandestin", goal: "Empruntez une bifurcation et terminez le tour.", credits: 230, passed: (result) => result.finished && result.shortcuts >= 1 },
 ];
 
 // Medals are earned on the best lap of any race: 1 bronze, 2 silver, 3 gold. Each threshold is an

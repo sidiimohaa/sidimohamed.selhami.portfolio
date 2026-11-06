@@ -28,9 +28,9 @@ type Run = { options: PodStageOptions; round: number; cup: CupEntry[]; challenge
 type Outcome = { result: PodResult; award: RaceAward; cup: CupEntry[]; challengePassed: boolean };
 
 const modes: { id: PodMode; name: string; description: string }[] = [
-  { id: "classic", name: "Boonta Eve Classic", description: "Deux tours face à cinq rivaux. Gère tes moteurs jusqu’à l’arrivée." },
-  { id: "arcade", name: "Arcade Galactique", description: "Deux tours, chocs moins sévères et mini-turbos plus puissants." },
-  { id: "time", name: "Contre-la-montre", description: "Un tour en solo. Bats ton record et affronte ton propre fantôme." },
+  { id: "classic", name: "Boonta Eve Classic", description: "Deux tours face à cinq rivaux. Gérez vos moteurs jusqu’à l’arrivée." },
+  { id: "arcade", name: "Mode arcade", description: "Deux tours, chocs moins sévères et mini-turbos plus puissants." },
+  { id: "time", name: "Contre-la-montre", description: "Un tour en solo. Battez votre record et affrontez votre propre fantôme." },
   { id: "championship", name: "Championnat", description: "Trois circuits, un tour par manche. Les points déterminent le classement final." },
   { id: "challenge", name: "Défis", description: "Un tour en solo avec un objectif de pilotage et une prime à gagner." },
 ];
@@ -427,7 +427,7 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
               </section>
             </div>}
             {tab === "hangar" && <section className={styles.workshop} aria-label="Améliorations du pod">
-              <div className={styles.sectionLead}><h3>Modules de course</h3><p className={styles.muted}>Chaque pilote de la grille court sur son propre module. Achète celui de ton choix, chacun échange quelques pour cent d’une qualité contre une autre.</p></div>
+              <div className={styles.sectionLead}><h3>Modules de course</h3><p className={styles.muted}>Chaque pilote de la grille court sur son propre module. Achetez celui de votre choix, chacun échange quelques pour cent d’une qualité contre une autre.</p></div>
               <div className={styles.garage}>
                 <div className={styles.stand}>
                   <PodPreview module={profile.pod.module} color={podPaints[profile.pod.paint].color} reduced={reduced} className={styles.preview} />
@@ -450,7 +450,7 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
                     <div><h4>{item.name}</h4><small className={styles.pilot}>Le pod de {item.pilot}</small><p>{item.lore}</p></div>
                     <p className={styles.traits}>{moduleTraits(item).join(" · ") || "Équilibré"}</p>
                     <button type="button" className={styles.secondary} disabled={fitted || (!owned && profile.credits < item.cost)}
-                      onClick={() => updateProfile(owned ? fitModule(profileRef.current, id) : buyModule(profileRef.current, id))}>{fitted ? "Monté sur ton pod" : owned ? "Monter ce module" : `Acheter · ${item.cost} CR`}</button>
+                      onClick={() => updateProfile(owned ? fitModule(profileRef.current, id) : buyModule(profileRef.current, id))}>{fitted ? "Monté sur votre pod" : owned ? "Monter ce module" : `Acheter · ${item.cost} CR`}</button>
                   </article>;
                 })}</div>
               </div>
@@ -510,7 +510,7 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
                 <span>{entry.position.toString().padStart(2, "0")}</span><b>{entry.name}</b>
               </li>)}
             </ol>}
-            {hud?.phase === "countdown" && <div className={styles.countdown}><span>MOTEURS AU RALENTI</span><strong>{Math.max(1, Math.ceil(hud.countdown))}</strong><small>Maintiens l’accélérateur au départ</small></div>}
+            {hud?.phase === "countdown" && <div className={styles.countdown}><span>MOTEURS AU RALENTI</span><strong>{Math.max(1, Math.ceil(hud.countdown))}</strong><small>Maintenez l’accélérateur au départ</small></div>}
             {hud?.phase === "racing" && hud.time < 0.7 && <div className={styles.countdown} aria-hidden="true"><strong>GO</strong></div>}
             {!hud && !failed && <div className={styles.countdown} role="status"><span>MISE EN GRILLE</span></div>}
             {hud?.alert && <p className={styles.alert} role="status">{hud.alert}</p>}

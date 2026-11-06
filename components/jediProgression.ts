@@ -141,7 +141,7 @@ export const rankFor = (found: number) => [...ranks].reverse().find((rank) => fo
 export type Reward = { id: string; rank: RankId; title: string; description: string };
 
 export const rewards: Reward[] = [
-  { id: "anecdote", rank: "padawan", title: "L’anecdote du pilote", description: "Une histoire que le pilote de ce portfolio raconte rarement." },
+  { id: "anecdote", rank: "padawan", title: "L’anecdote du pilote", description: "Comment le pilote est passé du magasin au cockpit." },
   { id: "skills", rank: "knight", title: "Le terminal des compétences", description: "Un terminal holographique : compétences techniques, expériences et réalisations." },
   { id: "temple", rank: "master", title: "La salle du temple", description: "Une salle secrète du Temple Jedi, ses archives et ses reliques." },
   { id: "destiny", rank: "chosen", title: "Accéder à la destinée", description: "Une dernière rencontre, et un choix entre deux chemins." },

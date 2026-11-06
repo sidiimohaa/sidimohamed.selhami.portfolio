@@ -20,6 +20,7 @@ import { createTaxiCity, SUN } from "./taxiCity";
 import { createJediTemple, createSenate } from "./taxiMonuments";
 import { COUNCIL_TOPICS, createCouncilChamber, type CouncilTopic } from "./councilChamber";
 import { createSenateHall } from "./senateHall";
+import { breathe, warmUp } from "../render/warmUp";
 import { createTaxiAudio, type TaxiAudio } from "./taxiAudio";
 import { createWalkArea } from "./walkArea";
 import { SENATE_TOPICS, TaxiPanel, topicLabel, type SenateTopic, type TaxiTopic } from "./TaxiPanels";
@@ -85,6 +86,10 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
   useEffect(() => {
     const el = mount.current;
     if (!el) return;
+    // Built over several frames: see LandingScene.
+    let stop: (() => void) | undefined,
+      left = false;
+    const begin = async () => {
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -92,6 +97,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       setFallback(true);
       return;
     }
+    await breathe();
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     const quality = coarse || window.innerWidth < 760 ? 1 : 2;
     let ratio = Math.min(window.devicePixelRatio, quality >= 2 ? 1.75 : 1.4);
@@ -115,11 +121,14 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
     const trips = new Map<string, Trip>(TRIP_KEYS.map(([a, b]) => [`${a}>${b}`, tripBetween(a, b)]));
     const lanes = buildLanes([...trips.values()]);
     const city = createTaxiCity([...trips.values()], lanes, glow, quality);
+    await breathe();
     const temple = createJediTemple(glow);
     const senate = createSenate(glow);
     const traffic = createTraffic(lanes, glow, quality);
+    await breathe();
     const chamber = createCouncilChamber(glow);
     const hall = createSenateHall(glow, quality);
+    await breathe();
     const taxi = createAirTaxi({ glow, holo: true });
     // The city keeps its hour and its events during the ride: same sky as on the platform.
     const living = livingProfile();
@@ -136,6 +145,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       scene.environment = environment.texture;
       scene.environmentIntensity = 0.32;
     }
+    await breathe();
     enrichMaterials(scene, looks.taxi.detail, tier);
     const pipeline = createPipeline(renderer, scene, camera, looks.taxi.grade, tier);
     // The plaza, from the portal of the rotunda out to its far edge.
@@ -606,6 +616,9 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       fadeThrough(() => leaveRef.current(), 600);
     };
     controls.current = { go, skip, toggleView, disembark, board, enter, topic, leaveHall, contemplate, leave };
+    if (process.env.NODE_ENV !== "production") {
+      (window as unknown as { __taxi?: object }).__taxi = { scene, camera, renderer, hall, chamber, walker, look, controls: controls.current, mode: () => mode };
+    }
 
     // Boarding: the door closes behind the visitor, the droid greets them.
     const startPose = seatPose();
@@ -1000,12 +1013,15 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
         traffic.tick(dt, still, { trip: mode === "flight" ? ride.trip : null, s: ride.s, speed: ride.v, camera }, (pan, level) => sfx.whoosh(pan, level));
         city.tick(dt, elapsed, still, camera);
         temple.tick(dt, still);
-        if (ride.place === "temple" || mode === "flight") chamber.tick(dt, elapsed, still);
+        if (ride.place === "temple" || mode === "flight") chamber.tick(dt, elapsed, still, camera.position);
       }
       camera.updateMatrixWorld();
       pipeline.render();
       raf = requestAnimationFrame(animate);
     };
+    await warmUp(renderer, scene, camera);
+    await breathe();
+    last = performance.now();
     raf = requestAnimationFrame(animate);
 
     return () => {
@@ -1037,6 +1053,18 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
+    };
+    };
+    const opening = window.setTimeout(() => {
+      void begin().then((dispose) => {
+        if (left) dispose?.();
+        else stop = dispose;
+      });
+    }, 40);
+    return () => {
+      left = true;
+      window.clearTimeout(opening);
+      stop?.();
     };
   }, []);
 

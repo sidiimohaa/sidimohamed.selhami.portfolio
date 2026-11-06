@@ -5,10 +5,15 @@ export function createSurfaceNavigator(radius: number, isFree: (x: number, z: nu
     const free = new Uint8Array(size * size);
     const edges = new Uint8Array(size * size * 9);
     const point = (id: number) => new THREE.Vector3((id % size - half) * step, 0, (Math.floor(id / size) - half) * step);
-    for (let id = 0; id < free.length; id++) {
-        const p = point(id);
-        free[id] = Number(isFree(p.x, p.z));
-    }
+    // The map of free cells is costly: it is drawn up on the first route, not while the zone is built.
+    let mapped = false;
+    const drawMap = () => {
+        mapped = true;
+        for (let id = 0; id < free.length; id++) {
+            const p = point(id);
+            free[id] = Number(isFree(p.x, p.z));
+        }
+    };
     const clear = (a: THREE.Vector3, b: THREE.Vector3) => {
         // Sample closely enough to catch the corners of narrow door porches.
         const count = Math.ceil(a.distanceTo(b) / .05);
@@ -40,6 +45,8 @@ export function createSurfaceNavigator(radius: number, isFree: (x: number, z: nu
             return [];
         if (clear(from, to))
             return [to.clone()];
+        if (!mapped)
+            drawMap();
         const start = closest(from), goal = closest(to);
         if (start < 0 || goal < 0)
             return [];

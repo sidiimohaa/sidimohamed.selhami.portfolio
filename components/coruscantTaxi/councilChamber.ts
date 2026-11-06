@@ -2,11 +2,13 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { COUNCIL, COUNCIL_FACING, COUNCIL_FLOOR } from "./taxiPlaces";
 import { createWalkArea } from "./walkArea";
+import { createCouncilMembers } from "./councilMembers";
 
-// The Council chamber in the crown of the Temple spire: a round room of warm stone, a polished
-// mosaic floor, twelve red seats along tall windows open on the sunset city, and a door to the
-// landing platform. The Council sits in holograms; four of them each guard a holocron, one per
-// chapter of the visitor's reading. Local +Z points out through the door to the platform.
+// The Council chamber in the crown of the Temple spire: a round room of pale stone and fluted metal
+// columns, a golden mosaic floor, twelve seats along tall round-cornered windows open on the sunset
+// city, and a door to the landing platform. Ten members of the Council sit here and two attend by
+// hologram; four of them each guard a holocron, one per chapter of the visitor's reading. Local +Z
+// points out through the door to the platform.
 
 export type CouncilTopic = "vision" | "quete" | "orientation" | "projets";
 export const COUNCIL_TOPICS: CouncilTopic[] = ["vision", "quete", "orientation", "projets"];
@@ -18,7 +20,10 @@ const WALL = 10.6,
 const seatAngle = (i: number) => THREE.MathUtils.degToRad(26 + (i * 308) / (SEATS - 1));
 // The seats whose members hold a holocron: two on each side of the room.
 const TOPIC_SEATS: Record<CouncilTopic, number> = { vision: 4, quete: 7, orientation: 2, projets: 9 };
-const PRESENT = [1, 2, 4, 5, 7, 9, 10];
+// Each seat's shape: 0 an armchair, 1 an egg pod, 2 a tall-backed throne.
+const SEAT_KIND = [0, 2, 0, 1, 0, 1, 2, 0, 2, 1, 0, 2];
+const CUSHION = [0.56, 0.58, 0.56];
+const HOLOCRON_Y = 1.0;
 
 function mosaicTexture() {
   const size = 2048,
@@ -33,10 +38,11 @@ function mosaicTexture() {
     c.arc(0, 0, r * R, 0, Math.PI * 2);
     c.fill();
   };
-  ring(1, "#d6a37c");
-  ring(0.985, "#5a2a1a");
-  ring(0.965, "#e3b892");
-  // A fan of five slender leaves.
+  ring(1, "#b98f55");
+  ring(0.985, "#5a2f1a");
+  ring(0.968, "#ecd7a2");
+  ring(0.9, "#e2c07c");
+  // A fan of five slender leaves, its tips pointing away from the centre.
   const fan = (radius: number, length: number, width: number, angle: number, color: string) => {
     c.save();
     c.rotate(angle);
@@ -44,33 +50,33 @@ function mosaicTexture() {
     c.fillStyle = color;
     for (let k = -2; k <= 2; k++) {
       c.save();
-      c.rotate(k * 0.26);
+      c.rotate(k * 0.27);
+      const l = length * (1 - Math.abs(k) * 0.14);
       c.beginPath();
       c.moveTo(0, 0);
-      c.bezierCurveTo(width * R, length * R * 0.35, width * R * 0.6, length * R * 0.8, 0, length * R);
-      c.bezierCurveTo(-width * R * 0.6, length * R * 0.8, -width * R, length * R * 0.35, 0, 0);
+      c.bezierCurveTo(width * R, l * R * 0.35, width * R * 0.6, l * R * 0.8, 0, l * R);
+      c.bezierCurveTo(-width * R * 0.6, l * R * 0.8, -width * R, l * R * 0.35, 0, 0);
       c.fill();
       c.restore();
     }
     c.restore();
   };
-  for (let i = 0; i < 28; i++) fan(0.66, 0.24, 0.035, (i / 28) * Math.PI * 2, "#4a2216");
-  for (let i = 0; i < 28; i++) fan(0.7, 0.13, 0.02, ((i + 0.5) / 28) * Math.PI * 2, "#8a4a30");
-  c.lineWidth = 7;
-  c.strokeStyle = "#5a2a1a";
-  [0.6, 0.57].forEach((r) => {
+  for (let i = 0; i < 26; i++) fan(0.67, 0.25, 0.027, (i / 26) * Math.PI * 2, "#6d4a26");
+  c.lineWidth = 6;
+  c.strokeStyle = "#7a4a26";
+  [0.62, 0.59].forEach((r) => {
     c.beginPath();
     c.arc(0, 0, r * R, 0, Math.PI * 2);
     c.stroke();
   });
-  ring(0.5, "#c98f68");
-  ring(0.44, "#6e2e1d");
-  ring(0.42, "#7c3a24");
-  // The medallion: an inner flower of leaves round a small disc.
-  for (let i = 0; i < 16; i++) fan(0.06, 0.32, 0.04, (i / 16) * Math.PI * 2, "#b9714b");
-  for (let i = 0; i < 16; i++) fan(0.08, 0.2, 0.025, ((i + 0.5) / 16) * Math.PI * 2, "#e0a77d");
+  ring(0.46, "#c28f54");
+  ring(0.44, "#8a4632");
+  ring(0.415, "#9c563c");
+  // The medallion: an inner flower of pale leaves round a small disc.
+  for (let i = 0; i < 16; i++) fan(0.06, 0.32, 0.04, (i / 16) * Math.PI * 2, "#e2bb8a");
+  for (let i = 0; i < 16; i++) fan(0.08, 0.2, 0.025, ((i + 0.5) / 16) * Math.PI * 2, "#f3dcb4");
   ring(0.07, "#5a2a1a");
-  ring(0.05, "#d6a37c");
+  ring(0.05, "#e2c07c");
   // Polish: faint radial sheen and wear.
   const sheen = c.createRadialGradient(0, 0, 0, 0, 0, R);
   sheen.addColorStop(0, "rgba(255,230,200,.08)");
@@ -85,41 +91,47 @@ function mosaicTexture() {
   return texture;
 }
 
-const hologramVertex = `varying vec3 vNormal;varying vec3 vView;varying float vY;
- void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);vNormal=normalize(normalMatrix*normal);vView=normalize(-mv.xyz);vY=position.y;gl_Position=projectionMatrix*mv;}`;
-const hologramFragment = `uniform float time;uniform float reveal;uniform float focus;uniform vec3 color;varying vec3 vNormal;varying vec3 vView;varying float vY;
- void main(){
-  float fres=pow(1.0-abs(dot(normalize(vNormal),normalize(vView))),1.5);
-  float scan=.62+.38*sin(vY*70.0-time*5.0);
-  float flick=.88+.12*sin(time*23.0+vY*4.0);
-  float a=(.2+fres*.8)*scan*flick*reveal*(.8+focus*.6);
-  gl_FragColor=vec4(color*(.7+fres*.8+focus*.5),a);
- }`;
-
-// A seated, hooded figure, facing +Z, for the hologram members.
-function memberGeometry() {
-  const robe = new THREE.LatheGeometry(
-    [
-      [0.5, 0],
-      [0.48, 0.15],
-      [0.36, 0.55],
-      [0.3, 0.8],
-      [0.27, 0.86],
-      [0.1, 0.92],
-      [0, 0.93],
-    ].map(([r, y]) => new THREE.Vector2(r, y)),
-    18,
-  );
-  robe.scale(1, 1, 0.8);
-  robe.translate(0, 0.5, -0.05);
-  const lap = new THREE.BoxGeometry(0.62, 0.22, 0.55);
-  lap.translate(0, 0.6, 0.22);
-  const head = new THREE.SphereGeometry(0.13, 14, 10);
-  head.translate(0, 1.55, 0.02);
-  const hood = new THREE.SphereGeometry(0.19, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6);
-  hood.rotateX(-0.35);
-  hood.translate(0, 1.56, -0.04);
-  return mergeGeometries([robe, lap, head, hood].map((g) => (g.index ? g.toNonIndexed() : g)).map((g) => (g.deleteAttribute("uv"), g)));
+// One of the great columns: a drum with vertical flutes, flaring where it meets floor and ceiling.
+function flutedColumn(height: number) {
+  const sides = 48,
+    rows = 26,
+    position: number[] = [],
+    index: number[] = [];
+  const radius = (t: number) => {
+    const foot = Math.pow(Math.max(0, 1 - t / 0.14), 2) * 0.3,
+      head = Math.pow(Math.max(0, (t - 0.72) / 0.28), 2) * 0.62;
+    return 0.46 + foot + head;
+  };
+  for (let row = 0; row <= rows; row++) {
+    const t = row / rows;
+    for (let side = 0; side <= sides; side++) {
+      const a = (side / sides) * Math.PI * 2,
+        r = radius(t) * (1 + 0.055 * Math.cos(a * 10) * (1 - Math.max(0, (t - 0.72) / 0.28)));
+      position.push(Math.sin(a) * r, t * height, Math.cos(a) * r);
+      if (row < rows && side < sides) {
+        const here = row * (sides + 1) + side,
+          up = here + sides + 1;
+        index.push(here, here + 1, up, here + 1, up + 1, up);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+}
+// A soft dark pool under each seat, to set it on the floor.
+function contactShadow() {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 128;
+  const c = canvas.getContext("2d")!;
+  const soft = c.createRadialGradient(64, 64, 16, 64, 64, 64);
+  soft.addColorStop(0, "rgba(30,14,6,.62)");
+  soft.addColorStop(1, "rgba(30,14,6,0)");
+  c.fillStyle = soft;
+  c.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(canvas);
 }
 
 export function createCouncilChamber(glow: THREE.Texture) {
@@ -128,10 +140,11 @@ export function createCouncilChamber(glow: THREE.Texture) {
   group.position.set(COUNCIL.x, COUNCIL_FLOOR, COUNCIL.z);
   const yaw = Math.atan2(COUNCIL_FACING.x, COUNCIL_FACING.z);
   group.rotation.y = yaw;
-  const stone = new THREE.MeshStandardMaterial({ color: 0xc8a684, roughness: 0.62, metalness: 0.08, side: THREE.DoubleSide });
-  const plaster = new THREE.MeshStandardMaterial({ color: 0xb48c6c, roughness: 0.8, metalness: 0.02, side: THREE.DoubleSide });
-  const velvet = new THREE.MeshStandardMaterial({ color: 0x8c2d22, roughness: 0.86, metalness: 0.02 });
-  const shell = new THREE.MeshStandardMaterial({ color: 0xa7a19a, roughness: 0.4, metalness: 0.35 });
+  const stone = new THREE.MeshStandardMaterial({ color: 0xc4bcaa, roughness: 0.56, metalness: 0.12, side: THREE.DoubleSide });
+  const plaster = new THREE.MeshStandardMaterial({ color: 0xaca494, roughness: 0.76, metalness: 0.05, side: THREE.DoubleSide });
+  const column = new THREE.MeshStandardMaterial({ color: 0xaaa9a0, roughness: 0.32, metalness: 0.62 });
+  const velvet = new THREE.MeshStandardMaterial({ color: 0x7d2a20, roughness: 0.86, metalness: 0.02, side: THREE.DoubleSide });
+  const shell = new THREE.MeshStandardMaterial({ color: 0xa5a29a, roughness: 0.48, metalness: 0.22, side: THREE.DoubleSide });
   const warm = new THREE.MeshBasicMaterial({ color: 0xffd7a0, toneMapped: false });
   const glass = new THREE.MeshStandardMaterial({ color: 0xffd9b0, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide });
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
@@ -144,7 +157,7 @@ export function createCouncilChamber(glow: THREE.Texture) {
     batches.set(material, list);
   };
   // Floor.
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(WALL, 96), new THREE.MeshStandardMaterial({ map: mosaicTexture(), roughness: 0.3, metalness: 0.12 }));
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(WALL, 96), new THREE.MeshStandardMaterial({ map: mosaicTexture(), color: 0xc2b7a6, roughness: 0.46, metalness: 0.06 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0.01;
   group.add(floor);
@@ -169,15 +182,43 @@ export function createCouncilChamber(glow: THREE.Texture) {
     put(stone, new THREE.RingGeometry(WALL - 0.45, WALL + 0.05, 12, 1, from - Math.PI / 2, BAY).rotateX(-Math.PI / 2), 0, 0.95);
     put(glass, new THREE.CylinderGeometry(WALL + 0.02, WALL + 0.02, HEIGHT - 1.95, 12, 1, true, from, BAY), 0, 0.95 + (HEIGHT - 1.95) / 2);
     put(stone, new THREE.CylinderGeometry(WALL, WALL, 1.0, 12, 1, true, from, BAY), 0, HEIGHT - 0.5);
+    // Round the window's four corners with curved fillets on the wall.
+    const edge = 0.5 / WALL,
+      round = 1.15;
+    [
+      [from + edge, 0.95, 1, 1],
+      [from + BAY - edge, 0.95, -1, 1],
+      [from + edge, HEIGHT - 1, 1, -1],
+      [from + BAY - edge, HEIGHT - 1, -1, -1],
+    ].forEach(([angle, y, across, up]) => {
+      const onWall = (s: number, h: number) => [Math.sin(s) * WALL, h, Math.cos(s) * WALL];
+      const arc = Array.from({ length: 9 }, (_, k) => {
+        const t = (k / 8) * (Math.PI / 2);
+        return onWall(angle + (across * round * (1 - Math.sin(t))) / WALL, y + up * round * (1 - Math.cos(t)));
+      });
+      const corner = onWall(angle, y),
+        position: number[] = [],
+        normal: number[] = [];
+      for (let k = 0; k < 8; k++) {
+        [corner, arc[k], arc[k + 1]].forEach((p) => {
+          position.push(p[0], p[1], p[2]);
+          normal.push(-p[0] / WALL, 0, -p[2] / WALL);
+        });
+      }
+      const fillet = new THREE.BufferGeometry();
+      fillet.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+      fillet.setAttribute("normal", new THREE.Float32BufferAttribute(normal, 3));
+      put(stone, fillet);
+    });
   }
-  // Pillars between the bays, leaning in at the top, with warm light along their inner edges.
+  // Columns between the bays, with a slit of warm light down either side of each.
+  const columnShape = flutedColumn(HEIGHT + 0.2);
   for (let b = 0; b < 8; b++) {
     const a = b * BAY + BAY / 2;
     const x = Math.sin(a),
       z = Math.cos(a);
-    put(stone, new THREE.BoxGeometry(1.0, HEIGHT - 2.2, 1.1), x * (WALL - 0.3), (HEIGHT - 2.2) / 2, z * (WALL - 0.3), a);
-    put(stone, new THREE.BoxGeometry(0.9, 2.6, 1.0), x * (WALL - 0.75), HEIGHT - 1.3, z * (WALL - 0.75), a, -0.32);
-    [-1, 1].forEach((side) => put(warm, new THREE.BoxGeometry(0.05, HEIGHT - 2.6, 0.05), x * (WALL - 0.86) + Math.cos(a) * side * 0.5, (HEIGHT - 2.6) / 2 + 0.2, z * (WALL - 0.86) - Math.sin(a) * side * 0.5, a));
+    put(column, columnShape.clone(), x * (WALL - 0.38), 0, z * (WALL - 0.38), a);
+    [-1, 1].forEach((side) => put(warm, new THREE.BoxGeometry(0.035, HEIGHT - 3.9, 0.035), x * (WALL - 0.62) + Math.cos(a) * side * 0.5, (HEIGHT - 3.9) / 2 + 1.5, z * (WALL - 0.62) - Math.sin(a) * side * 0.5, a));
   }
   // Ceiling: a shallow dome with a lit ring and eight ribs.
   const dome = new THREE.SphereGeometry(WALL + 0.1, 48, 12, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -205,7 +246,7 @@ export function createCouncilChamber(glow: THREE.Texture) {
         s = Math.sin(turn);
       return [x + dx * c + dz * s, dy, z - dx * s + dz * c] as const;
     };
-    const kind = i % 3;
+    const kind = SEAT_KIND[i];
     put(shell, new THREE.BoxGeometry(1.1, 0.34, 0.95), ...local(0, 0.17, 0), turn);
     if (kind === 1) {
       const egg = new THREE.SphereGeometry(0.72, 24, 16, Math.PI * 0.2, Math.PI * 1.6, 0, Math.PI * 0.72);
@@ -222,43 +263,50 @@ export function createCouncilChamber(glow: THREE.Texture) {
       put(velvet, new THREE.BoxGeometry(0.92, 0.2, 0.82), ...local(0, 0.46, 0.02), turn);
       const tall = kind === 2 ? 1.5 : 0.95;
       put(velvet, new THREE.BoxGeometry(0.92, tall, 0.2), ...local(0, 0.5 + tall / 2, -0.4), turn, -0.1);
-      if (kind === 2) put(shell, new THREE.CapsuleGeometry(0.47, 0.05, 6, 16).scale(1, 0.4, 0.5), ...local(0, 0.5 + tall + 0.05, -0.43), turn);
-      [-1, 1].forEach((side) => put(shell, new THREE.BoxGeometry(0.16, 0.36, 0.86), ...local(side * 0.54, 0.58, 0), turn));
+      // A chunky shell behind the cushions, and wide flat armrests.
+      put(shell, new THREE.BoxGeometry(1.12, tall + 0.32, 0.16), ...local(0, 0.34 + (tall + 0.32) / 2, -0.53), turn, -0.1);
+      if (kind === 2) put(shell, new THREE.CapsuleGeometry(0.56, 0.02, 6, 16).rotateZ(Math.PI / 2).scale(1, 0.18, 0.2), ...local(0, 0.66 + tall, -0.58), turn);
+      [-1, 1].forEach((side) => {
+        put(shell, new THREE.BoxGeometry(0.2, 0.42, 0.9), ...local(side * 0.56, 0.42, 0), turn);
+        put(velvet, new THREE.BoxGeometry(0.17, 0.06, 0.8), ...local(side * 0.56, 0.66, 0), turn);
+      });
     }
   }
   batches.forEach((list, material) => group.add(new THREE.Mesh(mergeGeometries(list), material)));
 
-  // The Council, in holograms, in seven of the seats.
-  const memberShape = memberGeometry();
-  const members = PRESENT.map((seat) => {
-    const material = new THREE.ShaderMaterial({
-      uniforms: { time: { value: 0 }, reveal: { value: 0 }, focus: { value: 0 }, color: { value: new THREE.Color(0x8fd8ff) } },
-      vertexShader: hologramVertex,
-      fragmentShader: hologramFragment,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    const mesh = new THREE.Mesh(memberShape, material);
-    const a = seatAngle(seat);
-    mesh.position.set(Math.sin(a) * (SEAT_RING - 0.05), 0.02, Math.cos(a) * (SEAT_RING - 0.05));
-    mesh.rotation.y = a + Math.PI;
-    group.add(mesh);
-    return { seat, material, delay: seat * 0.13 };
+  // Seated firmly on the floor.
+  const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.3, 2.3).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: contactShadow(), transparent: true, depthWrite: false }), SEATS);
+  const poolMatrix = new THREE.Matrix4();
+  for (let i = 0; i < SEATS; i++) {
+    const a = seatAngle(i);
+    pools.setMatrixAt(i, poolMatrix.makeTranslation(Math.sin(a) * SEAT_RING, 0.022, Math.cos(a) * SEAT_RING));
+  }
+  group.add(pools);
+
+  // The Council: in the flesh, but for the two who attend by hologram.
+  const members = createCouncilMembers().map((figure) => {
+    const a = seatAngle(figure.seat);
+    figure.group.position.set(Math.sin(a) * SEAT_RING, CUSHION[SEAT_KIND[figure.seat]], Math.cos(a) * SEAT_RING);
+    figure.group.rotation.y = a + Math.PI;
+    group.add(figure.group);
+    return { ...figure, delay: figure.seat * 0.05, forward: a + Math.PI };
   });
+  // Scratch vectors for the heads, which follow the visitor and whoever is speaking.
+  const lookAt = new THREE.Vector3(),
+    speakerAt = new THREE.Vector3();
 
   // Holocrons: an amber cube floating before each speaking member.
   const topics = COUNCIL_TOPICS.map((id) => {
     const seat = TOPIC_SEATS[id],
       a = seatAngle(seat);
     const holder = new THREE.Group();
-    holder.position.set(Math.sin(a) * (SEAT_RING - 1.5), 1.55, Math.cos(a) * (SEAT_RING - 1.5));
-    const cube = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.26, 0.26), new THREE.MeshBasicMaterial({ color: 0xffb35c, transparent: true, opacity: 0.55, toneMapped: false }));
+    holder.position.set(Math.sin(a) * (SEAT_RING - 1.75), HOLOCRON_Y, Math.cos(a) * (SEAT_RING - 1.75));
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffb35c, transparent: true, opacity: 0.55, toneMapped: false }));
     cube.rotation.set(Math.PI / 4, 0, Math.PI / 4);
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(cube.geometry), new THREE.LineBasicMaterial({ color: 0xffe2b0, toneMapped: false }));
     cube.add(edges);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xffb35c, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending }));
-    halo.scale.setScalar(1.1);
+    halo.scale.setScalar(0.7);
     // A larger invisible sphere makes the holocron easy to click or tap.
     const hit = new THREE.Mesh(new THREE.SphereGeometry(0.75, 10, 8), new THREE.MeshBasicMaterial({ visible: false }));
     hit.userData.topic = id;
@@ -266,8 +314,8 @@ export function createCouncilChamber(glow: THREE.Texture) {
     group.add(holder);
     return { id, seat, holder, cube, halo, hit, world: new THREE.Vector3() };
   });
-  const light = new THREE.PointLight(0xffc690, 26, 24, 1.6);
-  light.position.set(0, 6.5, 0);
+  const light = new THREE.PointLight(0xffd8ae, 40, 30, 1.3);
+  light.position.set(0, 5.6, 0);
   group.add(light);
   group.updateMatrixWorld(true);
   topics.forEach((topic) => topic.holder.getWorldPosition(topic.world));
@@ -297,19 +345,45 @@ export function createCouncilChamber(glow: THREE.Texture) {
     },
     setPresence: (on: boolean) => (target = on ? 1 : 0),
     focus: (topic: CouncilTopic | null) => (focused = topic),
-    tick: (dt: number, elapsed: number, reduced: boolean) => {
+    tick: (dt: number, elapsed: number, reduced: boolean, viewer?: THREE.Vector3) => {
       reveal = reduced ? target : THREE.MathUtils.damp(reveal, target, 1.6, dt);
+      if (viewer) group.worldToLocal(lookAt.copy(viewer));
+      const speakerSeat = focused === null ? -1 : TOPIC_SEATS[focused];
+      if (speakerSeat >= 0) {
+        const a = seatAngle(speakerSeat);
+        speakerAt.set(Math.sin(a) * SEAT_RING, 1.3, Math.cos(a) * SEAT_RING);
+      }
       members.forEach((member) => {
-        const u = member.material.uniforms;
-        u.time.value = elapsed;
-        u.reveal.value = THREE.MathUtils.clamp(reveal * 1.6 - member.delay * reveal, 0, 1);
-        const speaking = focused !== null && TOPIC_SEATS[focused] === member.seat;
-        u.focus.value = THREE.MathUtils.damp(u.focus.value, speaking ? 1 : 0, 4, dt);
+        const speaking = speakerSeat === member.seat;
+        if (member.hologram) {
+          const u = member.hologram.uniforms;
+          u.time.value = elapsed;
+          u.reveal.value = THREE.MathUtils.clamp(reveal * 1.6 - member.delay * reveal, 0, 1);
+          u.focus.value = THREE.MathUtils.damp(u.focus.value, speaking ? 1 : 0, 4, dt);
+        }
+        // While the visitor is in the room, heads turn: to the visitor, or to the member speaking.
+        // Outside it they rest, facing the centre.
+        const p = member.group.position,
+          aim = speakerSeat >= 0 && !speaking ? speakerAt : lookAt;
+        const dx = aim.x - p.x,
+          dz = aim.z - p.z;
+        let yaw = 0,
+          pitch = 0;
+        if (reveal > 0.3 && viewer) {
+          yaw = THREE.MathUtils.clamp(THREE.MathUtils.euclideanModulo(Math.atan2(dx, dz) - member.forward + Math.PI, Math.PI * 2) - Math.PI, -0.75, 0.75);
+          pitch = THREE.MathUtils.clamp(-Math.atan2(aim.y - p.y - 0.85, Math.hypot(dx, dz)), -0.2, 0.25);
+        }
+        const idle = reduced ? 0 : Math.sin(elapsed * 0.31 + member.phase) * 0.05;
+        member.yaw = reduced ? yaw : THREE.MathUtils.damp(member.yaw, yaw, 2.2, dt);
+        member.pitch = reduced ? pitch : THREE.MathUtils.damp(member.pitch, pitch, 2.2, dt);
+        member.head.rotation.set(member.pitch, member.yaw + idle, 0, "YXZ");
+        // A slow breath.
+        member.trunk.scale.y = reduced ? 1 : 1 + Math.sin(elapsed * 0.9 + member.phase) * 0.006;
       });
       topics.forEach((topic, i) => {
         const spin = reduced ? 0 : elapsed * 0.8 + i;
         topic.cube.rotation.y = spin;
-        topic.holder.position.y = 1.55 + (reduced ? 0 : Math.sin(elapsed * 1.4 + i) * 0.06);
+        topic.holder.position.y = HOLOCRON_Y + (reduced ? 0 : Math.sin(elapsed * 1.4 + i) * 0.06);
         const lit = focused === topic.id ? 1 : 0.55;
         topic.halo.material.opacity = THREE.MathUtils.damp(topic.halo.material.opacity, lit * reveal, 4, dt);
         (topic.cube.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.5 * reveal;

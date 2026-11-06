@@ -282,6 +282,18 @@ export default function Experience() {
     },
     [unsupported, completeApproach],
   );
+  // Fetch the next scene's code ahead of time, so that pressing the button only has to build it.
+  useEffect(() => {
+    if (!landing || !arrived) return;
+    const fetchAhead = () => void import("./LandingScene");
+    const id = window.setTimeout(fetchAhead, 800);
+    return () => window.clearTimeout(id);
+  }, [landing, arrived]);
+  useEffect(() => {
+    if (ground?.name !== "Coruscant") return;
+    const id = window.setTimeout(() => void import("./coruscantTaxi/CoruscantTaxi"), 4000);
+    return () => window.clearTimeout(id);
+  }, [ground?.name]);
   const land = useCallback(() => {
     timers.current.forEach(clearTimeout);
     setArrived(false);
@@ -518,6 +530,9 @@ export default function Experience() {
     setTaxi(true);
     setCombat(true);
   }, []);
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __boardTaxi?: () => void }).__boardTaxi = boardTaxi;
+  }, [boardTaxi]);
   const leaveTaxi = () => {
     setTaxi(false);
     setCombat(false);
@@ -882,7 +897,7 @@ export default function Experience() {
                 <div>
                   <dt>Atterrir</dt>
                   <dd>
-                    En orbite de Coruscant ou de Tatooine, bouton Atterrir ou E
+                    En orbite de Tatooine, Endor, Coruscant ou Hoth, bouton Atterrir ou E
                   </dd>
                 </div>
                 <div>

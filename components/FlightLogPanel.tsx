@@ -121,7 +121,7 @@ export const FlightLogPanel = forwardRef<HTMLElement, Props>(function FlightLogP
           <div className="flight-log-next">
             <span className="mono">EXPLORATION</span>
             <strong>Toute la galaxie a été visitée.</strong>
-            <p>{log.docked ? "Il reste peut-être des secrets dans les missions Jedi." : "L’Étoile de la Mort attend encore votre accostage : votre dossier y est archivé."}</p>
+            <p>{log.docked ? "Il reste peut-être des secrets dans les missions Jedi." : "L’Étoile de la Mort attend encore votre accostage : le dossier du pilote y est archivé."}</p>
           </div>
         )}
 

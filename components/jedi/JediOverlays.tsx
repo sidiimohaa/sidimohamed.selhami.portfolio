@@ -1,4 +1,5 @@
 "use client";
+import { education, experiences, identity } from "../deathStar/cvData";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, X } from "lucide-react";
@@ -321,19 +322,19 @@ export function ArchivesDossier({ onClose }: { onClose: () => void }) {
       <dl className="holo-dossier">
         <div>
           <dt>Origine</dt>
-          <dd>Texte provisoire — d’où vous venez, ce qui vous a mené jusqu’ici.</dd>
+          <dd>{identity.ambition}</dd>
         </div>
         <div>
           <dt>Formation</dt>
-          <dd>Texte provisoire — les étapes de votre parcours d’études.</dd>
+          <dd>{education.map((item) => item.title).join(" · ")}</dd>
         </div>
         <div>
           <dt>Premières missions</dt>
-          <dd>Texte provisoire — premiers projets, stages ou expériences.</dd>
+          <dd>{[...experiences].reverse().map((item) => `${item.company} : ${item.role} (${item.period})`).join(" · ")}</dd>
         </div>
         <div>
           <dt>Cap actuel</dt>
-          <dd>Texte provisoire — ce que vous cherchez aujourd’hui (alternance, poste, collaboration).</dd>
+          <dd>{identity.search}</dd>
         </div>
       </dl>
     </Transmission>

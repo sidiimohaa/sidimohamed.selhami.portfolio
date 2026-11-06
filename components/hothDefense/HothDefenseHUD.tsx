@@ -76,7 +76,7 @@ export default function HothDefenseHUD(props: Props) {
     {view?.alarm && <p className={styles.alarmBanner} role="status"><b>ALERTE</b> MODE COMBAT · SYSTÈMES DE CIBLAGE EN LIGNE</p>}
 
     <header className={styles.header}>
-      <div className={styles.callSign}><span className={styles.signal} /> BASE ECHO <small>CANAL DÉFENSE 03</small></div>
+      <div className={styles.callSign}><span className={styles.signal} /> BASE ÉCHO <small>CANAL DÉFENSE 03</small></div>
       <div className={styles.headerControls}>
         <button type="button" onClick={onToggleSound} aria-label={sound ? "Couper le son du combat" : "Activer le son du combat"} aria-pressed={sound}>{sound ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
         <label className={styles.volume}>Volume<input type="range" aria-label="Volume du combat" min={0} max={1} step={.05} value={volume} onChange={event => onVolume(Number(event.target.value))} /></label>
@@ -87,7 +87,7 @@ export default function HothDefenseHUD(props: Props) {
 
     {combat && view && <>
       <div className={styles.status}>
-        <Meter label="BASE ECHO" value={view.base} hot={view.base < 30} />
+        <Meter label="BASE ÉCHO" value={view.base} hot={view.base < 30} />
         <Meter label="BOUCLIERS" value={view.shields} hot={view.shields < 30} />
         <Meter label={view.overheated ? "SURCHAUFFE" : "CHALEUR"} value={view.heat} hot={view.heat > 75 || view.overheated} />
       </div>
@@ -111,10 +111,10 @@ export default function HothDefenseHUD(props: Props) {
     </>}
 
     {(!combat || error || loading) && <div className={styles.shade}><section className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="hoth-defense-title">
-      <span className={styles.eyebrow}>ALLIANCE REBELLE · BASE ECHO</span>
+      <span className={styles.eyebrow}>ALLIANCE REBELLE · BASE ÉCHO</span>
       <h2 id="hoth-defense-title">{error ? "Liaison interrompue" : loading ? "Connexion au poste de tir" : phase === "paused" ? "Combat en pause" : phase === "victory" ? "MISSION ACCOMPLIE" : phase === "defeat" ? "MISSION ÉCHOUÉE" : "Défense de Hoth"}</h2>
       {error ? <p>{error}</p> : loading ? <p>Établissement du canal tactique…</p> : phase === "briefing" ? <>
-        <p>Une offensive impériale approche. Depuis votre cockpit, protégez la Base Echo et les boucliers du vaisseau pendant trois vagues.</p>
+        <p>Une offensive impériale approche. Depuis votre cockpit, protégez la Base Écho et les boucliers du vaisseau pendant trois vagues.</p>
         <ol className={styles.briefing}><li><b>01</b> Interceptez les sondes.</li><li><b>02</b> Repoussez les véhicules au sol.</li><li><b>03</b> Neutralisez les articulations et les canons de l’AT-AT, puis sa commande.</li></ol>
         <p className={styles.tip}>Surveillez la chaleur des canons. Gardez l’impulsion ionique pour les moments critiques.</p>
         <div className={styles.keys}><span><kbd>SOURIS</kbd> Viser</span><span><kbd>CLIC GAUCHE</kbd> Tir continu</span><span><kbd>CLIC DROIT</kbd> Zoom</span><span><kbd>R</kbd> Refroidir</span><span><kbd>ESPACE</kbd> Impulsion</span><span><kbd>ÉCHAP</kbd> Pause</span></div>

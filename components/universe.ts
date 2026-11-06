@@ -1,4 +1,4 @@
-import { education, projects } from "./deathStar/cvData";
+import { education, identity, projects } from "./deathStar/cvData";
 
 export type PlanetReference = {
   width: number;
@@ -25,7 +25,7 @@ export const destinations = [
     },
     summary: "Dunes, reliefs ocre et deux soleils : le terrain de mes projets.",
     description:
-      "Sous deux soleils, les dunes et les reliefs ocre dessinent un terrain d’expérimentation. Ici prendront forme mes projets, du premier croquis à l’expérience aboutie.",
+      "Sous deux soleils, les dunes et les reliefs ocre dessinent un terrain d’expérimentation. Ici prennent forme mes projets, du premier croquis à l’expérience aboutie.",
   },
   {
     name: "Endor",
@@ -62,7 +62,7 @@ export const destinations = [
     },
     summary: "Des réseaux de lumière pour imaginer de nouvelles connexions.",
     description:
-      "Sous la brume, des anneaux de lumière relient une planète entière. Ce sera notre point de rencontre pour échanger, imaginer et faire naître la prochaine collaboration.",
+      "Sous la brume, des anneaux de lumière relient une planète entière. C’est notre point de rencontre pour échanger, imaginer et faire naître la prochaine collaboration.",
   },
   {
     name: "L’Étoile de la Mort",
@@ -84,7 +84,7 @@ export const destinations = [
   },
   {
     name: "Hoth",
-    category: "Les diplômes",
+    category: "La formation",
     tag: "FORMATIONS & DIPLÔMES",
     number: "05",
     className: "ice",
@@ -179,8 +179,8 @@ export const landings: Partial<Record<string, Landing>> = {
         id: "disponibilite",
         label: "Alternance",
         heading: "À la recherche d’une alternance",
-        meta: "Disponible dès maintenant",
-        body: "Je recherche une alternance en marketing, IA et data. Contactez-moi pour échanger sur votre opportunité.",
+        meta: "Année 2026-2027",
+        body: `${identity.search} Contactez-moi pour échanger sur votre opportunité.`,
         links: [{ label: "Proposer une alternance", href: "mailto:sidimohamed.selhami1@gmail.com?subject=Opportunit%C3%A9%20d%27alternance" }],
       },
     ],
@@ -254,14 +254,14 @@ export const landings: Partial<Record<string, Landing>> = {
         id: "orbital",
         label: "ORBITAL",
         heading: projects[0].title,
-        body: "Une galaxie à explorer en vaisseau : planètes, cockpit de X-wing, missions Jedi, arcade et un dossier CV dans l’Étoile de la Mort. Conçu en dirigeant des assistants de code IA.",
+        body: "Une galaxie à explorer en vaisseau : planètes, cockpit de X-wing, missions Jedi, arcade, droïde R-X7 et un dossier CV dans l’Étoile de la Mort. Conçu en dirigeant des assistants de code IA.",
         meta: "Concept et direction · Next.js, Three.js, TypeScript · 2026",
       },
       {
         id: "arcade",
         label: "Arcade",
-        heading: "Galactic Arcade — cinq simulations",
-        body: "Un centre de simulation dans le cockpit : combat spatial, champ d’astéroïdes, piratage, course de speeder sur Endor et défense de Hoth, avec crédits, succès et récompenses.",
+        heading: "Galactic Arcade — six simulations",
+        body: "Un centre de simulation dans le cockpit : combat spatial, champ d’astéroïdes, piratage, course de speeder sur Endor, défense de Hoth et podracing à Tatooine, avec crédits, succès et récompenses.",
         meta: "Module d’ORBITAL · Three.js, Web Audio · 2026",
       },
       {

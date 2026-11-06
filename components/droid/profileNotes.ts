@@ -6,11 +6,11 @@
 export const profileNotes = {
   // Told by Sidi-Mohamed himself.
   facts: [
-    "Passionné de nouvelles technologies, d'intelligence artificielle et d'exploration.",
-    "Après plusieurs années dans le commerce, il oriente son parcours vers le digital et l'IA.",
+    "Passionné de nouvelles technologies, d’intelligence artificielle et d’exploration.",
+    "Après plusieurs années dans le commerce, il oriente son parcours vers le digital et l’IA.",
   ],
   whyThisPortfolio:
-    "Un simple CV ne suffisait pas à contenir ses idées : il voulait réunir sa passion pour l'espace, la création numérique et l'intelligence artificielle dans une expérience interactive.",
+    "Un simple CV ne suffisait pas à contenir ses idées : il voulait réunir sa passion pour l’espace, la création numérique et l’intelligence artificielle dans une expérience interactive.",
   // Directions, not achievements.
   ambitions: ["Entrepreneuriat", "Innovation technologique", "Développement de ses compétences", "Indépendance professionnelle"],
   // Subjects the droid must decline, even if asked nicely.

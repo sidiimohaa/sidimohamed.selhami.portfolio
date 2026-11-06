@@ -112,7 +112,7 @@ function reply(t: string, memory: DroidMemory, set: (list: DroidMemory["list"]) 
 
   if (has(t, /\b(cv|curriculum|resume)\b/)) return { text: say(`${chirp}Son CV est prêt : à télécharger, ou à parcourir en mode recruteur.`, `${chirp}His CV is ready: download it, or browse it in recruiter mode.`), actions: ["cv", "recruiter"], mood: "happy" };
   if (has(t, /(contact|joindre|ecrire|mail|linkedin|reach|get in touch)/)) return { text: `${say("Canal ouvert :", "Channel open:")} ${identity.email}, ${say("ou LinkedIn.", "or LinkedIn.")}`, actions: ["email", "linkedin", "recruiter:contact"], mood: "happy" };
-  if (has(t, /(recrut|embauch|alternance|disponib|hire|hiring|work study|apprentice|stage)/)) return { text: pro || en ? say(pilot.search, "He is looking for a work-study position as a digital marketing assistant for 2026-2027.") + say(" Je peux vous diriger vers son CV, ses compétences ou ses coordonnées.", " I can take you to his CV, skills or contact details.") : `Bip-bip ! Excellente initiative, commandant. ${pilot.search} Je peux te diriger vers son CV, ses compétences ou ses coordonnées.`, actions: ["cv", "recruiter:competences", "recruiter:contact"], mood: "happy" };
+  if (has(t, /(recrut|embauch|alternance|disponib|hire|hiring|work study|apprentice|stage)/)) return { text: pro || en ? say(pilot.search, "He is looking for a work-study position as a digital marketing assistant for 2026-2027.") + say(" Je peux vous diriger vers son CV, ses compétences ou ses coordonnées.", " I can take you to his CV, skills or contact details.") : `Bip-bip ! Excellente initiative, Commandant. ${pilot.search} Je peux te diriger vers son CV, ses compétences ou ses coordonnées.`, actions: ["cv", "recruiter:competences", "recruiter:contact"], mood: "happy" };
   if (has(t, /(vibe|prompt|code|developp|programm|three|react|technique|technolog)/) && !has(t, /projet|project/)) {
     const vibe = skillTree.find((category) => category.id === "vibe")!, ia = skillTree.find((category) => category.id === "ia")!;
     return { text: say(`Côté création numérique : ${vibe.skills.map((skill) => `${skill.name} (${skill.status === "confirmed" ? "confirmé" : skill.status === "growing" ? "en développement" : "intérêt"})`).join(", ")}. Côté IA : ${ia.skills.map((skill) => skill.name).join(", ")}, en développement. Il dirige des assistants de code IA : il n'est pas présenté comme développeur de métier.`, `On the digital side: ${vibe.skills.map((skill) => skill.name).join(", ")}. On the AI side: ${ia.skills.map((skill) => skill.name).join(", ")}, still developing. He directs AI coding assistants; he is not presented as a professional developer.`), actions: ["recruiter:competences"], mood: "talking" };
@@ -171,7 +171,8 @@ export function localReply(input: string, memory: DroidMemory): { reply: DroidRe
     };
   }
   const answer = reply(clean(input).trim(), next, (list) => (next.list = list));
-  return { reply: answer, memory: next };
+  // The site's typography: curly apostrophes in French.
+  return { reply: next.lang === "fr" ? { ...answer, text: answer.text.replace(/'/g, "’") } : answer, memory: next };
 }
 
 export const suggestions = (memory: DroidMemory) => {

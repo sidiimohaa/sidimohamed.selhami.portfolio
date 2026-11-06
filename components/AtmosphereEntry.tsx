@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 // Atmospheric entry, drawn over the start of a landing: re-entry heat with streaks rushing past,
 // then layers of the planet's own clouds, until the descent breaks out above the landing zone.
 export const ENTRY_SECONDS = 2.6;
+// The moment of thickest cloud, where the descent waits for a scene still being built.
+const COVER_HOLD = 1.6;
 const PALETTES: Record<string, { cloud: [number, number, number]; haze: string }> = {
   Tatooine: { cloud: [233, 210, 172], haze: "#e6cfa9" },
   Coruscant: { cloud: [132, 116, 158], haze: "#5f5379" },
@@ -35,7 +37,7 @@ function puff([r, g, b]: [number, number, number]) {
   return canvas;
 }
 
-export default function AtmosphereEntry({ planet, onDone }: { planet: string; onDone: () => void }) {
+export default function AtmosphereEntry({ planet, ready, onDone }: { planet: string; ready: RefObject<boolean>; onDone: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null),
     done = useRef(onDone);
   done.current = onDone;
@@ -62,10 +64,18 @@ export default function AtmosphereEntry({ planet, onDone }: { planet: string; on
     const observer = new ResizeObserver(resize);
     observer.observe(element);
     resize();
-    const start = performance.now();
-    let frame = 0;
+    let frame = 0,
+      last = performance.now(),
+      t = 0,
+      motion = 0;
+    // Time here runs frame by frame, so a busy moment slows the descent instead of skipping it, and
+    // the clouds stay closed until the ground below them is ready to be seen.
     const draw = (now: number) => {
-      const t = Math.max(0, (now - start) / 1000);
+      const step = Math.min(Math.max(0, (now - last) / 1000), 1 / 20);
+      last = now;
+      motion += step;
+      t += step;
+      if (!ready.current) t = Math.min(t, COVER_HOLD);
       if (t >= ENTRY_SECONDS) {
         done.current();
         return;
@@ -83,7 +93,7 @@ export default function AtmosphereEntry({ planet, onDone }: { planet: string; on
       ctx.fillRect(0, 0, width, height);
       // Re-entry plasma: white-hot ahead, burning orange and red towards the edges.
       if (heat > 0) {
-        const flicker = 0.9 + Math.sin(t * 47) * 0.05 + Math.sin(t * 113) * 0.05;
+        const flicker = 0.9 + Math.sin(motion * 47) * 0.05 + Math.sin(motion * 113) * 0.05;
         const plasma = ctx.createRadialGradient(cx, cy, reach * 0.05, cx, cy, reach);
         plasma.addColorStop(0, "rgba(255,244,224,.95)");
         plasma.addColorStop(0.28, "rgba(255,166,84,.85)");
@@ -96,7 +106,7 @@ export default function AtmosphereEntry({ planet, onDone }: { planet: string; on
         ctx.lineCap = "round";
         ctx.strokeStyle = "rgba(255,226,180,.8)";
         for (const streak of streaks) {
-          const r = (streak.offset + t * 2.4) % 1,
+          const r = (streak.offset + motion * 2.4) % 1,
             inner = reach * (0.12 + r * r * 0.9),
             outer = inner + reach * (0.04 + r * 0.22);
           ctx.globalAlpha = heat * r * 0.7;
@@ -110,7 +120,7 @@ export default function AtmosphereEntry({ planet, onDone }: { planet: string; on
       // Banks of cloud rush at the viewer and part around them.
       if (cloud > 0) {
         for (const puffAt of clouds) {
-          const depth = 1 - ((puffAt.offset + t * 1.25) % 1),
+          const depth = 1 - ((puffAt.offset + motion * 1.25) % 1),
             near = 1 / Math.max(depth, 0.08);
           const x = cx + Math.cos(puffAt.angle) * puffAt.spread * reach * 0.35 * near,
             y = cy + Math.sin(puffAt.angle) * puffAt.spread * reach * 0.22 * near,
@@ -127,6 +137,6 @@ export default function AtmosphereEntry({ planet, onDone }: { planet: string; on
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [planet]);
+  }, [planet, ready]);
   return <canvas ref={canvas} className="surface-entry" aria-hidden="true" />;
 }

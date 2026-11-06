@@ -323,7 +323,7 @@ export default function ImperialHacking({ reduced, audio, onFinish, onQuit }: Pr
       <section className={`hack ${urgent ? "urgent" : ""}`}>
         <header>
           <div>
-            <span>ÉTOILE NOIRE · NIVEAU 5 · TERMINAL TK-421</span>
+            <span>ÉTOILE DE LA MORT · NIVEAU 5 · TERMINAL TK-421</span>
             <strong id="hack-title">IMPERIAL HACKING</strong>
           </div>
           <div className="hack-status" aria-live="off">

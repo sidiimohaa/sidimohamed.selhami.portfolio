@@ -222,7 +222,7 @@ export const projects: Project[] = [
     kind: "Projet numérique · prototypage assisté par IA",
     goal: "Présenter mon profil autrement qu’avec un CV papier : un univers à explorer.",
     problem: "Un CV classique montre mal la curiosité, la créativité et l’appétence pour le digital et l’IA.",
-    solution: "Une galaxie en 3D : planètes à visiter, cockpit de X-wing, missions Jedi, arcade et cette station qui rassemble le dossier professionnel.",
+    solution: "Une galaxie en 3D : planètes à visiter, cockpit de X-wing, missions Jedi, arcade, droïde R-X7 et cette station qui rassemble le dossier professionnel.",
     stack: ["Next.js", "React", "TypeScript", "Three.js", "Web Audio", "Assistants de code IA"],
     contribution: "Concept, direction artistique, rédaction des briefs et des prompts, choix des contenus, tests et validation de chaque étape.",
     result: "Un portfolio explorable sur ordinateur et sur téléphone ; vous êtes en train de le parcourir.",

@@ -1,31 +1,34 @@
-// What the rank rewards reveal. TEXTES PROVISOIRES: replace them with your own story, skills and
-// references; the structure (titles, lists) can stay as it is.
+import { education, experiences, identity, projects, skillTree } from "../deathStar/cvData";
+
+// What the rank rewards reveal, drawn from the CV so that nothing here can drift from it. To tell a
+// more personal story, replace the paragraphs of `anecdote` with your own words.
+
+const skillsWith = (status: "confirmed" | "growing") =>
+  skillTree.flatMap((category) => category.skills).filter((skill) => skill.status === status).map((skill) => skill.name);
 
 export const anecdote = {
-  title: "L’anecdote du pilote",
-  provisional: true,
+  title: "Du rayon au cockpit",
   paragraphs: [
-    "Texte provisoire — Racontez ici une histoire courte et personnelle : le moment où vous avez su que vous vouliez faire ce métier, un projet qui a mal tourné avant de réussir, ou une rencontre qui a tout changé.",
-    "Deux ou trois phrases suffisent. Les recruteurs retiennent les histoires bien plus que les listes de compétences.",
+    "Pendant plus de trois ans chez Bricoman/Tecnomat, j’ai conseillé des clients sur les rayons électricité, outillage et quincaillerie : comprendre un besoin, conseiller, puis préparer et suivre les commandes.",
+    `Quand un CV classique m’a semblé trop étroit pour montrer ma curiosité, j’ai construit ORBITAL en dirigeant des assistants de code IA : concept, direction artistique, briefs, tests et validation de chaque étape. ${identity.search}`,
   ],
 };
 
 export const skills = {
   title: "Terminal des compétences",
-  provisional: true,
   groups: [
-    { name: "Compétences techniques", items: ["Compétence 1 — niveau ou contexte", "Compétence 2 — niveau ou contexte", "Compétence 3 — niveau ou contexte"] },
-    { name: "Expériences", items: ["Poste ou stage — entreprise, année", "Projet d’équipe — rôle, résultat"] },
-    { name: "Réalisations", items: ["Réalisation marquante — chiffre ou impact", "Prix, certification ou publication"] },
+    { name: "Compétences confirmées", items: skillsWith("confirmed") },
+    { name: "En développement", items: skillsWith("growing") },
+    { name: "Expériences", items: experiences.map((item) => `${item.role}, ${item.company} (${item.period})`) },
+    { name: "Réalisations", items: projects.map((item) => item.title) },
   ],
 };
 
 export const temple = {
-  provisional: true,
   relics: [
-    { id: "archives", title: "Les archives du Temple", text: "Texte provisoire — Les lectures, cours et ressources qui ont formé le pilote." },
-    { id: "kyber", title: "Le cristal du pilote", text: "Texte provisoire — Ce qui vous anime au fond : la valeur ou la passion qui guide vos choix." },
-    { id: "council", title: "Le siège du Conseil", text: "Texte provisoire — Les mentors, enseignants ou collègues qui vous ont fait progresser." },
-    { id: "holocron", title: "L’holocron scellé", text: "Texte provisoire — Un objectif que vous visez pour les années à venir." },
+    { id: "archives", title: "Les archives du Temple", text: `Ce qui a formé le pilote : ${education.map((item) => `${item.title} (${item.period})`).join(" ; ")}.` },
+    { id: "kyber", title: "Le cristal du pilote", text: identity.ambition },
+    { id: "council", title: "Le siège du Conseil", text: "Un Jedi n’avance jamais seul : en magasin chez Bricoman / Tecnomat, coordonner son travail avec celui de l’équipe faisait partie du quotidien." },
+    { id: "holocron", title: "L’holocron scellé", text: `${identity.search} ${identity.rhythm}.` },
   ],
 };
