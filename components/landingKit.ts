@@ -122,6 +122,10 @@ export type ZoneAction = {
   hidden?: boolean;
   // Calls the zone's vehicle: once it is ready the visitor climbs aboard (see Zone.board).
   boards?: boolean;
+  // Offered inside a closed-off part of the zone (see Zone.sealed).
+  inSealed?: boolean;
+  // Someone speaks: these lines are shown one after the other.
+  says?: { who: string; lines: string[] };
   activate: (reduced: boolean) => void;
 };
 export type Zone = {
@@ -147,6 +151,12 @@ export type Zone = {
   setQuality?: (level: number) => void;
   // Changes whenever an action's button should read differently.
   actionsKey?: () => number;
+  // The visitor is in a closed-off part of the zone: what lies outside it is not offered.
+  sealed?: () => boolean;
+  // How dark the screen is in a passage between two parts of the zone, 0 to 1.
+  veil?: () => number;
+  // The view camera, for what the zone draws on the screen itself.
+  attachCamera?: (camera: THREE.Camera) => void;
   // Compiles the shader variants for lights that switch on later, so walking up to them never stalls.
   warmLights?: (compile: () => void) => void;
   // A vehicle to board (Coruscant's air taxi): whether it waits with its door open, where the
@@ -163,7 +173,7 @@ export type Zone = {
   spawn: { position: THREE.Vector3; yaw: number };
   setViewport: (height: number) => void;
   setThrust: (level: number) => void;
-  tick: (dt: number, elapsed: number, reduced: boolean, walker: { x: number; z: number; yaw: number }) => void;
+  tick: (dt: number, elapsed: number, reduced: boolean, walker: { x: number; z: number; yaw: number; pitch: number }) => void;
 };
 // Zones report a secret mission once the visitor has completed it there.
 export type Reveal = (id: MissionId) => void;

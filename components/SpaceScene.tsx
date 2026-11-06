@@ -331,6 +331,7 @@ export default function SpaceScene({
     live = useRef(state);
   live.current = state;
   const markers = useRef<(HTMLButtonElement | null)[]>([]);
+  const spaceEventsRef = useRef<ReturnType<typeof createSpaceEvents> | null>(null);
   const distanceLabels = useRef<(HTMLElement | null)[]>([]),
     joystick = useRef<HTMLDivElement>(null),
     joystickThumb = useRef<HTMLElement>(null),
@@ -458,7 +459,10 @@ export default function SpaceScene({
         .compileAsync(scene, camera)
         .catch(() => undefined)
         .then(() => {
-          if (!disposed) onReady();
+          if (disposed) return;
+          onReady();
+          // The ships of the galactic events, while nothing else is going on.
+          spaceEventsRef.current?.prepare(renderer, camera, scene);
         });
     };
     const textureLoader = new THREE.TextureLoader(loadingManager);
@@ -619,14 +623,20 @@ export default function SpaceScene({
     );
     scene.add(traffic.group);
     const spaceEvents = livingOn("events") && livingOn("spaceEvents")
-      ? createSpaceEvents({ glow: traffic.glow, ship: traffic.fleetShip, asteroids: Math.round(60 + livingProfile().traffic * 120) })
+      ? createSpaceEvents({ glow: traffic.glow, ship: traffic.fleetShip, asteroids: Math.round(60 + livingProfile().traffic * 120), obstacles: () => obstacles })
       : null;
     if (spaceEvents) scene.add(spaceEvents.group);
+    spaceEventsRef.current = spaceEvents;
     // Development only: runs the events forward, to check them by hand.
     if (process.env.NODE_ENV !== "production" && spaceEvents)
       (window as unknown as { __orbitalSpace?: object }).__orbitalSpace = {
-        advance: (seconds = 1) => {
-          for (let i = 0; i < seconds * 30; i++) spaceEvents.tick(1 / 30, i / 30, false, camera, galaxy().activeAt("space"));
+        advance: (seconds = 1, travelling = false) => {
+          for (let i = 0; i < seconds * 30; i++) spaceEvents.tick(1 / 30, i / 30, false, camera, galaxy().activeAt("space"), travelling);
+        },
+        draw: () => {
+          camera.updateMatrixWorld();
+          renderer.render(scene, camera);
+          return renderer.domElement.toDataURL("image/jpeg", 0.8);
         },
         camera,
         group: spaceEvents.group,
@@ -853,7 +863,8 @@ export default function SpaceScene({
           s.travel ||
           settling ||
           Math.abs(stick.x) + Math.abs(stick.y) + Math.abs(bank) > 0.001 ||
-          elapsed - droidAt < 1.5;
+          elapsed - droidAt < 1.5 ||
+          !!spaceEvents?.animating();
         if (signature !== lastSignature) dirtyFrames = Math.max(dirtyFrames, 3);
         lastSignature = signature;
         if (!moving && dirtyFrames <= 0) {
@@ -1135,7 +1146,7 @@ export default function SpaceScene({
         { active: s.flying && !s.reduced, travel: s.travel },
         obstacles,
       );
-      spaceEvents?.tick(s.paused ? 0 : dt, elapsed, s.reduced, camera, galaxy().activeAt("space"));
+      spaceEvents?.tick(s.paused ? 0 : dt, elapsed, s.reduced, camera, galaxy().activeAt("space"), s.travel);
       if (s.droidSignal !== lastDroidSignal) {
         lastDroidSignal = s.droidSignal;
         droidAt = elapsed;
@@ -1302,6 +1313,8 @@ export default function SpaceScene({
     };
     frame = requestAnimationFrame(animate);
     return () => {
+      spaceEventsRef.current?.stop();
+      spaceEventsRef.current = null;
       stopTint();
       disposed = true;
       referenceTextures.forEach((texture) => texture.dispose());

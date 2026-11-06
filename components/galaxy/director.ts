@@ -54,7 +54,7 @@ export function createDirector(options: { random?: () => number; events?: Galact
     return run;
   }
   function draw(allowed: GalacticEvent[]) {
-    const pool = allowed.filter((event) => (cooldown.get(event.id) ?? 0) <= clock && !active.some((run) => run.id === event.id));
+    const pool = allowed.filter((event) => !event.manual && (cooldown.get(event.id) ?? 0) <= clock && !active.some((run) => run.id === event.id));
     const total = pool.reduce((sum, event) => sum + event.weight, 0);
     if (!total) return null;
     let roll = random() * total;

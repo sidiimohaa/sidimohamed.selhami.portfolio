@@ -230,5 +230,5 @@ export function createEndorLandmarks(colliders: Spot[]) {
     h.rotation.set(tilt, turn, tilt * 0.5);
     group.add(h);
   }
-  return { group, wrecks };
+  return { group, wrecks, station };
 }

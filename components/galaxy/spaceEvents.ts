@@ -2,11 +2,19 @@ import * as THREE from "three";
 import { tieGeometry } from "../tieModel";
 import { galaxyAudio } from "./audio";
 import type { ActiveEvent } from "./director";
+import { eventById } from "./catalog";
+import { hideSignalMarker, showSignalMarker } from "./signalMarker";
+import { clearOf, type Obstacle } from "./spacePlacement";
 import { galaxy } from "./store";
 
 // What can cross the visitor's path in open space. Everything is set out ahead of the ship when
 // its event starts, far enough to come out of the dark or out of hyperspace, never in front of
-// the camera. The ship cannot be damaged in free flight, so a close call is a sound and a burst.
+// the camera nor inside a world. The ship cannot be damaged in free flight, so a close call is a
+// sound and a burst.
+//
+// Motion follows a clock of its own, advanced every frame: the director's only ticks once a second.
+// The ships are built once and kept, a few at a time when the scene is idle, so that an event never
+// stalls the flight when it starts. An event interrupted by a trip is set out again on arrival.
 
 type Ship = (kind: "destroyer" | "freighter" | "fighter") => THREE.Object3D;
 
@@ -29,10 +37,15 @@ function rock(seed: number) {
   return geometry;
 }
 
-export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; asteroids: number }) {
+export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; asteroids: number; obstacles: () => Obstacle[] }) {
   const { glow, ship } = options;
   const group = new THREE.Group();
   group.name = "space-events";
+  // The wrecks the visitor has just reached, told apart from those whose signal simply ended.
+  const eventFound = new Set<string>();
+  let wasTravelling = false;
+  // Seconds each running event has been on, from its key.
+  const ages = new Map<number, number>();
   const seen = new Map<number, string>();
   const forward = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
   const frame = (camera: THREE.Camera) => {
@@ -40,11 +53,19 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
     right.crossVectors(forward, camera.up).normalize();
     up.crossVectors(right, forward).normalize();
   };
+  // Beyond this after a trip, something has been left behind and is set out again.
+  const OUT_OF_REACH = 560;
+  const scratch = new THREE.Vector3();
+
+  // One of each hull, cloned as needed: clones share geometry and materials.
+  const hulls: Partial<Record<"destroyer" | "freighter" | "fighter", THREE.Object3D>> = {};
+  const hullOf = (kind: "destroyer" | "freighter" | "fighter") => (hulls[kind] ??= ship(kind));
 
   // F, I: something adrift with a beacon, to fly up to.
-  const makeDerelict = (kind: "freighter" | "fighter", color: number) => {
+  type Derelict = { root: THREE.Group; beacon: THREE.Sprite; lingering: boolean };
+  const makeDerelict = (kind: "freighter" | "fighter", color: number): Derelict => {
     const root = new THREE.Group();
-    const hull = ship(kind);
+    const hull = hullOf(kind).clone();
     hull.rotation.set(0.5, 1.1, 0.9);
     hull.scale.setScalar(kind === "fighter" ? 4 : 2.4);
     hull.traverse((item) => {
@@ -66,14 +87,22 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
     root.add(beacon);
     root.visible = false;
     group.add(root);
-    return { root, beacon };
+    return { root, beacon, lingering: false };
   };
-  const derelicts: Record<string, ReturnType<typeof makeDerelict>> = {};
+  const derelicts: Record<string, Derelict> = {};
   const derelictOf = (id: string) => (derelicts[id] ??= id === "space-distress" ? makeDerelict("fighter", 0xff5040) : makeDerelict("freighter", 0x9fe6ff));
+  const setOutDerelict = (item: Derelict, camera: THREE.Camera) => {
+    frame(camera);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    item.root.position.copy(camera.position).addScaledVector(forward, 210).addScaledVector(right, side * (50 + Math.random() * 50)).addScaledVector(up, -12 + Math.random() * 30);
+    clearOf(item.root.position, options.obstacles(), 40);
+    item.root.visible = true;
+    item.lingering = false;
+  };
 
-  // G: a patrol in formation.
-  let patrol: { root: THREE.Group; from: THREE.Vector3; to: THREE.Vector3 } | null = null;
-  const makePatrol = (camera: THREE.Camera) => {
+  // G: a patrol in formation, kept between passes.
+  let patrol: { root: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; key: number } | null = null;
+  const makePatrol = () => {
     const parts = tieGeometry();
     const hull = new THREE.MeshStandardMaterial({ color: 0x8c9196, metalness: 0.5, roughness: 0.45 });
     const panels = new THREE.MeshStandardMaterial({ color: 0x1a1d22, metalness: 0.4, roughness: 0.6 });
@@ -86,33 +115,54 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
       fighter.scale.setScalar(2);
       root.add(fighter);
     });
+    root.visible = false;
     group.add(root);
+    return { root, from: new THREE.Vector3(), to: new THREE.Vector3(), key: -1 };
+  };
+  const setOutPatrol = (camera: THREE.Camera, key: number) => {
+    patrol ??= makePatrol();
     frame(camera);
     const side = Math.random() < 0.5 ? -1 : 1;
     const centre = camera.position.clone().addScaledVector(forward, 160).addScaledVector(up, 18 * side);
-    const from = centre.clone().addScaledVector(right, -460 * side).addScaledVector(forward, 120);
-    const to = centre.clone().addScaledVector(right, 460 * side).addScaledVector(forward, -40);
-    return { root, from, to };
+    clearOf(centre, options.obstacles(), 60);
+    patrol.from.copy(centre).addScaledVector(right, -460 * side).addScaledVector(forward, 120);
+    patrol.to.copy(centre).addScaledVector(right, 460 * side).addScaledVector(forward, -40);
+    patrol.key = key;
   };
 
-  // H: an asteroid cluster.
-  const rocks = new THREE.InstancedMesh(rock(1.7), new THREE.MeshStandardMaterial({ color: 0x6d6459, roughness: 0.97, metalness: 0.03, flatShading: true }), options.asteroids);
+  // H: an asteroid field, kept round the ship for as long as it lasts: rocks left behind come back
+  // ahead, so the visitor really is flying through it.
+  const rocks = new THREE.InstancedMesh(rock(1.7), new THREE.MeshStandardMaterial({ color: 0x6d6459, roughness: 0.97, metalness: 0.03, flatShading: true, transparent: true, opacity: 0 }), options.asteroids);
   rocks.visible = false;
   rocks.frustumCulled = false;
   rocks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   group.add(rocks);
-  const fieldItems = Array.from({ length: options.asteroids }, () => ({ at: new THREE.Vector3(), spin: new THREE.Vector3(), rot: new THREE.Euler(), size: 1, drift: new THREE.Vector3(), broken: false }));
+  const fieldItems = Array.from({ length: options.asteroids }, () => ({ at: new THREE.Vector3(), spin: new THREE.Vector3(), rot: new THREE.Euler(), size: 1, drift: new THREE.Vector3(), broken: false, grown: 1 }));
   const dummy = new THREE.Object3D();
   let fieldLevel = 0;
+  const FIELD_REACH = 330;
+  const setRock = (item: (typeof fieldItems)[number], ahead: boolean, camera: THREE.Camera) => {
+    const a = Math.random() * Math.PI * 2,
+      r = 26 + Math.pow(Math.random(), 0.7) * 170;
+    const depth = ahead ? 190 + Math.random() * 120 : 70 + Math.random() * 240;
+    item.at.copy(camera.position).addScaledVector(forward, depth).addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r * 0.45);
+    clearOf(item.at, options.obstacles(), 16);
+    item.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.9);
+    item.rot.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    item.size = 1.2 + Math.pow(Math.random(), 2.4) * 13;
+    item.drift.copy(right).multiplyScalar((Math.random() - 0.5) * 3).addScaledVector(up, (Math.random() - 0.5) * 1.5);
+    item.broken = false;
+    item.grown = ahead ? 0 : 1;
+  };
   const burst = sprite(glow, 0xffc08a, 1);
   burst.visible = false;
   group.add(burst);
   let burstAge = 1;
 
-  // J: a fleet out of hyperspace.
-  let fleet: { root: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; flash: THREE.Sprite[]; ships: THREE.Object3D[] } | null = null;
-  const makeFleet = (camera: THREE.Camera) => {
-    frame(camera);
+  // J: a fleet out of hyperspace, built once and kept.
+  type Fleet = { root: THREE.Group; from: THREE.Vector3; to: THREE.Vector3; flash: THREE.Sprite[]; ships: THREE.Object3D[]; rest: THREE.Vector3[]; key: number };
+  let fleet: Fleet | null = null;
+  const makeFleet = (): Fleet => {
     const root = new THREE.Group();
     const layout: [("destroyer" | "freighter" | "fighter"), number, number, number][] = [
       ["destroyer", 0, 0, 0],
@@ -124,9 +174,11 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
       ["fighter", 34, 12, 160],
     ];
     const flash: THREE.Sprite[] = [];
+    const rest: THREE.Vector3[] = [];
     const ships = layout.map(([kind, x, y, z]) => {
-      const vessel = ship(kind);
+      const vessel = hullOf(kind).clone();
       vessel.position.set(x, y, z);
+      rest.push(vessel.position.clone());
       vessel.scale.multiplyScalar(kind === "destroyer" ? 6 : kind === "freighter" ? 5 : 6);
       // Engines lit: the traffic system normally drives these, here they just burn.
       vessel.traverse((item) => {
@@ -135,6 +187,7 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
           item.material.opacity = 0.85;
         }
       });
+      vessel.visible = false;
       root.add(vessel);
       const light = sprite(glow, 0xcfe6ff, 1);
       light.position.set(x, y, z);
@@ -143,94 +196,144 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
       flash.push(light);
       return vessel;
     });
+    root.visible = false;
     group.add(root);
-    const centre = camera.position.clone().addScaledVector(forward, 270).addScaledVector(up, 38);
-    const from = centre.clone().addScaledVector(right, -210).addScaledVector(forward, 60);
-    const to = centre.clone().addScaledVector(right, 210).addScaledVector(forward, -30);
-    root.position.copy(from);
-    root.lookAt(to);
-    return { root, from, to, flash, ships };
+    return { root, from: new THREE.Vector3(), to: new THREE.Vector3(), flash, ships, rest, key: -1 };
   };
-  const release = (object: THREE.Object3D) => {
-    group.remove(object);
-    object.traverse((item) => {
-      const mesh = item as THREE.Mesh;
-      if (mesh.isMesh) mesh.geometry.dispose();
-    });
+  const setOutFleet = (camera: THREE.Camera, key: number) => {
+    fleet ??= makeFleet();
+    frame(camera);
+    const centre = camera.position.clone().addScaledVector(forward, 270).addScaledVector(up, 38);
+    clearOf(centre, options.obstacles(), 190);
+    fleet.from.copy(centre).addScaledVector(right, -210).addScaledVector(forward, 60);
+    fleet.to.copy(centre).addScaledVector(right, 210).addScaledVector(forward, -30);
+    fleet.root.position.copy(fleet.from);
+    fleet.root.lookAt(fleet.to);
+    fleet.key = key;
   };
 
+  let stopped = false;
+  let ready = false;
   return {
     group,
-    tick(dt: number, elapsed: number, reduced: boolean, camera: THREE.PerspectiveCamera, runs: ActiveEvent[]) {
+    /** Whether something is moving, for the profile that only draws on demand. */
+    animating: () => ages.size > 0 || fieldLevel > 0.01 || burst.visible,
+    /** Builds everything ahead of time, one piece per idle moment, then compiles it unseen. */
+    prepare(renderer: THREE.WebGLRenderer, camera: THREE.Camera, scene: THREE.Scene) {
+      const steps = [() => hullOf("fighter"), () => hullOf("freighter"), () => hullOf("destroyer"), () => (patrol ??= makePatrol()), () => (fleet ??= makeFleet()), () => derelictOf("space-distress"), () => derelictOf("space-wreck")];
+      const next = () => {
+        if (stopped) return;
+        const step = steps.shift();
+        if (step) {
+          step();
+          window.setTimeout(next, 180);
+          return;
+        }
+        ready = true;
+        void renderer.compileAsync(group, camera, scene).catch(() => undefined);
+      };
+      window.setTimeout(next, 2500);
+    },
+    isReady: () => ready,
+    stop: () => {
+      stopped = true;
+      hideSignalMarker();
+    },
+    tick(dt: number, elapsed: number, reduced: boolean, camera: THREE.PerspectiveCamera, runs: ActiveEvent[], travelling = false) {
       const has = (id: string) => runs.find((run) => run.id === id);
-      const now = galaxy().now();
+      const justArrived = wasTravelling && !travelling;
+      wasTravelling = travelling;
       const keys = new Set(runs.map((run) => run.key));
+      for (const key of ages.keys()) if (!keys.has(key)) ages.delete(key);
+      for (const run of runs) ages.set(run.key, (ages.get(run.key) ?? 0) + dt);
+      const ageOf = (run: ActiveEvent) => ages.get(run.key) ?? 0;
       for (const [key, id] of seen) {
         if (keys.has(key)) continue;
         seen.delete(key);
-        if (derelicts[id]) derelicts[id].root.visible = false;
+        const item = derelicts[id];
+        // Found, a wreck stays where it is until the visitor has flown on.
+        if (item) {
+          if (eventFound.has(id)) {
+            eventFound.delete(id);
+            item.lingering = true;
+          } else item.root.visible = false;
+        }
       }
 
-      // Newly started: set the scene ahead of the ship.
-      for (const run of runs) {
-        if (seen.has(run.key)) continue;
-        seen.set(run.key, run.id);
-        frame(camera);
-        if (run.id === "space-distress" || run.id === "space-wreck") {
-          const item = derelictOf(run.id);
-          const side = Math.random() < 0.5 ? -1 : 1;
-          item.root.position.copy(camera.position).addScaledVector(forward, 210).addScaledVector(right, side * (50 + Math.random() * 50)).addScaledVector(up, -12 + Math.random() * 30);
-          item.root.visible = true;
+      // Newly started: set the scene ahead of the ship, unless a trip is under way.
+      if (!travelling) {
+        for (const run of runs) {
+          if (seen.has(run.key)) continue;
+          seen.set(run.key, run.id);
+          frame(camera);
+          if (run.id === "space-distress" || run.id === "space-wreck") setOutDerelict(derelictOf(run.id), camera);
+          if (run.id === "space-asteroids") fieldItems.forEach((item) => setRock(item, false, camera));
+          if (run.id === "space-patrol") setOutPatrol(camera, run.key);
+          if (run.id === "space-fleet") setOutFleet(camera, run.key);
         }
-        if (run.id === "space-asteroids") {
-          const centre = camera.position.clone().addScaledVector(forward, 250);
-          fieldItems.forEach((item) => {
-            const a = Math.random() * Math.PI * 2,
-              r = 30 + Math.pow(Math.random(), 0.7) * 170;
-            item.at.copy(centre).addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r * 0.45).addScaledVector(forward, (Math.random() - 0.5) * 240);
-            item.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.9);
-            item.rot.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
-            item.size = 1.2 + Math.pow(Math.random(), 2.4) * 13;
-            item.drift.copy(right).multiplyScalar((Math.random() - 0.5) * 3).addScaledVector(up, (Math.random() - 0.5) * 1.5);
-            item.broken = false;
-          });
-        }
-        if (run.id === "space-patrol" && !patrol) patrol = makePatrol(camera);
-        if (run.id === "space-fleet" && !fleet) fleet = makeFleet(camera);
       }
 
-      // F, I: drift, blink, and report when the visitor has come close.
+      // F, I: drift, blink, and report when the visitor has come close. The marker points the way.
+      let signal: { position: THREE.Vector3; text: string } | null = null;
       for (const id of ["space-distress", "space-wreck"]) {
         const item = derelicts[id];
+        if (!item) continue;
+        if (item.lingering) {
+          item.beacon.visible = false;
+          if (item.root.position.distanceTo(camera.position) > 320) {
+            item.lingering = false;
+            item.root.visible = false;
+            item.beacon.visible = true;
+          }
+          continue;
+        }
         const run = has(id);
-        if (!item || !run) continue;
+        if (!run || !seen.has(run.key)) continue;
+        if (travelling) {
+          item.root.visible = false;
+          continue;
+        }
+        const away = item.root.position.distanceTo(camera.position);
+        if (!item.root.visible || (justArrived && away > OUT_OF_REACH)) setOutDerelict(item, camera);
+        item.beacon.visible = true;
         item.root.rotation.y += dt * 0.05;
         item.root.rotation.z += dt * 0.03;
         item.beacon.material.opacity = reduced ? 0.8 : 0.25 + 0.75 * (Math.sin(elapsed * 4.2) > 0 ? 1 : 0);
-        if (item.root.position.distanceTo(camera.position) < 62) {
+        if (away < 62) {
+          eventFound.add(id);
           galaxy().found(id);
-          item.root.visible = false;
-        }
+        } else if (dt > 0) signal = { position: item.root.position, text: `${eventById(id)?.title ?? "Signal"} · ${Math.round(away * 10)} km` };
       }
+      if (signal) {
+        const { position, text } = signal as { position: THREE.Vector3; text: string };
+        scratch.copy(position).applyMatrix4(camera.matrixWorldInverse);
+        const behind = scratch.z > 0;
+        scratch.copy(position).project(camera);
+        showSignalMarker(scratch.x, scratch.y, behind, text);
+      } else hideSignalMarker();
 
       // G: the patrol crosses in one long pass, and leaves when its event ends.
       const patrolRun = has("space-patrol");
       if (patrol) {
-        const life = patrolRun ? (now - patrolRun.startedAt) / (patrolRun.endsAt - patrolRun.startedAt) : 2;
-        if (life > 1.02) {
-          release(patrol.root);
-          patrol = null;
-        } else {
-          patrol.root.position.lerpVectors(patrol.from, patrol.to, Math.min(1, life));
+        const showing = patrolRun && !travelling && seen.has(patrolRun.key);
+        patrol.root.visible = !!showing;
+        if (showing) {
+          // Left far behind by a trip: it comes round again from here.
+          if (justArrived && patrol.root.position.distanceTo(camera.position) > OUT_OF_REACH) setOutPatrol(camera, patrolRun.key);
+          const life = THREE.MathUtils.clamp(ageOf(patrolRun) / (patrolRun.endsAt - patrolRun.startedAt), 0, 1);
+          patrol.root.position.lerpVectors(patrol.from, patrol.to, life);
           patrol.root.lookAt(patrol.to);
+          if (!reduced) patrol.root.rotateZ(Math.sin(elapsed * 0.7) * 0.06);
         }
       }
 
-      // H: rocks ease in and out of the dark; those that come too close burst.
+      // H: rocks fade out of the dark; those that come too close burst.
       const field = has("space-asteroids");
-      fieldLevel += ((field ? 1 : 0) - fieldLevel) * (1 - Math.exp(-dt * 0.45));
+      fieldLevel += ((field && !travelling ? 1 : 0) - fieldLevel) * (1 - Math.exp(-dt * 0.9));
       rocks.visible = fieldLevel > 0.01;
+      (rocks.material as THREE.MeshStandardMaterial).opacity = fieldLevel;
       if (rocks.visible) {
+        frame(camera);
         fieldItems.forEach((item, i) => {
           if (!reduced) {
             item.at.addScaledVector(item.drift, dt);
@@ -238,7 +341,10 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
             item.rot.y += item.spin.y * dt;
             item.rot.z += item.spin.z * dt;
           }
-          if (!item.broken && item.at.distanceTo(camera.position) < item.size + 5) {
+          item.grown = Math.min(1, item.grown + dt * 0.5);
+          const away = item.at.distanceTo(camera.position);
+          if (field && away > FIELD_REACH) setRock(item, true, camera);
+          else if (!item.broken && away < item.size + 5) {
             item.broken = true;
             burst.position.copy(item.at);
             burst.visible = true;
@@ -247,7 +353,7 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
           }
           dummy.position.copy(item.at);
           dummy.rotation.copy(item.rot);
-          dummy.scale.setScalar(item.broken ? 0 : item.size * fieldLevel);
+          dummy.scale.setScalar(item.broken ? 0 : item.size * item.grown);
           dummy.updateMatrix();
           rocks.setMatrixAt(i, dummy.matrix);
         });
@@ -260,20 +366,25 @@ export function createSpaceEvents(options: { glow: THREE.Texture; ship: Ship; as
         if (burstAge > 0.6) burst.visible = false;
       }
 
-      // J: flashes on arrival, the long crossing, flashes again as each ship jumps away.
+      // J: each ship drops out of hyperspace in a flash, the fleet crosses, then each jumps away.
       const fleetRun = has("space-fleet");
       if (fleet) {
-        const span = fleetRun ? fleetRun.endsAt - fleetRun.startedAt : 1;
-        const life = fleetRun ? now - fleetRun.startedAt : span + 99;
-        if (life > span + 1) {
-          release(fleet.root);
-          fleet = null;
-        } else {
+        const showing = fleetRun && !travelling && seen.has(fleetRun.key);
+        fleet.root.visible = !!showing;
+        if (showing) {
+          if (justArrived && fleet.root.position.distanceTo(camera.position) > OUT_OF_REACH) setOutFleet(camera, fleetRun.key);
+          const span = fleetRun.endsAt - fleetRun.startedAt,
+            life = ageOf(fleetRun);
           fleet.root.position.lerpVectors(fleet.from, fleet.to, Math.min(1, life / span));
           fleet.ships.forEach((vessel, i) => {
             const arrive = 0.3 + i * 0.28,
               leave = span - 4 + i * 0.28;
             vessel.visible = life > arrive && life < leave;
+            // Coming out of the jump, then going back into it, along the line of flight.
+            const coming = THREE.MathUtils.clamp((life - arrive) / 0.32, 0, 1),
+              going = THREE.MathUtils.clamp((life - leave + 0.4) / 0.4, 0, 1);
+            const shift = reduced ? 0 : Math.pow(1 - coming, 3) * -420 + Math.pow(going, 3) * 520;
+            vessel.position.copy(fleet!.rest[i]).setZ(fleet!.rest[i].z + shift);
             const age = life < arrive + 1 ? life - arrive : life - leave;
             const light = fleet!.flash[i];
             light.visible = !reduced && age >= 0 && age < 0.45;

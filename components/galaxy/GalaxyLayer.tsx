@@ -9,6 +9,7 @@ import { galaxyAudio } from "./audio";
 import { setCityHour } from "./cityEnv";
 import { placeNames, eventById, type EventChoice, type EventPlace, type GalacticEvent } from "./catalog";
 import type { DirectorNotice } from "./director";
+import { registerSignalMarker } from "./signalMarker";
 import { enabledPlace, galaxy, galaxyBusy, projectFor, setMonitorOpen, useGalaxy, useMonitorOpen } from "./store";
 
 // The interface of the living universe: the copilot's short notifications, and the Galactic
@@ -44,6 +45,10 @@ export default function GalaxyLayer({ place, blocked, sound, reduced }: Props) {
       if (document.hidden) return;
       director.tick(dt, { place: live.current.place, blocked: live.current.blocked || galaxyBusy(), enabled: enabledPlace });
       queue.current.push(...director.drainNotices());
+      // Nothing is said over a trip or a cinematic, and what no longer applies is dropped: a signal
+      // heard in space must not be announced on a planet, nor one that has already ended.
+      queue.current = queue.current.filter((item) => item.event.place === live.current.place && (item.kind !== "start" || director.active().some((run) => run.key === item.key)));
+      if (live.current.blocked || galaxyBusy()) return;
       setNotice((current) => {
         if (current || !queue.current.length) return current;
         const next = queue.current.shift()!;
@@ -73,6 +78,12 @@ export default function GalaxyLayer({ place, blocked, sound, reduced }: Props) {
 
   return (
     <>
+      {(place === "space" || place === "hoth") && !blocked && (
+        <div ref={registerSignalMarker} className="galaxy-marker" aria-hidden="true" style={{ display: "none" }}>
+          <i />
+          <span />
+        </div>
+      )}
       <AnimatePresence>
         {notice && !open && !(silent && notice.kind !== "start") && (
           <motion.aside

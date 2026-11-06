@@ -75,7 +75,7 @@ function leatherTexture(tone: number) {
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
   return map;
 }
-function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"): Ewok {
+export function ewok(fur: string, hood: number, height = 1, staff?: "spear" | "staff"): Ewok {
   const root = new THREE.Group();
   root.name = "ewok-villager";
   root.userData.character = true;

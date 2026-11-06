@@ -30,6 +30,8 @@ export type GalacticEvent = {
   discovery?: { title: string; body: string; project?: boolean; mission?: MissionId };
   // Needs the visitor to reach something: the event is only "found" when the scene reports it.
   seek?: boolean;
+  // Started only by the visitor's own action, never drawn by the director.
+  manual?: boolean;
 };
 
 export const galacticEvents: GalacticEvent[] = [
@@ -123,10 +125,11 @@ export const galacticEvents: GalacticEvent[] = [
     endLine: "Le vent retombe.",
   },
   {
-    id: "hoth-probe", place: "hoth", title: "Sonde de reconnaissance", priority: 1, weight: 2, duration: [18, 26], cooldown: 240,
-    summary: "Un écho sur le radar : une activité de reconnaissance impériale survole la zone.",
-    line: "Écho radar au-dessus de la crête. Probablement une sonde impériale.",
-    endLine: "L’écho a disparu.",
+    id: "hoth-probe", place: "hoth", title: "Sonde de reconnaissance", priority: 2, weight: 2, duration: [110, 140], cooldown: 300, seek: true,
+    summary: "Un écho sur le radar : une sonde impériale descend vers la base et tourne devant l’entrée du hangar.",
+    line: "Écho radar au-dessus de la crête : une sonde impériale descend vers la base. Suivez le repère, sortez du hangar.",
+    endLine: "L’écho a disparu. La sonde a repris de l’altitude.",
+    discovery: { title: "Sonde neutralisée", body: "Un tir depuis la tranchée, et la sonde s’est autodétruite. Selon Han Solo, il l’a à peine touchée. Elle transmettait ce dossier à l’Empire.", project: true },
   },
   {
     id: "hoth-distress", place: "hoth", title: "Signal de détresse", priority: 2, weight: 1, duration: [600, 600], cooldown: 900, seek: true,
@@ -145,6 +148,18 @@ export const galacticEvents: GalacticEvent[] = [
     summary: "Le bruit de speeders résonne au loin : une patrouille longe la clairière.",
     line: "Moteurs de speeders au loin. Les Ewoks l’ont entendu avant moi.",
     endLine: "La patrouille s’éloigne.",
+  },
+  {
+    id: "endor-atst", place: "endor", title: "TS-TT en patrouille", priority: 2, weight: 2, duration: [52, 66], cooldown: 300,
+    summary: "Un marcheur TS-TT et deux éclaireurs contournent la clairière entre les arbres.",
+    line: "Pas lourds dans la forêt : un TS-TT contourne la clairière. Les Ewoks s’agitent dans les arbres.",
+    endLine: "Deux troncs ont écrasé la tête du marcheur. Les Ewoks poussent des cris de joie.",
+  },
+  {
+    id: "endor-shield", place: "endor", title: "Bunker du bouclier", priority: 3, weight: 1, duration: [40, 40], cooldown: 60, seek: true, manual: true,
+    summary: "Les charges sont posées sur le générateur du bouclier. Quittez le bunker.",
+    line: "Charges armées ! Sortez du bunker : le bouclier de la station va tomber.",
+    discovery: { title: "Bouclier détruit", body: "Le générateur a sauté, le bouclier est tombé, et la station de combat a explosé au-dessus d’Endor. Une archive a survécu dans le réseau du bunker.", project: true },
   },
   // The station: atmosphere only, and never in Recruiter mode.
   {

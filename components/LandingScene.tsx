@@ -107,6 +107,15 @@ export default function LandingScene({
     () => window.matchMedia("(pointer: coarse)").matches,
   );
   const sceneReady = useRef(false);
+  const veil = useRef<HTMLDivElement>(null);
+  // Someone in the scene speaking, one line after the other.
+  const [sealed, setSealed] = useState(false);
+  const [saying, setSaying] = useState<{ who: string; lines: string[]; at: number } | null>(null);
+  useEffect(() => {
+    if (!saying) return;
+    const id = window.setTimeout(() => setSaying((now) => (now && now.at + 1 < now.lines.length ? { ...now, at: now.at + 1 } : null)), 6200);
+    return () => window.clearTimeout(id);
+  }, [saying]);
   const live = useRef({ reduced, paused, hidden });
   live.current = { reduced, paused, hidden };
   const cue = useRef(onCue),
@@ -204,6 +213,7 @@ export default function LandingScene({
     scene.add(zone.group);
     scene.fog = zone.fog;
     const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 2600);
+    zone.attachCamera?.(camera);
     // The ship keeps its own modelled detail; everything else gets the world's surface treatment.
     enrichMaterials(zone.group, worldLook.detail, tier, [zone.ship]);
     const pipeline = createPipeline(renderer, scene, camera, worldLook.grade, tier);
@@ -212,7 +222,7 @@ export default function LandingScene({
     await breathe();
     // Development only: what adaptive quality has settled on, for performance checks.
     if (process.env.NODE_ENV !== "production")
-      (window as unknown as { __orbitalRender?: object }).__orbitalRender = { scene, renderer, walker: () => walker, tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
+      (window as unknown as { __orbitalRender?: object }).__orbitalRender = { scene, renderer, zone, walker: () => walker, tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
         // Runs the zone forward and turns the visitor, to check a scene at any moment by hand.
         advance: (seconds = 1) => {
           for (let i = 0; i < seconds * 30; i++) {
@@ -259,7 +269,7 @@ export default function LandingScene({
     zone.actions?.forEach((action) => action.objects.forEach((object) => actionOf.set(object, action)));
     const actionObjects = [...actionOf.keys()];
     // Secret actions only join the buttons once the visitor stands close to them.
-    const listed = (near: string[]) => zone.actions?.filter((action) => !action.hidden || near.includes(action.id)).map(({ id, label, hidden }) => ({ id, label, hidden })) ?? [];
+    const listed = (near: string[]) => zone.actions?.filter((action) => (zone.sealed?.() ? action.inSealed || near.includes(action.id) : !action.hidden || near.includes(action.id))).map(({ id, label, hidden }) => ({ id, label, hidden })) ?? [];
     const secretActions = zone.actions?.filter((action) => action.hidden) ?? [];
     let nearKey = "";
     setActions(listed([]));
@@ -474,7 +484,11 @@ export default function LandingScene({
     // Use an action: walk to where it can be reached first if needed, then face it and trigger it.
     const perform = (action: ZoneAction) => {
       const still = live.current.reduced;
-      if (action.story) {
+      if (action.says) {
+        action.activate(still);
+        cue.current("terminal");
+        setSaying({ who: action.says.who, lines: action.says.lines, at: 0 });
+      } else if (action.story) {
         action.activate(still);
         cue.current("terminal");
         setStory(action.story);
@@ -742,14 +756,16 @@ export default function LandingScene({
       }
       elapsed += dt;
       adapt(dt);
+      if (veil.current) veil.current.style.opacity = String(zone.veil?.() ?? 0);
       const { reduced: still, paused: frozen } = live.current;
       if (!frozen && !(current === "arrival" && elapsed < entryHold)) clock += dt;
       zone.tick(frozen ? 0 : dt, elapsed, still, walker);
       if (secretActions.length) {
         const near = secretActions.filter((action) => Math.hypot(action.position.x - walker.x, action.position.z - walker.z) < 4.5).map((action) => action.id);
-        const key = `${near.join()}|${zone.actionsKey?.() ?? 0}`;
+        const key = `${near.join()}|${zone.actionsKey?.() ?? 0}|${zone.sealed?.() ?? false}|${zone.climb?.aloft() ?? false}`;
         if (key !== nearKey) {
           nearKey = key;
+          setSealed(zone.sealed?.() ?? false);
           setActions(listed(near));
         }
       }
@@ -1211,6 +1227,14 @@ export default function LandingScene({
           </motion.aside>
         )}
       </AnimatePresence>
+      <div ref={veil} className="surface-veil" aria-hidden="true" />
+      {saying && (
+        <button className="surface-saying" onClick={() => setSaying((now) => (now && now.at + 1 < now.lines.length ? { ...now, at: now.at + 1 } : null))}>
+          <span className="mono">{saying.who}</span>
+          {saying.lines[saying.at]}
+          <small className="mono">{saying.at + 1}/{saying.lines.length} · TOUCHER POUR CONTINUER</small>
+        </button>
+      )}
       {story && <PassionsViewer at={story.at} title={story.title} onClose={() => setStory(null)} />}
       {bounty !== null && landing.terminals[bounty] && (
         <BountyProjectPanel project={landing.terminals[bounty]} onClose={() => setBounty(null)} />
@@ -1223,9 +1247,9 @@ export default function LandingScene({
           </span>
           {planet==="Tatooine"&&<button className="surface-district mono" onClick={()=>controls.current?.district()} disabled={phase==="takeoff"}>{inDistrict?"← X-WING":"MOS EISLEY ↗"}</button>}
           {planet==="Tatooine"&&<button className="surface-district surface-cantina mono" onClick={()=>controls.current?.cantina()} disabled={phase==="takeoff"}>{inCantina?"← SORTIR":"CANTINA ↗"}</button>}
-          {climb&&<button className="surface-district surface-climb mono" onClick={()=>controls.current?.climb()} disabled={phase==="takeoff"}>{aloft?climb.down:climb.up}</button>}
+          {climb&&!sealed&&<button className="surface-district surface-climb mono" onClick={()=>controls.current?.climb()} disabled={phase==="takeoff"}>{aloft?climb.down:climb.up}</button>}
           {actions.filter((action)=>planet!=="Tatooine"||inCantina||action.hidden).map((action)=><button key={action.id} className="surface-district surface-action mono" onClick={()=>controls.current?.act(action.id)} disabled={phase==="takeoff"}>{action.label.toUpperCase()}</button>)}
-          <div className="surface-terminals">
+          {!sealed && <div className="surface-terminals">
             {landing.terminals.map((item, index) => (
               <button
                 key={item.id}
@@ -1235,14 +1259,14 @@ export default function LandingScene({
                 0{index + 1} {item.label}
               </button>
             ))}
-          </div>
-          <button
+          </div>}
+          {!sealed && <button
             className="surface-takeoff mono"
             onClick={() => controls.current?.takeoff()}
             disabled={phase === "takeoff"}
           >
             <Rocket size={13} /> DÉCOLLER
-          </button>
+          </button>}
         </nav>
       )}
     </div>

@@ -12,6 +12,10 @@ import { glowTexture, parkShip, type Reveal, type Spot, type Zone, type ZoneActi
 import { createBuriedHolocron } from "./zoneSecrets";
 import { createGroundMist } from "./weather";
 import { createSurfaceNavigator } from "./surfaceNavigation";
+import { createTransit } from "./zoneTransit";
+import { HALL, HALL_ENTRY, WATCH, createEndorAssault } from "./endorAssault";
+import { createEndorThrone, legendLines } from "./endorThrone";
+import { createEndorWalker } from "./endorWalker";
 import type { Landing } from "./universe";
 
 // Endor: the ship sets down in a forest clearing below an Ewok village. Around the campfire an
@@ -38,6 +42,8 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
 
   const circles: Spot[] = [];
   const village = createEndorVillage(landing, circles);
+  const throne = createEndorThrone(circles);
+  group.add(throne.group);
   // Keep trees and ferns off the bikes' run, the trail, the wrecks and the bunker.
   const keepClear = [...BIKE_PATH.getSpacedPoints(160), ...WRECKS];
   for (let z = -20; z > -46; z -= 1.5) keepClear.push(new THREE.Vector3(0, 0, z));
@@ -64,7 +70,8 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   group.add(crew.group);
 
   // Walking up there: the visitor's floor follows the ramp, platforms and bridge they are on.
-  let level = 0;
+  let level = 0,
+    inHall = false;
   const last = { x: 5.5, z: 9.5 };
   const tree = RAMP.tree;
   const rampAt = (x: number, z: number) => {
@@ -93,6 +100,11 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
     return heights;
   };
   const constrain = (walker: { x: number; z: number }) => {
+    if (inHall) {
+      walker.x = THREE.MathUtils.clamp(walker.x, HALL.minX, HALL.maxX);
+      walker.z = THREE.MathUtils.clamp(walker.z, HALL.minZ, HALL.maxZ);
+      return;
+    }
     let best: number | null = null;
     for (const h of surfaces(walker.x, walker.z)) if (Math.abs(h - level) < 0.9 && (best === null || Math.abs(h - level) < Math.abs(best - level))) best = h;
     if (best === null) {
@@ -160,6 +172,7 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
     return points;
   };
   const routeTo = (from: THREE.Vector3, to: THREE.Vector3) => {
+    if (inHall) return [to.clone().setY(0)];
     const goingUp = to.y > 1;
     if (level <= 1) return goingUp ? [...ground(from, bottom), ...up, top.clone()] : ground(from, to);
     // Already on the ramp: carry on up or down from where they stand.
@@ -196,7 +209,90 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   // A low mist drifting between the trunks, at ground level whatever height the visitor is at.
   const mist = createGroundMist(0xe4ead9);
   group.add(mist.group);
+  // C-3PO on his throne, and the strike on the bunker at the end of the trail.
+  const assault = createEndorAssault(landmarks.station);
+  group.add(assault.group);
+  const transit = createTransit();
+  const hallColliders: Spot[] = [{ x: 0, z: HALL.minZ + 2.4, r: 3.6 }];
+  for (const side of [-1, 1]) for (const z of [-25, -21, -17]) hallColliders.push({ x: side * 6.9, z, r: 1.6 });
+  const colliderSet = { circles, footprint, movers: [...crew.movers, ...village.movers] };
+  const allMovers = colliderSet.movers;
+  let moveTo: { x: number; z: number; yaw: number; pitch: number } | null = null;
+  const goIn = (reduced: boolean) => {
+    transit.start(() => {
+      inHall = true;
+      level = HALL.floor;
+      colliderSet.circles = hallColliders;
+      colliderSet.movers = [];
+      assault.setInside(true);
+      moveTo = { x: HALL_ENTRY.x, z: HALL_ENTRY.z, yaw: 0, pitch: 0 };
+    }, reduced);
+  };
+  const goOut = (reduced: boolean, watching: boolean) => {
+    transit.start(() => {
+      inHall = false;
+      level = 0;
+      colliderSet.circles = circles;
+      colliderSet.movers = allMovers;
+      assault.setInside(false);
+      const at = watching ? WATCH : { x: 0, z: -37 };
+      last.x = at.x;
+      last.z = at.z;
+      // Out on the clearing, looking up at the station through the gap in the trees.
+      const station = landmarks.station.position;
+      moveTo = watching
+        ? { x: at.x, z: at.z, yaw: Math.atan2(-(station.x - at.x), -(station.z - at.z)), pitch: Math.atan2(station.y - 1.7, Math.hypot(station.x - at.x, station.z - at.z)) }
+        : { x: at.x, z: at.z, yaw: Math.PI, pitch: 0 };
+      if (watching) {
+        assault.detonate();
+        // Nothing left to force: the door is gone.
+        bunkerAction.position.set(1e4, 0, 1e4);
+      }
+    }, reduced);
+  };
+  assault.handlers.onCharge = () => {
+    // A moment to take it in, then the way out.
+    pendingOut = 3.2;
+  };
+  let pendingOut = 0,
+    reducedNow = false;
+  const bunkerAction: ZoneAction = {
+    id: "bunker-door",
+    label: "Forcer la porte du bunker",
+    hidden: true,
+    position: new THREE.Vector3(BUNKER.x, 1.5, BUNKER.z + 6.2),
+    objects: [assault.door],
+    approach: { position: new THREE.Vector3(0, 0, -37.4), lookAt: new THREE.Vector3(BUNKER.x, 1.6, BUNKER.z + 6) },
+    activate: (reduced) => {
+      if (!assault.canEnter() || transit.busy()) return;
+      assault.open();
+      goIn(reduced);
+    },
+  };
+  const hallExit: ZoneAction = {
+    id: "bunker-exit",
+    label: "Quitter le bunker",
+    hidden: true,
+    position: new THREE.Vector3(0, HALL.floor + 1.5, HALL.maxZ + 0.3),
+    objects: [],
+    activate: (reduced) => {
+      if (inHall && assault.phase() === "planting") goOut(reduced, false);
+    },
+  };
+  const legend = legendLines();
   const actions: ZoneAction[] = [
+    {
+      id: "c3po-throne",
+      label: "Écouter C-3PO",
+      position: new THREE.Vector3(throne.group.position.x, 1.8, throne.group.position.z),
+      objects: [throne.pick],
+      approach: { position: throne.approachAt, lookAt: new THREE.Vector3(throne.group.position.x, 1.9, throne.group.position.z) },
+      says: { who: "C-3PO", lines: legend },
+      activate: () => throne.speak(legend.length * 6),
+    },
+    bunkerAction,
+    assault.chargeAction,
+    hallExit,
     holocron.action,
     {
       id: "elder",
@@ -219,6 +315,8 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   const events = eventLevels("endor");
   const patrolBike = speederBike(true);
   group.add(patrolBike.root);
+  const atst = createEndorWalker(BIKE_PATH);
+  group.add(atst.group);
   const patrol = createFlyby(patrolBike.root, [new THREE.Vector3(-140, 2, -70), new THREE.Vector3(-60, 2.2, -52), new THREE.Vector3(10, 2, -60), new THREE.Vector3(70, 2.2, -46), new THREE.Vector3(150, 2, -66)], 6.5);
   return {
     group,
@@ -230,8 +328,12 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
     terminals: village.terminals,
     ship: parking.ship,
     shipRest: parking.shipRest,
-    colliders: { circles, footprint, movers: [...crew.movers, ...village.movers] },
+    colliders: colliderSet,
     actions,
+    actionsKey: () => assault.actionsKey(),
+    veil: () => transit.level(),
+    sealed: () => inHall,
+    warmLights: (compile) => assault.warm(compile),
     actionApproach: { position: new THREE.Vector3(-1.9, 0, 15.4), lookAt: village.elder.position },
     routeTo,
     floorAt: () => level,
@@ -269,6 +371,19 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
       parking.setThrust(thrust);
     },
     tick: (dt, elapsed, reduced, walker) => {
+      reducedNow = reduced;
+      transit.tick(dt);
+      if (moveTo) {
+        walker.x = moveTo.x;
+        walker.z = moveTo.z;
+        walker.yaw = moveTo.yaw;
+        walker.pitch = moveTo.pitch;
+        moveTo = null;
+      }
+      if (pendingOut > 0 && (pendingOut -= dt) <= 0) goOut(reducedNow, true);
+      assault.tick(dt, elapsed, reduced, inHall);
+      throne.tick(dt, elapsed, reduced);
+      atst.tick(dt, reduced, elapsed);
       crew.tick(dt, elapsed, reduced, walker);
       village.tick(dt, reduced);
       forest.tick(elapsed, reduced);

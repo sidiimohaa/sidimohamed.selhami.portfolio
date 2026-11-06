@@ -220,6 +220,14 @@ export function createHothBattle(heightAt: Height) {
 
   return {
     group,
+    /** Where the walkers are, for the base's radar. */
+    blips: () => walkers.map((walker) => ({ x: walker.x, z: walker.z, down: walker.state !== "walking" })),
+    /** The whole battle as it stands, for the tactical hologram. */
+    mapData: () => ({
+      walkers: walkers.map((walker) => ({ x: walker.holder.position.x, y: walker.holder.position.y, z: walker.holder.position.z, fade: walker.fade, tilt: walker.tilt.rotation.z, yaw: walker.holder.rotation.y })),
+      speeders: speeders.map((speeder) => ({ x: speeder.model.position.x, y: speeder.model.position.y, z: speeder.model.position.z, quaternion: speeder.model.quaternion })),
+      generator: generatorAt,
+    }),
     tick: (dt: number, reduced: boolean) => {
       if (reduced) dt = 0;
       clock += dt;

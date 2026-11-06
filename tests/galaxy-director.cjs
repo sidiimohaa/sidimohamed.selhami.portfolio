@@ -131,3 +131,25 @@ for (const event of galacticEvents) {
 }
 
 console.log("Galactic Event Director passed.");
+
+// Open space: nothing is set out inside a world, and a signal behind the ship is pointed at.
+{
+  const THREE = require("three");
+  const { clearOf, markerSpot } = require("../components/galaxy/spacePlacement.ts");
+  const world = { position: new THREE.Vector3(100, 0, 0), radius: 50 };
+  const inside = clearOf(new THREE.Vector3(120, 0, 0), [world], 10);
+  assert.ok(inside.distanceTo(world.position) >= 60 - 1e-6, "Pushed out of the world");
+  const centre = clearOf(new THREE.Vector3(100, 0, 0), [world], 10);
+  assert.ok(centre.distanceTo(world.position) >= 60 - 1e-6, "Even from its very centre");
+  const free = clearOf(new THREE.Vector3(300, 0, 0), [world], 10);
+  assert.equal(free.x, 300, "Left alone when clear");
+  const seen = markerSpot(0.2, 0.1, false, 1000, 500);
+  assert.equal(seen.onScreen, true);
+  assert.ok(Math.abs(seen.x - 600) < 1e-6 && Math.abs(seen.y - 225) < 1e-6);
+  const offside = markerSpot(3, 0, false, 1000, 500);
+  assert.equal(offside.onScreen, false);
+  assert.ok(offside.x > 500 && offside.x <= 1000, "Held at the edge, on its side");
+  const behind = markerSpot(0.5, 0, true, 1000, 500);
+  assert.equal(behind.onScreen, false, "Behind the camera it is never in view");
+  assert.ok(behind.x < 500, "A point behind and to the right projects to the left; the arrow turns the short way");
+}

@@ -1,13 +1,14 @@
-import { eventLevels, createFlyby } from "./galaxy/worldEvents";
-import { galaxy } from "./galaxy/store";
-import { createProbeDroid } from "./probeDroid";
+import { eventLevels } from "./galaxy/worldEvents";
+import { GALLERY, createHothCommand } from "./hothCommand";
+import { createHothProbe } from "./hothProbe";
+import { createTransit } from "./zoneTransit";
 import * as THREE from "three";
 import { snowCover } from "./weathering";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import { createHothBattle, createSnowspeeder } from "./hothBattle";
 import { createBriefingTable } from "./hothBriefing";
-import { createTerminals, glowTexture, parkShip, random, type Reveal, type Spot, type Zone } from "./landingKit";
+import { createTerminals, glowTexture, parkShip, random, type Reveal, type Spot, type Zone, type ZoneAction } from "./landingKit";
 import { createShipModel } from "./shipModel";
 import { createHothFauna } from "./hothFauna";
 import { createHothGlacier } from "./hothGlacier";
@@ -449,12 +450,44 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   const fog = new THREE.FogExp2(SKY, 0.0017);
   // Blizzard squalls sweep through every forty seconds or so.
   const squall = gustCycle(44, 13, 18);
-  // Galactic events: the blizzard when the director calls it, and a probe over the ridge.
+  // Galactic events: the blizzard when the director calls it, and the probe to track down.
   const events = eventLevels("hoth");
-  const probeDroid = createProbeDroid();
-  probeDroid.group.scale.setScalar(5);
-  group.add(probeDroid.group);
-  const probe = createFlyby(probeDroid.group, [new THREE.Vector3(-260, 30, 240), new THREE.Vector3(-90, 24, 150), new THREE.Vector3(40, 26, 130), new THREE.Vector3(170, 34, 170), new THREE.Vector3(300, 46, 260)], 16);
+  const probe = createHothProbe();
+  group.add(probe.group);
+  // The command centre over the back door, reached by the lift behind it.
+  const command = createHothCommand(battle.blips, probe.position, { heightAt: hothHeight, data: battle.mapData });
+  group.add(command.group);
+  const transit = createTransit();
+  const groundCircles = circles;
+  const groundMovers = life.movers;
+  const colliderSet = { circles: groundCircles, footprint: parking.footprint, movers: groundMovers };
+  let inGallery = false,
+    commandRevision = 0;
+  const liftAction: ZoneAction = {
+    id: "hoth-command",
+    label: "Monter au centre de commandement",
+    position: new THREE.Vector3(0, 1.6, -23),
+    objects: [command.pick],
+    inSealed: true,
+    approach: { position: new THREE.Vector3(0, 0, -20), lookAt: new THREE.Vector3(0, 2, -24) },
+    activate: (reduced) => {
+      if (transit.busy()) return;
+      transit.start(() => {
+        command.prepare();
+        inGallery = !inGallery;
+        colliderSet.circles = inGallery ? command.colliders : groundCircles;
+        colliderSet.movers = inGallery ? [] : groundMovers;
+        liftAction.label = inGallery ? "Redescendre au hangar" : "Monter au centre de commandement";
+        liftAction.position.set(0, inGallery ? GALLERY.floor + 1.6 : 1.6, inGallery ? -24 : -23);
+        liftAction.approach = inGallery
+          ? { position: new THREE.Vector3(0, 0, -23.4), lookAt: new THREE.Vector3(0, GALLERY.floor + 2, -24.6) }
+          : { position: new THREE.Vector3(0, 0, -20), lookAt: new THREE.Vector3(0, 2, -24) };
+        arriving = true;
+        commandRevision++;
+      }, reduced);
+    },
+  };
+  let arriving = false;
   let clock = 0,
     windClock = 0;
   const lastWalker = { x: 0, z: 0 };
@@ -465,8 +498,16 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
     walkRadius: outpost ? 80 : 50,
     // The wide view reveals the wall's scale before following the craft through its opening.
     arrival: { from: new THREE.Vector3(110,65,440), to: new THREE.Vector3(11,7,65), shipFrom:new THREE.Vector3(0,12,160),shipYaw:0,reveal:2.1 },
-    floorAt: () => outpost?.floorAt(lastWalker) ?? 0,
+    floorAt: () => (inGallery ? GALLERY.floor : (outpost?.floorAt(lastWalker) ?? 0)),
+    veil: () => transit.level(),
+    sealed: () => inGallery,
+    attachCamera: (camera) => probe.attachCamera(camera),
     constrainWalk: (walker) => {
+      if (inGallery) {
+        walker.x = THREE.MathUtils.clamp(walker.x, GALLERY.minX, GALLERY.maxX);
+        walker.z = THREE.MathUtils.clamp(walker.z, GALLERY.minZ, GALLERY.maxZ);
+        return;
+      }
       lastWalker.x = walker.x;
       lastWalker.z = walker.z;
       if (outpost?.constrain(walker)) {
@@ -478,11 +519,11 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       walker.z = THREE.MathUtils.clamp(walker.z, BACK + 4, MOUTH + 12);
     },
     terminals: stations.terminals,
-    actions: outpost ? [...secrets.actions, ...outpost.actions] : secrets.actions,
-    actionsKey: outpost?.actionsKey,
+    actions: outpost ? [liftAction, ...secrets.actions, ...outpost.actions] : [liftAction, ...secrets.actions],
+    actionsKey: () => (outpost?.actionsKey?.() ?? 0) + commandRevision * 1000,
     ship: parking.ship,
     shipRest: parking.shipRest,
-    colliders: { circles, footprint: parking.footprint, movers: life.movers },
+    colliders: colliderSet,
     setViewport: (height) => {
       life.setViewport(height);
       flakes.material.uniforms.scale.value = height / 900;
@@ -494,6 +535,18 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       parking.setThrust(level);
     },
     tick: (dt, elapsed, reduced, walker) => {
+      transit.tick(dt);
+      if (arriving) {
+        // The lift has arrived: the gallery's window faces the hangar, the hangar's floor the door.
+        arriving = false;
+        // Beside the table up there, with the window and the plain ahead.
+        walker.x = inGallery ? -5 : 0;
+        walker.z = inGallery ? -22.8 : -20.4;
+        walker.yaw = inGallery ? Math.PI + 0.42 : Math.PI;
+        walker.pitch = inGallery ? -0.1 : 0.04;
+      }
+      command.tick(dt, elapsed, reduced, inGallery);
+      probe.tick(dt, elapsed, reduced, walker, inGallery ? GALLERY.floor : 0);
       life.tick(dt, elapsed, reduced, walker);
       stations.tick(elapsed, reduced);
       table.tick(elapsed, reduced, stations.terminals);
@@ -507,14 +560,12 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
       const daylightMix=smooth(walker.z,16,46),blend=1-Math.exp(-dt*3);
       ambient.intensity+=((1.05+daylightMix*.5)-ambient.intensity)*blend;
       const gust = reduced ? 0 : Math.max(squall(elapsed), events("hoth-blizzard", dt));
-      probe.tick(dt, galaxy().activeAt("hoth").some((run) => run.id === "hoth-probe"));
-      probeDroid.tick(elapsed, reduced);
       // Time runs faster for the flakes in a squall, so they rush past instead of drifting.
       if (!reduced) {
         clock += dt;
         windClock += dt * (1 + gust * 2.2);
       }
-      flakes.points.visible = !reduced && !outpost?.contains(walker);
+      flakes.points.visible = !reduced && !outpost?.contains(walker) && !inGallery;
       flakes.material.uniforms.time.value = windClock;
       flakes.material.uniforms.gust.value = gust;
       flakes.material.uniforms.origin.value.set(walker.x, 0, walker.z);

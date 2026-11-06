@@ -855,3 +855,50 @@
 @media (max-width: 600px) {
   .galaxy-toast { top: 66px; right: 16px; }
 }
+
+/* A signal to reach in open space: a reticle in view, an arrow at the edge of the screen. */
+.galaxy-marker {
+  position: fixed;
+  z-index: 40;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  color: #ffb9a6;
+  pointer-events: none;
+}
+.galaxy-marker i {
+  position: absolute;
+  left: -13px;
+  top: -13px;
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 120, 90, 0.5);
+  animation: galaxy-marker-pulse 1.4s ease-in-out infinite;
+}
+.galaxy-marker[data-edge="true"] i {
+  border-radius: 0;
+  border-width: 2px 2px 0 0;
+  box-shadow: none;
+  transform: rotate(calc(var(--arrow, 0rad) + 45deg));
+  animation: none;
+}
+.galaxy-marker span {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  background: rgba(6, 8, 12, 0.72);
+  font: 600 10px/1.3 var(--mono, monospace);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+@keyframes galaxy-marker-pulse {
+  50% { opacity: 0.45; transform: scale(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .galaxy-marker i { animation: none; }
+}

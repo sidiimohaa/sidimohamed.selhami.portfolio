@@ -161,7 +161,7 @@ export function createHeroDroids() {
         pipe(arm, [[side * .07, -.08, 0], [side * .075, -.26, .01], [side * .07, -.41, .04]], .012, edgeGold);
         bakePart(arm);
     }
-    return { r2, c3, tick: (age: number, reduced: boolean) => {
+    return { r2, c3, rig: { head, legs, arms }, tick: (age: number, reduced: boolean) => {
             const t = reduced ? 0 : age;
             legs.forEach((leg, i) => leg.rotation.x = Math.sin(t * 3.4 + i * Math.PI) * .27);
             arms.forEach((arm, i) => { arm.rotation.x = .12 + Math.sin(t * 3.4 + i * Math.PI + Math.PI) * .13; arm.rotation.z = (i ? 1 : -1) * .09; });
