@@ -231,9 +231,9 @@ function flareTexture(draw: (ctx: CanvasRenderingContext2D, size: number) => voi
   return texture;
 }
 
-// The system's star, set at infinity in the same direction as the key light, with a restrained
-// flare: a warm core, a wide halo and a few faint ghosts across the frame.
-export function createSun(direction: THREE.Vector3) {
+// A warm stellar core and restrained flare. A fixed position gives the system real parallax;
+// callers without one retain the distant directional sun.
+export function createSun(direction: THREE.Vector3, fixedPosition?: THREE.Vector3) {
   const group = new THREE.Group();
   const offset = direction.clone().normalize().multiplyScalar(280);
   const halo = flareTexture((ctx, size) => {
@@ -265,10 +265,10 @@ export function createSun(direction: THREE.Vector3) {
       fog: false,
     }),
   );
-  disk.scale.setScalar(34);
+  disk.scale.setScalar(fixedPosition ? 8 : 34);
   group.add(disk);
   const flare = new Lensflare();
-  flare.addElement(new LensflareElement(halo, 420, 0, new THREE.Color(0xffe6c4)));
+  flare.addElement(new LensflareElement(halo, fixedPosition ? 110 : 420, 0, new THREE.Color(0xffe6c4)));
   flare.addElement(new LensflareElement(ghost, 60, 0.42, new THREE.Color(0x7fb8ff)));
   flare.addElement(new LensflareElement(ghost, 90, 0.66, new THREE.Color(0xb48cff)));
   flare.addElement(new LensflareElement(ghost, 44, 0.86, new THREE.Color(0x8fe4ff)));
@@ -277,7 +277,8 @@ export function createSun(direction: THREE.Vector3) {
   return {
     group,
     update: (camera: THREE.Camera, flareOn: boolean) => {
-      group.position.copy(camera.position).add(offset);
+      if (fixedPosition) group.position.copy(fixedPosition);
+      else group.position.copy(camera.position).add(offset);
       flare.visible = flareOn;
     },
     dispose: () => {

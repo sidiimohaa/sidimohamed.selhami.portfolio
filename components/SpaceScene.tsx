@@ -14,6 +14,7 @@ import { livingProfile } from "./galaxy/quality";
 import { createSpaceEvents } from "./galaxy/spaceEvents";
 import { galaxy } from "./galaxy/store";
 import { createApproachFlight } from "./approachFlight";
+import { ORBITAL_BODIES, SYSTEM_CENTER, SYSTEM_ORBITS, DEBRIS_ORBIT, HOME_CAMERA_Z, FLIGHT_SPEED, orbitalPoint, homeCameraZ } from "./orbitalSystem";
 export type FlightState = {
   flying: boolean;
   boost: boolean;
@@ -376,7 +377,7 @@ export default function SpaceScene({
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x080d0d, 0.0025);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 650);
-    camera.position.set(0, 0, 32);
+    camera.position.set(0, 0, HOME_CAMERA_Z);
     scene.add(new THREE.AmbientLight(0x9bafa8, 0.19));
     const sun = new THREE.DirectionalLight(0xffe2bf, 2.8);
     sun.position.set(-24, 24, 30);
@@ -392,7 +393,7 @@ export default function SpaceScene({
     scene.add(starLayers.group);
     const dust = createSpaceDust(qualityProfiles.ultra.dust, renderer.getPixelRatio());
     scene.add(dust.points);
-    const sunBody = createSun(sun.position);
+    const sunBody = createSun(sun.position, new THREE.Vector3(...SYSTEM_CENTER));
     scene.add(sunBody.group);
     const shootingStars = createShootingStars();
     scene.add(shootingStars.group);
@@ -441,15 +442,15 @@ export default function SpaceScene({
       planets.push(g);
       return g;
     };
-    addPlanet("sand", 3.85, [15, 4, -18], 0xd9b78a);
-    addPlanet("green", 2.1, [-18, -4, -26], 0x8abdb1);
-    addPlanet("moon", 1.6, [22, -8, -40], 0xa4b2b4);
-    const deathStar = deathStarModel(3.3);
-    deathStar.position.set(-12, 10, -22);
+    const radii = ORBITAL_BODIES.map((body) => body.radius);
+    addPlanet("sand", radii[0], ORBITAL_BODIES[0].position, 0xd9b78a);
+    addPlanet("green", radii[1], ORBITAL_BODIES[1].position, 0x8abdb1);
+    addPlanet("moon", radii[2], ORBITAL_BODIES[2].position, 0xa4b2b4);
+    const deathStar = deathStarModel(radii[3]);
+    deathStar.position.set(...ORBITAL_BODIES[3].position);
     scene.add(deathStar);
     planets.push(deathStar);
-    addPlanet("moon", 2.4, [10, 13, -44], 0xcfe6f5);
-    const radii = [3.85, 2.1, 1.6, 3.3, 2.4];
+    addPlanet("moon", radii[4], ORBITAL_BODIES[4].position, 0xcfe6f5);
     const planetLayers: ReturnType<typeof createPlanetLayers>[] = [];
     const loadingManager = new THREE.LoadingManager();
     // Compile every shader before revealing the scene, without blocking the loading screen.
@@ -502,11 +503,10 @@ export default function SpaceScene({
         },
       );
     });
-    // Two distant suns: a quiet nod to Tatooine's binary sunset.
+    // A restrained companion to the central star recalls Tatooine's binary sunset.
     const sunGlow = glowTexture();
     [
-      [20, 10, -36],
-      [21.1, 10.35, -37],
+      [SYSTEM_CENTER[0] + 2.8, SYSTEM_CENTER[1] + 0.8, SYSTEM_CENTER[2] - 2],
     ].forEach((position, index) => {
       const twinSun = new THREE.Sprite(
         new THREE.SpriteMaterial({
@@ -519,32 +519,20 @@ export default function SpaceScene({
         }),
       );
       twinSun.position.set(position[0], position[1], position[2]);
-      twinSun.scale.setScalar(index ? 0.5 : 0.65);
+      twinSun.scale.setScalar(1.8);
       scene.add(twinSun);
     });
-    const orbitGeo = new THREE.BufferGeometry();
-    const orbitPoints = [];
-    for (let i = 0; i <= 256; i++) {
-      const a = (i / 256) * Math.PI * 2;
-      orbitPoints.push(
-        new THREE.Vector3(
-          15 + Math.cos(a) * 6.4,
-          3.5 + Math.sin(a) * 1.5,
-          -17 + Math.sin(a) * 3.5,
-        ),
+    // Faint navigation traces share a single inclined plane and a fixed stellar centre.
+    // Four static lines, with no per-frame geometry updates or extra render pass.
+    for (const reach of SYSTEM_ORBITS) {
+      const geometry = new THREE.BufferGeometry().setFromPoints(
+        Array.from({ length: 193 }, (_, i) => new THREE.Vector3(...orbitalPoint(reach, i / 192 * Math.PI * 2))),
       );
+      scene.add(new THREE.Line(geometry, new THREE.LineBasicMaterial({
+        color: 0x809b9e, transparent: true, opacity: 0.085, depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })));
     }
-    orbitGeo.setFromPoints(orbitPoints);
-    scene.add(
-      new THREE.Line(
-        orbitGeo,
-        new THREE.LineBasicMaterial({
-          color: 0x77847c,
-          transparent: true,
-          opacity: 0.13,
-        }),
-      ),
-    );
     const rocks = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(0.1, 0),
       new THREE.MeshStandardMaterial({ color: 0x79766b, roughness: 1 }),
@@ -553,11 +541,11 @@ export default function SpaceScene({
     const dummy = new THREE.Object3D();
     const debris = Array.from({ length: 75 }, () => ({
       angle: rand() * Math.PI * 2,
-      reach: 6.4 + (rand() - 0.5) * 1.2,
+      reach: DEBRIS_ORBIT + (rand() - 0.5) * 3.5,
       lift: (rand() - 0.5) * 0.3,
       tumble: new THREE.Euler(rand() * 5, rand() * 5, rand() * 5),
       spin: (rand() - 0.5) * 0.8,
-      drift: 0.018 + rand() * 0.014,
+      drift: 0.004 + rand() * 0.003,
       size: 0.15 + rand() * 0.7,
     }));
     const placeDebris = (dt: number) => {
@@ -565,11 +553,7 @@ export default function SpaceScene({
         rock.angle += dt * rock.drift;
         rock.tumble.x += dt * rock.spin;
         rock.tumble.y += dt * rock.spin * 0.6;
-        dummy.position.set(
-          15 + Math.cos(rock.angle) * rock.reach,
-          3.5 + Math.sin(rock.angle) * 1.5 + rock.lift,
-          -17 + Math.sin(rock.angle) * 3.5,
-        );
+        dummy.position.set(...orbitalPoint(rock.reach, rock.angle, rock.lift));
         dummy.rotation.copy(rock.tumble);
         dummy.scale.setScalar(rock.size);
         dummy.updateMatrix();
@@ -607,9 +591,9 @@ export default function SpaceScene({
         patrol.angle += dt * patrol.speed;
         patrol.beacon.position
           .set(
-            Math.cos(patrol.angle) * patrol.reach,
+            Math.cos(patrol.angle) * patrol.reach * radii[3] / 3.3,
             0,
-            Math.sin(patrol.angle) * patrol.reach,
+            Math.sin(patrol.angle) * patrol.reach * radii[3] / 3.3,
           )
           .applyQuaternion(patrol.plane)
           .add(deathStar.position);
@@ -708,7 +692,7 @@ export default function SpaceScene({
     let shipDistance = 7,
       shipHeight = 1.55;
     let dragging = false,
-      baseZ = 32,
+      baseZ = HOME_CAMERA_Z,
       lastReset = state.resetKey;
     const keydown = (e: KeyboardEvent) => {
       if (live.current.paused || live.current.travel) return;
@@ -783,17 +767,8 @@ export default function SpaceScene({
       dirtyFrames = Math.max(dirtyFrames, 2);
       camera.aspect = w / h;
       camera.fov = w / h < 0.8 ? 52 : 50;
-      // On narrow screens, step back until every world fits inside the frame.
-      const halfWidth =
-        Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
-      const fit = Math.max(
-        ...planets.map(
-          (planet, i) =>
-            planet.position.z +
-            (Math.abs(planet.position.x) + radii[i] + 1.5) / halfWidth,
-        ),
-      );
-      const nextZ = w / h < 0.8 ? Math.max(66, fit) : 32;
+      // Fit the compressed orbital system in landscape and portrait alike.
+      const nextZ = homeCameraZ(camera.aspect, camera.fov);
       camera.position.z += nextZ - baseZ;
       baseZ = nextZ;
       camera.updateProjectionMatrix();
@@ -1018,7 +993,7 @@ export default function SpaceScene({
         flightRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
         flightQuaternion.setFromEuler(flightRotation);
         forward.set(0, 0, -1).applyQuaternion(flightQuaternion);
-        const speed = active ? (fast ? 16 : 5.5) : 0;
+        const speed = active ? (fast ? FLIGHT_SPEED.boost : FLIGHT_SPEED.cruise) : 0;
         thrusting = active;
         targetVelocity.copy(forward).multiplyScalar(speed);
         // Thrust builds up; releasing the controls brakes to a stop in about a second, with no

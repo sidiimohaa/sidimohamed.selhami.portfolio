@@ -24,7 +24,7 @@ function plate(parent: THREE.Group, outline: [number, number][], depth: number, 
 }
 
 /** A shaped breastplate, including its curved collar and raised central chest. */
-function chestShell(front: boolean) {
+export function chestShell(front: boolean) {
   const positions: number[] = [], indices: number[] = [], uvs: number[] = [];
   const across = 20, rows = 10, sign = front ? 1 : -1;
   for (let j = 0; j <= rows; j++) for (let i = 0; i <= across; i++) {

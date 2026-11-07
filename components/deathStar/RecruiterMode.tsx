@@ -34,6 +34,9 @@ function Actions({ onExit }: { onExit: () => void }) {
       <button className="ds-action" onClick={onExit}>
         <Globe size={14} /> Revenir à la galaxie
       </button>
+      <p className="legal-note">
+        Projet de fan non officiel, sans lien avec Lucasfilm ou Disney. <a href="/mentions-legales" target="_blank" rel="noopener">Mentions légales</a>
+      </p>
     </div>
   );
 }

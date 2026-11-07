@@ -1812,3 +1812,16 @@ button svg {
   color: #a59a80;
   font-size: 10px;
 }
+
+/* The short notice that this is a fan project, with its link. */
+.legal-note {
+  margin: 12px 0 0;
+  flex-basis: 100%;
+  color: rgba(230, 226, 214, 0.62);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.legal-note a {
+  color: inherit;
+  text-decoration: underline;
+}

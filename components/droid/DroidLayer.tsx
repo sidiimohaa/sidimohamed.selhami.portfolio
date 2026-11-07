@@ -210,6 +210,13 @@ export default function DroidLayer({
   const ask = async (raw: string) => {
     const message = raw.trim().slice(0, 600);
     if (!message || busy) return;
+    // The order's code also works here, where a phone has no number keys to press in flight.
+    if (message === "66") {
+      setDraft("");
+      closeChat();
+      onAction("order-66");
+      return;
+    }
     setDraft("");
     setBusy(true);
     setNote(null);

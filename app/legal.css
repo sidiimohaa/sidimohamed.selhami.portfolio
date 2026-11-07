@@ -1,0 +1,39 @@
+/* The legal notice: a plain page that scrolls, whatever the full-screen experience does to the body. */
+.legal {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: #080b09;
+  color: #e6e2d6;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.6;
+}
+.legal-page {
+  box-sizing: border-box;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 40px 20px 72px;
+}
+.legal h1 {
+  margin: 24px 0 8px;
+  font-size: clamp(28px, 6vw, 40px);
+  line-height: 1.15;
+}
+.legal h2 {
+  margin: 36px 0 8px;
+  color: #ffc98a;
+  font-size: 18px;
+}
+.legal p {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.legal a {
+  color: #9fd8ff;
+  overflow-wrap: anywhere;
+}
+.legal-back {
+  display: inline-block;
+  padding: 10px 0;
+  font-size: 14px;
+}

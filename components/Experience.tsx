@@ -68,6 +68,7 @@ import {
   SecretDiscoveryToast,
 } from "./jedi/JediOverlays";
 const TempleRoom = dynamic(() => import("./jedi/TempleRoom"), { ssr: false });
+const OrderEscape = dynamic(() => import("./jedi/OrderEscape"), { ssr: false });
 const FinalVaderExperience = dynamic(() => import("./jedi/FinalVaderExperience"), { ssr: false });
 const DeathStarStation = dynamic(() => import("./deathStar/DeathStarStation"), { ssr: false });
 const CoruscantTaxi = dynamic(() => import("./coruscantTaxi/CoruscantTaxi"), { ssr: false, loading: () => <div className="coruscant-taxi" /> });
@@ -92,7 +93,7 @@ export default function Experience() {
     [toasts, setToasts] = useState<{ mission: Mission; total: number }[]>([]),
     [ceremonies, setCeremonies] = useState<Rank[]>([]),
     [journalFirst, setJournalFirst] = useState(false),
-    [reward, setReward] = useState<"temple" | "destiny" | null>(null),
+    [reward, setReward] = useState<"temple" | "destiny" | "order-66" | null>(null),
     [jumping, setJumping] = useState(false),
     [transmission, setTransmission] = useState<"order-66" | "archives" | null>(null),
     // Inside the Death Star: the professional record, walked through or in Recruiter mode.
@@ -187,6 +188,10 @@ export default function Experience() {
     unlockSecret("hyperspace");
   }, []);
   const closeTransmission = useCallback(() => setTransmission(null), []);
+  const answerOrder = useCallback(() => {
+    setTransmission(null);
+    setReward("order-66");
+  }, []);
   const onSecret = useCallback((id: MissionId) => {
     unlockSecret(id);
     // The forgotten console opens its dossier as it is found.
@@ -544,7 +549,10 @@ export default function Experience() {
   };
   // What R-X7's buttons do. The ids come from its fixed list, and each one is a click by the visitor.
   const droidAct = (id: string) => {
-    if (id === "recruiter") enterStation("recruiter");
+    if (id === "order-66") {
+      setTransmission("order-66");
+      unlockSecret("order-66");
+    } else if (id === "recruiter") enterStation("recruiter");
     else if (id.startsWith("recruiter:")) enterStation("recruiter", false, id.slice("recruiter:".length) as Section);
     else if (id === "station") enterStation("explore");
     else if (id === "map") openMap();
@@ -945,6 +953,9 @@ export default function Experience() {
                   REJOUER L’ARRIVÉE <Navigation size={12} />
                 </button>
               </div>
+              <p className="legal-note">
+                Projet de fan non officiel, sans lien avec Lucasfilm ou Disney. <a href="/mentions-legales" target="_blank" rel="noopener">Mentions légales</a>
+              </p>
             </motion.section>
           </motion.div>
         )}
@@ -953,11 +964,12 @@ export default function Experience() {
         {jumping && <HyperspaceJump key="jump" reduced={reduced} onDone={finishJump} />}
       </AnimatePresence>
       <AnimatePresence>
-        {transmission === "order-66" && <ImperialTransmission key="order" onClose={closeTransmission} reduced={reduced} />}
+        {transmission === "order-66" && <ImperialTransmission key="order" onClose={closeTransmission} onAnswer={answerOrder} reduced={reduced} />}
         {transmission === "archives" && <ArchivesDossier key="archives" onClose={closeTransmission} />}
       </AnimatePresence>
       <AnimatePresence>
         {reward === "temple" && <TempleRoom key="temple" reduced={reduced} onClose={() => setReward(null)} />}
+        {reward === "order-66" && <OrderEscape key="order-66" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
         {reward === "destiny" && <FinalVaderExperience key="destiny" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
       </AnimatePresence>
       {/* A flight primer until the visitor first takes the controls. */}

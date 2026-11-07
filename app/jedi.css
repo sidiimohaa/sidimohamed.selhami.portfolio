@@ -1652,3 +1652,147 @@
   width: 100%;
   height: 100%;
 }
+
+/* Order 66: the escape from the Temple. */
+.order-escape {
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+.order-escape-hurt {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 42%, #d9142bb8 100%);
+  animation: order-escape-hurt 0.5s ease-out forwards;
+}
+@keyframes order-escape-hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.order-escape-force {
+  position: absolute;
+  left: 28px;
+  top: 64px;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  color: #dce9f2;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  text-shadow: 0 1px 6px #000;
+}
+.order-escape-force b {
+  display: flex;
+  gap: 5px;
+}
+.order-escape-force b i {
+  width: 22px;
+  height: 5px;
+  background: #ffffff26;
+}
+.order-escape-force b i[data-on="true"] {
+  background: #6dff9b;
+  box-shadow: 0 0 8px #47ff7e;
+}
+.order-escape-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(72px, 12vh, 110px);
+  z-index: 2;
+  width: min(680px, calc(100vw - 32px));
+  margin: 0 auto;
+  color: #fff;
+  font-size: clamp(15px, 2vw, 19px);
+  line-height: 1.4;
+  text-align: center;
+  text-shadow: 0 2px 10px #000, 0 0 3px #000;
+  pointer-events: none;
+}
+.order-escape-action {
+  position: absolute;
+  left: 50%;
+  top: 66%;
+  z-index: 3;
+  min-height: 56px;
+  padding: 14px 30px;
+  border: 1px solid #bfe0ff;
+  border-radius: 2px;
+  color: #fff;
+  background: #16345ad9;
+  box-shadow: 0 0 34px #4aaaf48c;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 3px;
+  transform: translateX(-50%);
+  cursor: pointer;
+  animation: order-escape-pulse 1.1s ease-in-out infinite;
+}
+@keyframes order-escape-pulse {
+  50% {
+    box-shadow: 0 0 58px #7cc2ffcc;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .order-escape-action {
+    animation: none;
+  }
+}
+.order-escape-end {
+  padding: 22px 18px;
+  background: linear-gradient(180deg, #0000, #000000b8 22%);
+}
+.order-escape-score {
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+@media (max-width: 700px) {
+  .order-escape-force {
+    left: 16px;
+    top: 60px;
+  }
+}
+
+/* The stowaway on the dashboard. */
+.cockpit-grogu-button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  width: 196px;
+  min-height: 38px;
+  border: 1px solid #ffd27a80;
+  border-radius: 2px;
+  color: #ffe9bd;
+  background: #1a130ad9;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.cockpit-grogu-button:hover {
+  background: #3a2810e6;
+}
+.cockpit-grogu-note {
+  position: absolute;
+  left: 50%;
+  top: 92px;
+  z-index: 2;
+  width: min(440px, calc(100vw - 32px));
+  margin: 0;
+  padding: 8px 12px;
+  color: #ffe9bd;
+  background: #0a0704bf;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}

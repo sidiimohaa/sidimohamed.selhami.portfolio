@@ -68,13 +68,25 @@ export function createApproachFlight(options: Options) {
     out.y += bow * 16 * u * u * (1 - u) * (1 - u);
     return out;
   };
+  const routeAhead = new THREE.Vector3(), routeBehind = new THREE.Vector3();
+  const routeCamera = new THREE.Vector3(), routeDirection = new THREE.Vector3();
+  const routeRotation = new THREE.Quaternion();
+  const routeAttitude = new THREE.Euler(0, 0, 0, "YXZ");
   const obstructed = () => {
     for (let sample = 2; sample <= 100; sample++) {
-      pointAt(sample / 100, point);
+      const u = sample / 100;
+      pointAt(u, point);
+      pointAt(Math.min(1, u + 0.001), routeAhead);
+      pointAt(Math.max(0, u - 0.001), routeBehind);
+      routeDirection.copy(routeAhead).sub(routeBehind).normalize();
+      routeAttitude.set(Math.asin(THREE.MathUtils.clamp(routeDirection.y, -1, 1)), Math.atan2(-routeDirection.x, -routeDirection.z), 0, "YXZ");
+      routeRotation.setFromEuler(routeAttitude);
+      routeCamera.set(0, shipHeight, shipDistance).applyQuaternion(routeRotation).add(point);
       if (
         options.obstacles.some(
           (obstacle) =>
-            point.distanceTo(obstacle.position) < obstacle.radius + 1.25,
+            point.distanceTo(obstacle.position) < obstacle.radius + 1.25 ||
+            routeCamera.distanceTo(obstacle.position) < obstacle.radius + 2,
         )
       )
         return true;
@@ -179,6 +191,16 @@ export function createApproachFlight(options: Options) {
               clearanceOffset.normalize(),
               minimumFollowDistance,
             );
+        }
+        // The lagging chase view has its own volume. Keep it outside a world even after
+        // a sharp departure turn or a long frame, where it can cut inside the planned arc.
+        for (const obstacle of options.obstacles) {
+          clearanceOffset.copy(camera.position).sub(obstacle.position);
+          const clearance = obstacle.radius + 0.8;
+          if (clearanceOffset.lengthSq() < clearance * clearance) {
+            if (clearanceOffset.lengthSq() < 0.000001) clearanceOffset.set(0, 1, 0);
+            camera.position.copy(obstacle.position).addScaledVector(clearanceOffset.normalize(), clearance);
+          }
         }
         // Track just ahead of the craft, keeping the whole X-wing in a narrow viewport.
         cameraUp.set(0, 1, 0).applyQuaternion(cameraFacing);

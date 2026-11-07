@@ -23,6 +23,8 @@ import {
   Radar,
 } from "lucide-react";
 import * as THREE from "three";
+import { createCockpitGrogu } from "./cockpitGrogu";
+import { createDroidVoice } from "./droid/droidSounds";
 import { createCockpitModel } from "./cockpitModel";
 import { createCockpitSystems } from "./cockpitSystems";
 import { createCockpitProjection } from "./cockpitProjection";
@@ -123,6 +125,9 @@ export default function CockpitMap({
   const [compact, setCompact] = useState(false);
   const journalButton = useRef<HTMLButtonElement>(null);
   const guardButton = useRef<HTMLButtonElement>(null);
+  const groguButton = useRef<HTMLButtonElement>(null);
+  const groguApi = useRef<ReturnType<typeof createCockpitGrogu> | null>(null);
+  const [groguHolds, setGroguHolds] = useState(false);
   const terminal = useRef<HTMLElement>(null);
   const controlsApi = useRef<ReturnType<typeof createMissionConsole> | null>(null);
   const mount = useRef<HTMLDivElement>(null);
@@ -300,6 +305,12 @@ export default function CockpitMap({
     const amber = new THREE.PointLight(0xff7b35, 2.5, 5, 2);
     amber.position.set(-1.6, 0.8, 0.3);
     scene.add(amber);
+    const grogu = createCockpitGrogu();
+    groguApi.current = grogu;
+    scene.add(grogu.group);
+    const droidVoice = createDroidVoice();
+    let jolt = 0;
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __cockpitGrogu?: unknown }).__cockpitGrogu = grogu;
     const fill = new THREE.PointLight(0x709cc6, 5, 7, 2);
     fill.position.set(1.6, 2.2, 1.4);
     scene.add(fill);
@@ -504,6 +515,24 @@ export default function CockpitMap({
       controls.tick(dt, age, live.current.reduced);
       placeOver(journalButton.current, controls.journalAnchor, 150, 70);
       placeOver(guardButton.current, controls.guardAnchor, 76, 70);
+      placeOver(groguButton.current, grogu.anchor, 196, 38);
+      // The stowaway only comes when nothing else is open, and the ball coming off shakes the ship.
+      const calm = !live.current.journal && !live.current.arcade && !live.current.flightLog && !live.current.defense && !live.current.arcadeGame;
+      if (grogu.tick(dt, live.current.reduced, calm) === "pulled") {
+        setGroguHolds(true);
+        jolt = 1.5;
+        if (live.current.sound) droidVoice.play("error");
+      }
+      if (jolt > 0) {
+        jolt = Math.max(0, jolt - dt);
+        const flicker = !live.current.reduced && jolt > 0 && Math.sin(age * 44) > 0;
+        projection.group.visible = !flicker;
+        amber.intensity = jolt > 0 ? (flicker ? 9 : 4) : 2.5;
+        if (!live.current.reduced) {
+          camera.position.x += (Math.random() - 0.5) * 0.022 * jolt;
+          camera.position.y += (Math.random() - 0.5) * 0.022 * jolt;
+        }
+      }
       placeOver(logButton.current, logConsole.anchor, 172, 52);
       logConsole.tick(age, live.current.reduced, live.current.flightLog);
       placeOver(arcadeButton.current, arcadeConsole.anchor, 124, 54);
@@ -1027,6 +1056,23 @@ export default function CockpitMap({
           </button>
         ))}
       </motion.div>
+      {graphics && groguHolds && (
+        <div className="cockpit-instruments">
+          <button
+            ref={groguButton}
+            className="cockpit-grogu-button"
+            onClick={() => {
+              groguApi.current?.take();
+              setGroguHolds(false);
+            }}
+          >
+            REPRENDRE LE POMMEAU
+          </button>
+          <p className="cockpit-grogu-note" role="status">
+            R-X7 : bip ! Votre passager clandestin vient d’arracher le pommeau du levier.
+          </p>
+        </div>
+      )}
       {graphics && !compact && (
         <div className="cockpit-instruments">
           <button

@@ -34,6 +34,13 @@
     0 12px 45px #0005,
     0 0 28px #209ec00c;
 }
+/* The panel's shape is drawn by pseudo-elements that scroll with it, so a panel taller than the
+   window grows whole and the backdrop scrolls it, instead of leaving its end without a background. */
+.experience .help.modal {
+  max-height: none;
+  overflow: visible;
+  margin: auto;
+}
 .experience
   :is(
     .orbit-card,

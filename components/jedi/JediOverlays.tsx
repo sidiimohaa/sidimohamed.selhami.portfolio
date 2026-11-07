@@ -306,12 +306,16 @@ function Transmission({ tone, eyebrow, title, onClose, children, wide }: { tone:
   );
 }
 
-export function ImperialTransmission({ onClose, reduced = false }: { onClose: () => void; reduced?: boolean }) {
+export function ImperialTransmission({ onClose, onAnswer, reduced = false }: { onClose: () => void; onAnswer: () => void; reduced?: boolean }) {
   return (
     <Transmission tone="empire" eyebrow="TRANSMISSION IMPÉRIALE · PRIORITÉ ABSOLUE" title="À tous les commandants" onClose={onClose} wide>
       <OrderSixtySixScene reduced={reduced} />
       <p className="holo-quote">« Le moment est venu. Exécutez l’ordre 66. »</p>
       <p>Le code a été reconnu. Cette transmission n’aurait jamais dû vous parvenir, pilote : l’Empire écoute toujours.</p>
+      <p>Au Temple Jedi, un padawan appelle encore à l’aide.</p>
+      <button className="jedi-button danger" onClick={onAnswer}>
+        REJOINDRE LE TEMPLE
+      </button>
     </Transmission>
   );
 }
