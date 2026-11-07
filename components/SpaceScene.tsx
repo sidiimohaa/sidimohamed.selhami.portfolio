@@ -8,7 +8,7 @@ import { equippedValue, getArcade, onArcadeChange } from "./arcade/arcadeStore";
 import { createNebula, createShootingStars } from "./spaceAmbience";
 import { createSpaceDust, createStarLayers, createSun } from "./deepSpace";
 import { qualityProfiles, type QualityId } from "./graphicsQuality";
-import { createSpaceTraffic, type HyperspacePhase } from "./spaceTraffic";
+import { createSpaceTraffic, type HyperspacePhase, type TrafficKind } from "./spaceTraffic";
 import { livingOn } from "./galaxy/flags";
 import { livingProfile } from "./galaxy/quality";
 import { createSpaceEvents } from "./galaxy/spaceEvents";
@@ -606,8 +606,9 @@ export default function SpaceScene({
       hyperspaceCallback.current(phase),
     );
     scene.add(traffic.group);
+    const trafficSent = new Set<number>();
     const spaceEvents = livingOn("events") && livingOn("spaceEvents")
-      ? createSpaceEvents({ glow: traffic.glow, ship: traffic.fleetShip, asteroids: Math.round(60 + livingProfile().traffic * 120), obstacles: () => obstacles })
+      ? createSpaceEvents({ glow: traffic.glow, ship: traffic.fleetShip, obstacles: () => obstacles })
       : null;
     if (spaceEvents) scene.add(spaceEvents.group);
     spaceEventsRef.current = spaceEvents;
@@ -1121,7 +1122,14 @@ export default function SpaceScene({
         { active: s.flying && !s.reduced, travel: s.travel },
         obstacles,
       );
-      spaceEvents?.tick(s.paused ? 0 : dt, elapsed, s.reduced, camera, galaxy().activeAt("space"), s.travel);
+      const spaceRuns = galaxy().activeAt("space");
+      // A passing ship is an event like the others: it is sent across when its event starts.
+      for (const run of spaceRuns) {
+        if (!run.id.startsWith("space-traffic-") || trafficSent.has(run.key)) continue;
+        trafficSent.add(run.key);
+        if (!s.travel) traffic.request(run.id.slice("space-traffic-".length) as TrafficKind);
+      }
+      spaceEvents?.tick(s.paused ? 0 : dt, elapsed, s.reduced, camera, spaceRuns, s.travel);
       if (s.droidSignal !== lastDroidSignal) {
         lastDroidSignal = s.droidSignal;
         droidAt = elapsed;

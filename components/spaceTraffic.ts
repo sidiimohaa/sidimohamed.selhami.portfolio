@@ -6,9 +6,6 @@ export type HyperspacePhase = "arrive" | "jump";
 type Obstacle = { position: THREE.Vector3; radius: number };
 type Vec3 = [number, number, number];
 
-// Seconds of active flight before the first pass, then between two passes.
-const FIRST_PASS = 30,
-  PASS_INTERVAL = 180;
 const ARRIVAL = 0.6,
   CHARGE = 0.45,
   STRETCH = 0.32;
@@ -536,7 +533,10 @@ const plans: Plan[] = [
   },
 ];
 
-// Ships drop out of hyperspace, cross the view, then jump away. Each pass brings the next kind.
+// Ships drop out of hyperspace, cross the view, then jump away. Passes are galactic events now: the
+// director decides when one happens, so that it never runs over another event, and asks for it.
+export type TrafficKind = "destroyer" | "freighter" | "fighter";
+const KINDS: TrafficKind[] = ["destroyer", "freighter", "fighter"];
 export function createSpaceTraffic(
   renderer: THREE.WebGLRenderer,
   onPhase: (phase: HyperspacePhase) => void,
@@ -599,9 +599,7 @@ export function createSpaceTraffic(
     probe = new THREE.Vector3(),
     segment = new THREE.Line3(),
     nosePoint = new THREE.Vector3();
-  let waited = 0,
-    nextPass = FIRST_PASS,
-    launches = 0,
+  let queued: number | null = null,
     flight: (typeof flights)[number] | null = null,
     clock = -1,
     scale = 1,
@@ -612,8 +610,8 @@ export function createSpaceTraffic(
     if (flight) flight.formation.visible = false;
     flight = null;
   };
-  const launch = (camera: THREE.PerspectiveCamera, obstacles: Obstacle[]) => {
-    const current = flights[launches++ % flights.length],
+  const launch = (camera: THREE.PerspectiveCamera, obstacles: Obstacle[], index: number) => {
+    const current = flights[index],
       plan = current.plan;
     forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
     right.set(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -682,7 +680,11 @@ export function createSpaceTraffic(
   return {
     group,
     // A ship for the galactic events (a fleet, a wreck), on the same hulls as passing traffic.
-    fleetShip: (kind: "destroyer" | "freighter" | "fighter") =>
+    /** Sends a ship of this kind across the view as soon as the sky is clear. */
+    request: (kind: TrafficKind) => {
+      queued = KINDS.indexOf(kind);
+    },
+    fleetShip: (kind: TrafficKind) =>
       buildVessel((kind === "destroyer" ? destroyerHull : kind === "freighter" ? freighterHull : fighterHull)(), glow, plating, reflections, [0, 0, 0]).root,
     glow,
     tick: (
@@ -705,11 +707,9 @@ export function createSpaceTraffic(
         return;
       }
       if (!flight) {
-        waited += dt;
-        if (waited >= nextPass && dt > 0 && !state.travel) {
-          waited = 0;
-          nextPass = PASS_INTERVAL;
-          launch(camera, obstacles);
+        if (queued !== null && dt > 0 && !state.travel) {
+          launch(camera, obstacles, queued);
+          queued = null;
         }
         return;
       }
@@ -779,7 +779,7 @@ export function createSpaceTraffic(
       if (vessels.every((vessel) => vessel.gone)) finish();
     },
     reset: () => {
-      waited = 0;
+      queued = null;
       finish();
       flashes.forEach((item) => (item.sprite.visible = false));
     },

@@ -92,7 +92,7 @@ export function createDirector(options: { random?: () => number; events?: Galact
       if (clock >= nextRemote) {
         nextRemote = clock + REMOTE_GAP.min + random() * (REMOTE_GAP.max - REMOTE_GAP.min);
         // Distant events are routine or notable, and only for places the visitor is not at.
-        const event = draw(events.filter((item) => item.place !== place && item.priority < 3 && !item.seek && context.enabled(item.place)));
+        const event = draw(events.filter((item) => item.place !== place && item.priority < 3 && !item.seek && !item.ambient && context.enabled(item.place)));
         if (event) start(event, false);
       }
     },

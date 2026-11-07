@@ -32,6 +32,8 @@ export type GalacticEvent = {
   seek?: boolean;
   // Started only by the visitor's own action, never drawn by the director.
   manual?: boolean;
+  // A ship passing by: only ever where the visitor is, never an entry from afar in the monitor.
+  ambient?: boolean;
 };
 
 export const galacticEvents: GalacticEvent[] = [
@@ -87,11 +89,21 @@ export const galacticEvents: GalacticEvent[] = [
       { id: "silence", label: "Garder le silence", line: "Silence radio. Espérons qu’ils aient mieux à faire." },
     ],
   },
+  // Ships passing through, one at a time like everything else.
   {
-    id: "space-asteroids", place: "space", title: "Champ d’astéroïdes", priority: 2, weight: 2, duration: [50, 64], cooldown: 360,
-    summary: "Un amas d’astéroïdes dérive sur notre trajectoire. Passage possible en pilotage manuel.",
-    line: "Champ d’astéroïdes droit devant. Les chances de le traverser… je préfère ne pas vous les donner.",
-    endLine: "L’amas s’éloigne de notre trajectoire.",
+    id: "space-traffic-destroyer", place: "space", title: "Destroyer en transit", priority: 1, weight: 2, duration: [14, 14], cooldown: 300, ambient: true,
+    summary: "Un destroyer impérial sort d’hyperespace, traverse le secteur et repart.",
+    line: "Sortie d’hyperespace : un destroyer impérial. Il ne fait que passer, restons discrets.",
+  },
+  {
+    id: "space-traffic-freighter", place: "space", title: "Cargo léger", priority: 1, weight: 2, duration: [10, 10], cooldown: 240, ambient: true,
+    summary: "Un vieux cargo corellien file à travers le secteur, pressé de disparaître.",
+    line: "Un cargo corellien passe à pleine vitesse. Vu son allure, il n’a pas envie qu’on lise son immatriculation.",
+  },
+  {
+    id: "space-traffic-fighter", place: "space", title: "Chasseur argenté", priority: 1, weight: 2, duration: [8, 8], cooldown: 240, ambient: true,
+    summary: "Un chasseur chromé traverse le secteur, trop vite pour être identifié.",
+    line: "Un chasseur argenté vient de nous dépasser. Trop rapide pour mes capteurs.",
   },
   {
     id: "space-wreck", place: "space", title: "Épave mystérieuse", priority: 2, weight: 2, duration: [90, 120], cooldown: 420, seek: true,
@@ -101,10 +113,16 @@ export const galacticEvents: GalacticEvent[] = [
     discovery: { title: "Archive de l’épave", body: "Un holocron de données endommagé : il renferme une fiche de projet et un indice sur une carte mal rangée.", project: true, mission: "star-map" },
   },
   {
-    id: "space-fleet", place: "space", title: "Passage d’une flotte", priority: 3, weight: 1, duration: [46, 58], cooldown: 900,
-    summary: "Une flotte sort d’hyperespace et traverse le secteur en formation.",
-    line: "Sorties d’hyperespace multiples ! Une flotte complète traverse le secteur, gardons nos distances.",
-    endLine: "La flotte a sauté. Le secteur est de nouveau calme.",
+    id: "space-fleet", place: "space", title: "Flotte impériale", priority: 3, weight: 1, duration: [46, 58], cooldown: 900,
+    summary: "Trois destroyers stellaires sortent d’hyperespace et traversent le secteur, escortés de chasseurs TIE.",
+    line: "Sorties d’hyperespace multiples ! Trois destroyers impériaux et leur escorte de TIE. Coupons les feux, ils ne nous cherchent pas.",
+    endLine: "La flotte impériale a sauté. Le secteur est de nouveau calme.",
+  },
+  {
+    id: "space-convoy", place: "space", title: "Convoi de la Fédération du Commerce", priority: 3, weight: 1, duration: [56, 60], cooldown: 900,
+    summary: "Un cuirassé de la Fédération du Commerce traverse le secteur sous escorte de droïdes vautours. La Main Invisible, le vaisseau du général Grievous, le suit de près, et un croiseur de la République les traque.",
+    line: "Sortie d’hyperespace : un cuirassé de la Fédération du Commerce, escorté de droïdes vautours. Et derrière lui… la Main Invisible. Grievous en personne.",
+    endLine: "Un croiseur de la République était sur les talons de Grievous : le convoi a sauté en catastrophe, et le croiseur a repris la traque.",
   },
   // Tatooine, Hoth, Endor: the weather and passers-by of each landing zone.
   {
