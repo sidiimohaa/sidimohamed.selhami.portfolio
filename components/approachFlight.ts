@@ -26,7 +26,8 @@ export function createApproachFlight(options: Options) {
   const baseFov = camera.aspect < 0.8 ? 52 : 50;
   const portrait = camera.aspect < 0.8;
   const tanHalf = Math.tan(THREE.MathUtils.degToRad(baseFov / 2));
-  const share = portrait ? Math.min(0.36, camera.aspect * 0.45) : 0.36;
+  // Let the world dominate the arrival view while keeping its full disk in frame.
+  const share = portrait ? Math.min(0.48, camera.aspect * 0.62) : 0.48;
   const range = Math.max(radius / (tanHalf * share), radius + shipDistance + 3);
   const goalCamera = destination
     .clone()

@@ -18,14 +18,15 @@ export function orbitalPoint(reach: number, angle: number, lift = 0): SpacePoint
 const world = (radius: number, orbit: number, degrees: number) => ({
   radius, orbit, position: orbitalPoint(orbit, degrees * Math.PI / 180),
 });
-const endor = world(2.8, 78, 205);
+// Larger worlds establish their scale against the foreground X-wing.
+const endor = world(8.4, 78, 205);
 // Indices match destinations: Tatooine, Endor, Coruscant, station, Hoth.
 export const ORBITAL_BODIES = [
-  world(3.6, 56, 25),
+  world(10.8, 56, 25),
   endor,
-  world(4.8, 32, 120),
-  { radius: 1.05, orbit: null, position: [endor.position[0] + 22, endor.position[1] + 20, endor.position[2] + 10] as SpacePoint },
-  world(3.2, 108, 300),
+  world(14.4, 32, 120),
+  { radius: 3.15, orbit: null, position: [endor.position[0] + 22, endor.position[1] + 20, endor.position[2] + 10] as SpacePoint },
+  world(9.6, 108, 300),
 ];
 export const SYSTEM_ORBITS = [32, 56, 78, 108];
 export const DEBRIS_ORBIT = 66;
