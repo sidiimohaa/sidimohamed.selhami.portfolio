@@ -486,3 +486,23 @@ export function createEscapeAudio() {
     },
   };
 }
+
+// The double circle that shows where a blow will land.
+let ringMap: THREE.Texture | null = null;
+export function ringTexture() {
+  if (ringMap) return ringMap;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 128;
+  const c = canvas.getContext("2d")!;
+  c.strokeStyle = "#ffffff";
+  c.lineWidth = 7;
+  c.beginPath();
+  c.arc(64, 64, 50, 0, Math.PI * 2);
+  c.stroke();
+  c.lineWidth = 3;
+  c.beginPath();
+  c.arc(64, 64, 34, 0, Math.PI * 2);
+  c.stroke();
+  ringMap = new THREE.CanvasTexture(canvas);
+  return ringMap;
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { adjustCredits, getArcade, onArcadeChange } from "../arcade/arcadeStore";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Camera, ChevronRight, Flag, Pause, Play,
@@ -166,15 +167,27 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
   live.current = { run, outcome, paused, failed, onQuit, onResult, camera, quality, muted };
 
   useEffect(() => {
-    profileRef.current = loadProfile();
+    // Credits live in the arcade's wallet: the profile only mirrors that balance, including what the
+    // arcade pays at the end of a race.
+    profileRef.current = { ...loadProfile(), credits: getArcade().credits };
     setProfile(profileRef.current);
+    saveProfile(profileRef.current);
     root.current?.focus({ preventScroll: true });
+    return onArcadeChange(() => {
+      const credits = getArcade().credits;
+      if (credits === profileRef.current.credits) return;
+      profileRef.current = { ...profileRef.current, credits };
+      setProfile(profileRef.current);
+      saveProfile(profileRef.current);
+    });
   }, []);
 
   function updateProfile(next: PodProfile) {
+    const spent = next.credits - profileRef.current.credits;
     profileRef.current = next;
     setProfile(next);
     saveProfile(next);
+    adjustCredits(spent);
   }
 
   function clearControls() {

@@ -13,6 +13,7 @@ import { breathe, warmUp } from "./render/warmUp";
 import BountyProjectPanel from "./BountyProjectPanel";
 import PassionsViewer from "./PassionsViewer";
 import { createEndorZone } from "./endorZone";
+import { createMustafarZone } from "./mustafarZone";
 import { setGalaxyBusy } from "./galaxy/store";
 import { chosenTier, createPipeline } from "./render/pipeline";
 import { enrichMaterials } from "./render/materialDetail";
@@ -29,6 +30,7 @@ const zones: Record<string, (landing: Landing, notify: (event: PadEvent) => void
   Tatooine: createTatooineZone,
   Hoth: createHothZone,
   Endor: createEndorZone,
+  Mustafar: createMustafarZone,
 };
 
 export type SurfaceCue = "terminal" | "takeoff" | "step" | "cantina-enter" | "cantina-leave" | PadEvent;

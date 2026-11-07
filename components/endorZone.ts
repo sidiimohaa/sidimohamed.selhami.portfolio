@@ -63,8 +63,7 @@ export function createEndorZone(landing: Landing, notify: (event: PadEvent) => v
   group.add(ghosts.group);
   const viewer = new THREE.Vector3();
 
-  const metal = new THREE.MeshStandardMaterial({ color: 0x6f6a60, roughness: 0.6, metalness: 0.6 });
-  const parking = parkShip(metal);
+  const parking = parkShip();
   group.add(parking.ship);
   const crew = createPadLife({ glow, engines: parking.exhausts, notify, guard: false, drone: false, taxi: false, ground: "sand", steam: 0xd9ddd2 });
   group.add(crew.group);

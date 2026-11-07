@@ -877,7 +877,7 @@
 .jedi-widget-card {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
+  left: 0;
   z-index: 30;
   display: grid;
   gap: 8px;
@@ -889,6 +889,7 @@
   box-shadow: 0 10px 40px #000a, 0 0 30px #4aaaf422;
   color: var(--holo-white);
   font-size: 12px;
+  max-width: calc(100vw - 32px);
 }
 .jedi-widget-card strong {
   font-family: var(--mono);
@@ -1795,4 +1796,259 @@
   text-align: center;
   transform: translateX(-50%);
   pointer-events: none;
+}
+.vader-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(70px, 13vh, 112px);
+  z-index: 2;
+  width: min(640px, calc(100vw - 32px));
+  margin: 0 auto;
+  color: #f4e9e4;
+  font-size: clamp(15px, 2.1vw, 20px);
+  line-height: 1.4;
+  letter-spacing: 0.3px;
+  text-align: center;
+  text-shadow: 0 2px 10px #000, 0 0 3px #000;
+  pointer-events: none;
+  animation: fx-fade-in 0.9s ease-out both;
+}
+@keyframes fx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vader-caption {
+    animation: none;
+  }
+}
+.vader-outcome,
+.vader-choice {
+  padding: 26px 18px 18px;
+  background: radial-gradient(ellipse at 50% 60%, #000000c4, #00000090 56%, transparent 78%);
+}
+
+/* The lever of the holographic orbital system. */
+.cockpit-lever-button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.cockpit-lever-button:hover,
+.cockpit-lever-button:focus-visible {
+  background: radial-gradient(circle, #47ccff33, transparent 68%);
+}
+
+/* A vision of the Force: one line of the prophecy, over whatever the visitor is doing. */
+.prophecy-vision {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+  text-align: center;
+}
+.prophecy-vision-veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, #06162acc 0%, #03081299 42%, #02050a33 72%, transparent 100%);
+}
+.prophecy-vision-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 300px;
+  height: 300px;
+  margin: -150px 0 0 -150px;
+  border: 1px solid #a8dcff;
+  border-radius: 50%;
+  box-shadow: 0 0 40px #4aaaf4aa, inset 0 0 40px #4aaaf455;
+  animation: prophecy-ring 2.8s ease-out both;
+}
+@keyframes prophecy-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(0.1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.4);
+  }
+}
+.prophecy-vision-copy {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  width: min(760px, calc(100vw - 48px));
+  color: #eaf6ff;
+}
+.prophecy-vision-copy p,
+.prophecy-vision-copy span {
+  margin: 0;
+  color: #9fd6f6;
+  font-size: 10px;
+  letter-spacing: 2.4px;
+}
+.prophecy-vision-copy blockquote {
+  margin: 0;
+  font-size: clamp(22px, 4vw, 38px);
+  font-weight: 400;
+  line-height: 1.25;
+  text-shadow: 0 0 22px #4aaaf4, 0 2px 10px #000;
+}
+
+/* The prophecy, verse by verse, in the journal. */
+.prophecy-page {
+  display: grid;
+  gap: 12px;
+  padding: 6px 2px;
+}
+.prophecy-page ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.prophecy-page li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 8px;
+  color: #eaf6ff;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.prophecy-page li span {
+  color: #78c6ff;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 2;
+}
+.prophecy-page li[data-known="false"] {
+  color: #6b7f90;
+  letter-spacing: 3px;
+}
+.prophecy-page .prophecy-end {
+  margin: 4px 0 0;
+  color: #f4dca0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.prophecy-page small {
+  color: #8fa8ba;
+  font-size: 11px;
+}
+
+/* The duel with Vader. */
+.duel-hud {
+  position: absolute;
+  left: 50%;
+  top: 64px;
+  z-index: 2;
+  display: grid;
+  gap: 7px;
+  width: min(420px, calc(100vw - 32px));
+  color: #f4e9e4;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  text-shadow: 0 1px 6px #000;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.duel-hud div {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.duel-hud b {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  background: #ffffff26;
+}
+.duel-hud i {
+  display: block;
+  height: 100%;
+  transition: width 0.25s;
+}
+.duel-hud .you i {
+  background: #6cc4ff;
+  box-shadow: 0 0 10px #4aaaf4;
+}
+.duel-hud .him i {
+  background: #ff4040;
+  box-shadow: 0 0 10px #ff3030;
+}
+.duel-hurt {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, #d9142bb8 100%);
+  animation: order-escape-hurt 0.5s ease-out forwards;
+}
+.duel-choke {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 22%, #000000f0 78%);
+}
+.duel-resist {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  z-index: 3;
+  min-height: 56px;
+  padding: 14px 30px;
+  border: 1px solid #bfe0ff;
+  border-radius: 2px;
+  color: #fff;
+  background: #16345ad9;
+  box-shadow: 0 0 34px #4aaaf48c;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 2px;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+.duel-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(60px, 11vh, 96px);
+  z-index: 2;
+  width: min(640px, calc(100vw - 32px));
+  margin: 0 auto;
+  color: #fff;
+  font-size: clamp(15px, 2vw, 18px);
+  line-height: 1.35;
+  text-align: center;
+  text-shadow: 0 2px 10px #000, 0 0 3px #000;
+  pointer-events: none;
+}
+.vader-scene.phase-duel {
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prophecy-vision-ring {
+    animation: none;
+    opacity: 0;
+  }
 }

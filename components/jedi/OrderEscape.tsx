@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { glowTexture } from "../landingKit";
 import { createAirTaxi } from "../coruscantTaxi/taxiModel";
 import { createAnakin, createCloneTemplate, createPadawan, createSaber, instantiateClone, marchClone, poseClone, type CloneRig } from "./cloneTrooperModel";
-import { ARCHIVES_FROM, BALCONY, FALLING_COLUMN_Z, GALLERY_Y, HALL_END, WAY_Y, burningSky, createDrift, createEscapeAudio, createTempleExterior, createTempleHall } from "./orderEscapeWorld";
+import { ARCHIVES_FROM, BALCONY, FALLING_COLUMN_Z, GALLERY_Y, HALL_END, WAY_Y, burningSky, createDrift, createEscapeAudio, createTempleExterior, createTempleHall, ringTexture } from "./orderEscapeWorld";
 import { createStage } from "./stage";
 
 // Order 66, reached only from the Imperial transmission that the secret code opens. Clones march
@@ -765,23 +765,4 @@ export default function OrderEscape({ reduced, sound, onClose }: { reduced: bool
       )}
     </motion.div>
   );
-}
-
-let ringMap: THREE.Texture | null = null;
-function ringTexture() {
-  if (ringMap) return ringMap;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 128;
-  const c = canvas.getContext("2d")!;
-  c.strokeStyle = "#ffffff";
-  c.lineWidth = 7;
-  c.beginPath();
-  c.arc(64, 64, 50, 0, Math.PI * 2);
-  c.stroke();
-  c.lineWidth = 3;
-  c.beginPath();
-  c.arc(64, 64, 34, 0, Math.PI * 2);
-  c.stroke();
-  ringMap = new THREE.CanvasTexture(canvas);
-  return ringMap;
 }

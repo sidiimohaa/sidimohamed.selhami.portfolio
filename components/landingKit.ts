@@ -256,8 +256,8 @@ export function createTerminals(landing: Landing, metal: THREE.Material, circles
   };
 }
 
-// The ship, parked on the landing circle with its gear down, nose towards the arrival spot.
-export function parkShip(metal: THREE.Material) {
+// The ship, held above the landing circle on its repulsors, nose towards the arrival spot.
+export function parkShip() {
   const ship = new THREE.Group();
   const model = createShipModel();
   model.rotation.x = -Math.PI / 2;
@@ -266,17 +266,6 @@ export function parkShip(metal: THREE.Material) {
   const bounds = new THREE.Box3().setFromObject(model);
   model.position.y = 1.15 - bounds.min.y;
   ship.add(model);
-  ship.add(
-    ...[
-      [0, bounds.min.z + 1.6],
-      [-1.3, bounds.max.z - 1.6],
-      [1.3, bounds.max.z - 1.6],
-    ].map(([x, z]) => {
-      const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 1.2, 8), metal);
-      strut.position.set(x, 0.6, z);
-      return strut;
-    }),
-  );
   const shipRest = new THREE.Vector3(0, 0, 2);
   ship.position.copy(shipRest);
   ship.rotation.y = Math.PI;

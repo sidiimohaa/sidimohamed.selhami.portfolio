@@ -3,7 +3,7 @@ import { education, experiences, identity } from "../deathStar/cvData";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, X } from "lucide-react";
-import { XP_PER_MISSION, useJediProgression, type Mission, type Rank } from "../jediProgression";
+import { PROPHECY_END, XP_PER_MISSION, missions, useJediProgression, type Mission, type Rank } from "../jediProgression";
 import { RankBadge } from "./RankBadge";
 import dynamic from "next/dynamic";
 // The Order 66 scene needs three.js: it loads only when its transmission opens.
@@ -12,35 +12,26 @@ const OrderSixtySixScene = dynamic(() => import("./OrderSixtySix").then((module)
 // Everything the progression shows outside the cockpit terminal: the "mission accomplie" toast,
 // the rank ceremonies, the discreet widget, and the screens a few missions open.
 
+// A secret found: a brief vision of the Force, carrying this mission's line of the prophecy. It never
+// takes the pointer, so whatever the visitor is doing carries on underneath it.
 export function SecretDiscoveryToast({ mission, total, reduced, onDone }: { mission: Mission; total: number; reduced: boolean; onDone: () => void }) {
   useEffect(() => {
-    const timer = window.setTimeout(onDone, 4800);
+    const timer = window.setTimeout(onDone, 5600);
     return () => window.clearTimeout(timer);
   }, [onDone]);
   return (
-    <motion.div
-      className="secret-toast"
-      role="status"
-      aria-live="polite"
-      initial={{ opacity: 0, y: reduced ? 0 : -18 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: reduced ? 0 : -10 }}
-      transition={{ duration: reduced ? 0.15 : 0.45, ease: [0.2, 0.7, 0.2, 1] }}
-    >
-      <span className="secret-toast-sweep" aria-hidden="true" />
-      {!reduced && (
-        <span className="secret-toast-sparks" aria-hidden="true">
-          {Array.from({ length: 8 }, (_, i) => (
-            <i key={i} style={{ "--i": i } as React.CSSProperties} />
-          ))}
-        </span>
-      )}
-      <strong>MISSION ACCOMPLIE</strong>
-      <span>Un nouveau secret de la galaxie a été découvert.</span>
-      <span className="secret-toast-line mono">
-        MISSION {mission.number} · {mission.title.toUpperCase()} · {total} / 10
-      </span>
-      <b className="secret-toast-xp">+{XP_PER_MISSION} XP</b>
+    <motion.div className="prophecy-vision" role="status" aria-live="polite" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? 0.15 : 0.7 }}>
+      <span className="prophecy-vision-veil" aria-hidden="true" />
+      {!reduced && <span className="prophecy-vision-ring" aria-hidden="true" />}
+      <div className="prophecy-vision-copy">
+        <p className="mono">LA PROPHÉTIE · VERS {total} / {missions.length}</p>
+        <motion.blockquote initial={{ opacity: 0, letterSpacing: reduced ? "0.2px" : "3px", y: reduced ? 0 : 6 }} animate={{ opacity: 1, letterSpacing: "0.2px", y: 0 }} transition={{ delay: reduced ? 0 : 0.5, duration: reduced ? 0.1 : 1.3 }}>
+          « {mission.verse} »
+        </motion.blockquote>
+        <motion.span className="mono" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 1.5, duration: 0.6 }}>
+          MISSION {mission.number} · {mission.title.toUpperCase()} · +{XP_PER_MISSION} XP
+        </motion.span>
+      </div>
     </motion.div>
   );
 }
@@ -58,7 +49,7 @@ export function RankUpCinematic({ to, reduced, onDone }: { to: Rank; reduced: bo
   const [stage, setStage] = useState(0);
   useEffect(() => {
     skip.current?.focus();
-    const length = reduced ? 3200 : chosen ? 10500 : 5600;
+    const length = reduced ? 3200 : chosen ? 12500 : 5600;
     const timers = [window.setTimeout(onDone, length)];
     if (chosen && !reduced) timers.push(window.setTimeout(() => setStage(1), 5600));
     const key = (event: KeyboardEvent) => {
@@ -140,6 +131,11 @@ export function RankUpCinematic({ to, reduced, onDone }: { to: Rank; reduced: bo
           >
             {to.title.toUpperCase()}
           </motion.h2>
+        )}
+        {chosen && stage === 1 && (
+          <motion.p key="end" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 1, duration: 0.8 }}>
+            « {PROPHECY_END} » Dans le cockpit, la carte de la galaxie vous attend.
+          </motion.p>
         )}
         {message && (
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: reduced ? 0 : 2.2, duration: 0.8 }}>

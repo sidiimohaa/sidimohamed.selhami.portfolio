@@ -12,6 +12,7 @@ import {
   type Mission,
   type MissionId,
   type Reward,
+  PROPHECY_END,
 } from "../jediProgression";
 import { MissionIcon, RankBadge } from "./RankBadge";
 import { anecdote, skills } from "./rewardContent";
@@ -19,10 +20,11 @@ import { anecdote, skills } from "./rewardContent";
 // The cockpit's mission computer: "Archives de l'Ordre Jedi", with the pilot's profile, the ten
 // missions, the holocron collection and the rewards, all read from the shared progression.
 
-type Tab = "profile" | "missions" | "holocrons" | "rewards";
+type Tab = "profile" | "missions" | "prophecy" | "holocrons" | "rewards";
 const tabs: { id: Tab; label: string }[] = [
   { id: "profile", label: "Profil du pilote" },
   { id: "missions", label: "Missions galactiques" },
+  { id: "prophecy", label: "La prophétie" },
   { id: "holocrons", label: "Holocrons" },
   { id: "rewards", label: "Récompenses" },
 ];
@@ -207,6 +209,27 @@ export function HolocronCollection() {
   );
 }
 
+// The prophecy of the Chosen One: a line for each secret found, in its own place in the text.
+export function ProphecyPage() {
+  const { status, count, total } = useJediProgression();
+  return (
+    <div className="prophecy-page">
+      <ol>
+        {missions.map((mission) => {
+          const known = status(mission.id) === "done";
+          return (
+            <li key={mission.id} data-known={known}>
+              <span>{mission.number}</span>
+              {known ? `« ${mission.verse} »` : "· · ·"}
+            </li>
+          );
+        })}
+      </ol>
+      {count >= total ? <p className="prophecy-end">« {PROPHECY_END} »</p> : <small>{total - count} vers manquent encore. Chacun se cache derrière un secret de la galaxie.</small>}
+    </div>
+  );
+}
+
 export function RewardGallery({ onOpen }: { onOpen: (reward: Reward) => void }) {
   const { unlocked, progress, count, total } = useJediProgression();
   return (
@@ -369,6 +392,7 @@ export const CockpitMissionTerminal = forwardRef<HTMLElement, TerminalProps>(fun
             <div className="jedi-panel" role="tabpanel" id={`jedi-panel-${tab}`} aria-labelledby={`jedi-tab-${tab}`} tabIndex={0}>
               {tab === "profile" && <JediProgressPanel reduced={reduced} />}
               {tab === "missions" && <MissionList fresh={fresh} />}
+              {tab === "prophecy" && <ProphecyPage />}
               {tab === "holocrons" && <HolocronCollection />}
               {tab === "rewards" && (reading ? <RewardReading reward={reading} onBack={() => setReading(null)} /> : <RewardGallery onOpen={open} />)}
             </div>

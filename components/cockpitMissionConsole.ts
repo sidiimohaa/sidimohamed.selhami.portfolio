@@ -1,8 +1,8 @@
 import * as THREE from "three";
 
-// Two physical controls added to the top of the dashboard. On the right, the "Journal de missions"
-// module: a lit push button with a status lamp. On the left, a switch under a red safety cover
-// that should not be lifted. Each faces the pilot; HTML buttons are laid over them for input.
+// Two physical controls. On the dashboard, the "Journal de missions" module: a lit push button with
+// a status lamp. Hanging from the cockpit ceiling, a switch under a red safety cover that should not
+// be lifted. Each faces the pilot; HTML buttons are laid over them for input.
 
 const label = (lines: string[], color: string, width = 256, height = 64) => {
   const canvas = document.createElement("canvas");
@@ -67,10 +67,14 @@ export function createMissionConsole(pilot: THREE.Vector3) {
 
   // --- The covered switch ---
   const guard = new THREE.Group();
-  guard.position.set(-0.8, 1.02, -1.58);
+  guard.position.set(-0.86, 2.84, -0.86);
   group.add(guard);
   guard.lookAt(pilot);
   guard.scale.setScalar(1.5);
+  // Its bracket, up to the overhead bay.
+  const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 0.05), graphite);
+  bracket.position.set(0, 0.145, -0.02);
+  guard.add(bracket);
   guard.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.17, 0.09), graphite));
   const hazard = new THREE.Mesh(
     new THREE.PlaneGeometry(0.18, 0.03),

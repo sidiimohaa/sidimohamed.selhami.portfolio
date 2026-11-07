@@ -31,18 +31,27 @@ export function createDarkLord(pose: "confront" | "watch" = "confront") {
   group.add(head);
   add(head, new THREE.SphereGeometry(0.15, 36, 18, 0, Math.PI * 2, 0, Math.PI / 2), gloss, [0, 0, 0], [1, 1.08, 1.12]);
   add(head, new THREE.BoxGeometry(0.012, 0.02, 0.3), gloss, [0, 0.155, -0.01]);
-  add(
-    head,
-    new THREE.LatheGeometry(
-      [new THREE.Vector2(0.152, 0.002), new THREE.Vector2(0.165, -0.07), new THREE.Vector2(0.2, -0.15), new THREE.Vector2(0.245, -0.21), new THREE.Vector2(0.258, -0.24)],
-      40,
-      0.95,
-      Math.PI * 2 - 1.9,
-    ),
-    gloss,
-    [0, 0, 0],
-    [1, 1, 1.08],
-  );
+  // The flared back of the helmet, listed from the rim upwards so that its faces point outwards, and
+  // lit on both sides so that it also reads from underneath.
+  const flareGloss = gloss.clone();
+  flareGloss.side = THREE.DoubleSide;
+  const flareAngle = 0.95;
+  const flareLength = Math.PI * 2 - flareAngle * 2;
+  const flareProfile = [new THREE.Vector2(0.262, -0.25), new THREE.Vector2(0.245, -0.21), new THREE.Vector2(0.2, -0.15), new THREE.Vector2(0.165, -0.07), new THREE.Vector2(0.15, 0.002)];
+  add(head, new THREE.LatheGeometry(flareProfile, 48, flareAngle, flareLength), flareGloss, [0, 0, 0], [1, 1, 1.08]);
+  // The rolled lip along its lower edge, the raised ridge down the middle of the back, and the dark
+  // inside of the helmet, so that nothing shows through it.
+  const lip: [number, number, number][] = [];
+  for (let i = 0; i <= 28; i++) {
+    const phi = flareAngle + (i / 28) * flareLength;
+    lip.push([Math.sin(phi) * 0.263, -0.25, Math.cos(phi) * 0.263 * 1.08]);
+  }
+  tube(head, lip, 0.0085, gloss);
+  tube(head, [[0, 0.158, -0.03], [0, 0.11, -0.122], [0, 0.03, -0.172], [0, -0.07, -0.183], [0, -0.15, -0.222], [0, -0.238, -0.284]], 0.0075, gloss);
+  for (const side of [-1, 1]) {
+    tube(head, [[side * 0.1, -0.012, -0.135], [side * 0.126, -0.1, -0.15], [side * 0.165, -0.17, -0.178], [side * 0.195, -0.238, -0.214]], 0.0045, gloss);
+  }
+  add(head, new THREE.CylinderGeometry(0.15, 0.17, 0.26, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0x030304, roughness: 1, side: THREE.DoubleSide }), [0, -0.13, -0.008]);
   const brow: [number, number, number][] = [];
   for (let i = 0; i <= 10; i++) {
     const t = -0.9 + (i / 10) * 1.8;
@@ -59,14 +68,17 @@ export function createDarkLord(pose: "confront" | "watch" = "confront") {
   grille.rotation.y = Math.PI;
   for (let i = 0; i < 3; i++) add(head, new THREE.BoxGeometry(0.05 - i * 0.012, 0.004, 0.01), suit, [0, -0.135 - i * 0.017, 0.17]);
   add(head, new THREE.BoxGeometry(0.14, 0.045, 0.07), gloss, [0, -0.205, 0.118]);
-  add(group, new THREE.CylinderGeometry(0.062, 0.07, 0.08, 16), suit, [0, 1.62, 0]);
+  add(group, new THREE.CylinderGeometry(0.066, 0.076, 0.17, 16), suit, [0, 1.66, 0]);
 
   // Shoulder armour over a grey ribbed yoke, the chest box with its lights, a quilted tunic.
-  add(group, new RoundedBoxGeometry(0.56, 0.12, 0.32, 3, 0.05), gloss, [0, 1.57, 0]);
-  for (const side of [-1, 1]) add(group, new THREE.SphereGeometry(0.12, 18, 12), gloss, [side * 0.27, 1.52, 0], [1, 0.75, 1.15]);
-  add(group, new RoundedBoxGeometry(0.34, 0.15, 0.03, 2, 0.012), grey, [0, 1.49, 0.165]);
-  for (let i = 0; i < 5; i++) add(group, new THREE.BoxGeometry(0.012, 0.13, 0.012), suit, [-0.12 + i * 0.06, 1.49, 0.184]);
-  const torso = new THREE.CylinderGeometry(0.22, 0.2, 0.56, 36, 4),
+  // A rounded mantle over the shoulders, heavy pads, and the two grey plates of the collar in a V.
+  add(group, new THREE.SphereGeometry(1, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.62), gloss, [0, 1.44, -0.005], [0.39, 0.2, 0.225]);
+  for (const side of [-1, 1]) {
+    add(group, new THREE.SphereGeometry(0.15, 22, 14), gloss, [side * 0.3, 1.5, 0], [1.02, 0.62, 1.14]);
+    add(group, new RoundedBoxGeometry(0.15, 0.13, 0.024, 2, 0.01), grey, [side * 0.085, 1.5, 0.2], undefined, [-0.28, side * 0.2, side * -0.3]);
+    for (let i = 0; i < 3; i++) add(group, new THREE.BoxGeometry(0.01, 0.105, 0.008), suit, [side * (0.045 + i * 0.04), 1.5, 0.214], undefined, [-0.28, side * 0.2, side * -0.3]);
+  }
+  const torso = new THREE.CylinderGeometry(0.25, 0.205, 0.58, 36, 4),
     tp = torso.getAttribute("position");
   for (let i = 0; i < tp.count; i++) {
     const x = tp.getX(i),
@@ -76,12 +88,12 @@ export function createDarkLord(pose: "confront" | "watch" = "confront") {
   }
   torso.computeVertexNormals();
   add(group, torso, suit, [0, 1.17, 0]);
-  add(group, new RoundedBoxGeometry(0.17, 0.14, 0.035, 2, 0.008), new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.4, metalness: 0.5 }), [0, 1.3, 0.2]);
-  for (let i = 0; i < 3; i++) add(group, new THREE.BoxGeometry(0.045, 0.008, 0.006), lamp(0xff3030), [-0.04, 1.34 - i * 0.017, 0.219]);
-  add(group, new THREE.BoxGeometry(0.018, 0.018, 0.006), lamp(0x2f7dff), [0.035, 1.34, 0.219]);
-  add(group, new THREE.BoxGeometry(0.018, 0.018, 0.006), lamp(0xff2a2a), [0.035, 1.315, 0.219]);
-  for (let i = 0; i < 4; i++) add(group, new THREE.BoxGeometry(0.022, 0.03, 0.008), i % 2 ? steel : grey, [-0.051 + i * 0.034, 1.268, 0.219]);
-  for (const side of [-1, 1]) add(group, new THREE.CylinderGeometry(0.005, 0.005, 0.15, 6), steel, [side * 0.1, 1.3, 0.21]);
+  add(group, new RoundedBoxGeometry(0.17, 0.14, 0.035, 2, 0.008), new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.4, metalness: 0.5 }), [0, 1.27, 0.2]);
+  for (let i = 0; i < 3; i++) add(group, new THREE.BoxGeometry(0.045, 0.008, 0.006), lamp(0xff3030), [-0.04, 1.31 - i * 0.017, 0.219]);
+  add(group, new THREE.BoxGeometry(0.018, 0.018, 0.006), lamp(0x2f7dff), [0.035, 1.31, 0.219]);
+  add(group, new THREE.BoxGeometry(0.018, 0.018, 0.006), lamp(0xff2a2a), [0.035, 1.285, 0.219]);
+  for (let i = 0; i < 4; i++) add(group, new THREE.BoxGeometry(0.022, 0.03, 0.008), i % 2 ? steel : grey, [-0.051 + i * 0.034, 1.238, 0.219]);
+  for (const side of [-1, 1]) add(group, new THREE.CylinderGeometry(0.005, 0.005, 0.15, 6), steel, [side * 0.1, 1.27, 0.21]);
 
   // The belt with its two control boxes and the round buckle.
   add(group, new THREE.CylinderGeometry(0.205, 0.205, 0.06, 32), gloss, [0, 0.98, 0], [1, 1, 0.85]);
@@ -103,23 +115,42 @@ export function createDarkLord(pose: "confront" | "watch" = "confront") {
   }
   robe.computeVertexNormals();
   add(group, robe, cloth, [0, 0.5, 0]);
-  for (const side of [-1, 1]) {
-    add(group, new THREE.CylinderGeometry(0.075, 0.065, 0.88, 14), suit, [side * 0.1, 0.5, 0.02]);
-    add(group, new RoundedBoxGeometry(0.1, 0.32, 0.045, 2, 0.02), gloss, [side * 0.1, 0.3, 0.085]);
-    add(group, new RoundedBoxGeometry(0.12, 0.09, 0.27, 2, 0.03), gloss, [side * 0.1, 0.045, 0.06]);
+  // Over the legs, the heavy leather tabard that falls from the belt to the knees.
+  const tabard = new THREE.CylinderGeometry(0.205, 0.285, 0.5, 26, 4, true, -1.15, 2.3),
+    ap = tabard.getAttribute("position");
+  for (let i = 0; i < ap.count; i++) {
+    const fold = 1 + Math.sin(Math.atan2(ap.getX(i), ap.getZ(i)) * 8) * 0.035 * (0.5 - ap.getY(i) / 0.5);
+    ap.setXYZ(i, ap.getX(i) * fold, ap.getY(i), ap.getZ(i) * fold);
   }
+  tabard.computeVertexNormals();
+  add(group, tabard, cloth, [0, 0.71, 0.005]);
+  const legs = [-1, 1].map((side) => {
+    const leg = new THREE.Group();
+    leg.position.set(side * 0.115, 0.94, 0.01);
+    group.add(leg);
+    add(leg, new THREE.CylinderGeometry(0.105, 0.085, 0.46, 18), suit, [0, -0.22, 0]);
+    const shin = new THREE.Group();
+    shin.position.y = -0.46;
+    leg.add(shin);
+    add(shin, new THREE.SphereGeometry(0.078, 16, 12), gloss, [0, 0, 0.012]);
+    add(shin, new THREE.CylinderGeometry(0.088, 0.078, 0.4, 18), gloss, [0, -0.22, 0]);
+    add(shin, new RoundedBoxGeometry(0.115, 0.34, 0.05, 2, 0.022), gloss, [0, -0.22, 0.072]);
+    add(shin, new RoundedBoxGeometry(0.135, 0.095, 0.3, 2, 0.034), gloss, [0, -0.432, 0.064]);
+    return { leg, shin };
+  });
 
   // Arms: the left reaches out towards the visitor, the right holds the blade low.
   const arm = (side: number) => {
     const root = new THREE.Group();
-    root.position.set(side * 0.3, 1.5, 0);
+    root.position.set(side * 0.345, 1.49, 0);
     group.add(root);
-    add(root, new THREE.CylinderGeometry(0.058, 0.052, 0.3, 14), suit, [0, -0.16, 0]);
+    add(root, new THREE.CylinderGeometry(0.088, 0.075, 0.32, 16), suit, [0, -0.16, 0]);
     const elbow = new THREE.Group();
     elbow.position.y = -0.31;
     root.add(elbow);
-    add(elbow, new THREE.CylinderGeometry(0.05, 0.045, 0.26, 14), suit, [0, -0.13, 0]);
-    const cuff = new THREE.CylinderGeometry(0.058, 0.05, 0.12, 16),
+    add(elbow, new THREE.SphereGeometry(0.075, 14, 10), suit, [0, 0, 0]);
+    add(elbow, new THREE.CylinderGeometry(0.072, 0.058, 0.26, 16), suit, [0, -0.13, 0]);
+    const cuff = new THREE.CylinderGeometry(0.076, 0.062, 0.14, 18),
       cp = cuff.getAttribute("position");
     for (let i = 0; i < cp.count; i++) {
       const ridge = 1 + Math.cos(Math.atan2(cp.getX(i), cp.getZ(i)) * 16) * 0.04;
@@ -127,7 +158,9 @@ export function createDarkLord(pose: "confront" | "watch" = "confront") {
     }
     cuff.computeVertexNormals();
     add(elbow, cuff, gloss, [0, -0.2, 0]);
-    add(elbow, new RoundedBoxGeometry(0.075, 0.1, 0.045, 2, 0.015), gloss, [0, -0.31, 0.01]);
+    add(elbow, new RoundedBoxGeometry(0.09, 0.1, 0.055, 2, 0.018), gloss, [0, -0.315, 0.01]);
+    for (let finger = 0; finger < 4; finger++) add(elbow, new THREE.CapsuleGeometry(0.0115, 0.055, 3, 6), gloss, [-0.03 + finger * 0.02, -0.395, 0.014]);
+    add(elbow, new THREE.CapsuleGeometry(0.013, 0.04, 3, 6), gloss, [-side * 0.052, -0.335, 0.03], undefined, [0, 0, -side * 0.5]);
     return { root, elbow };
   };
   const left = arm(-1),
@@ -166,17 +199,27 @@ export function createDarkLord(pose: "confront" | "watch" = "confront") {
   if (pose === "watch") saber.children.slice(6).forEach((part) => (part.visible = false));
 
   // The cape, from the shoulders to the floor, wrapping round the back and sides.
-  const cape = new THREE.CylinderGeometry(0.31, 0.82, 1.66, 44, 8, true, Math.PI / 2 - 0.2, Math.PI + 0.4),
+  const cape = new THREE.CylinderGeometry(0.37, 0.98, 1.66, 56, 8, true, Math.PI / 2 - 0.2, Math.PI + 0.4),
     kp = cape.getAttribute("position");
   for (let i = 0; i < kp.count; i++) {
     const x = kp.getX(i),
       y = kp.getY(i),
       z = kp.getZ(i),
       low = 0.5 - y / 1.66,
-      fold = 1 + Math.sin(Math.atan2(x, z) * 11) * 0.05 * low + Math.sin(Math.atan2(x, z) * 29) * 0.01;
+      fold = 1 + Math.sin(Math.atan2(x, z) * 11) * 0.075 * low + Math.sin(Math.atan2(x, z) * 29) * 0.016 * low;
     kp.setXYZ(i, x * fold, y, z * fold);
   }
   cape.computeVertexNormals();
-  add(group, cape, cloth, [0, 0.75, -0.04]);
-  return { group, blade, head, chest: torso, arms: { left, right } };
+  const capeMesh = add(group, cape, cloth, [0, 0.75, -0.04]);
+  // The blade grows out of the hilt; 0 is off and 1 is fully lit.
+  const bladeParts = saber.children.slice(6);
+  const setBlade = (amount: number) => {
+    const k = Math.max(amount, 0.001);
+    bladeParts.forEach((part) => {
+      part.visible = amount > 0.001;
+      part.scale.y = k;
+      part.position.y = 0.12 + 0.51 * k;
+    });
+  };
+  return { group, blade, head, chest: torso, arms: { left, right }, legs, cape: capeMesh, setBlade };
 }

@@ -392,15 +392,6 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   spare.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(spare);
   spare.position.y = 1.15 - bounds.min.y;
-  for (const [x, z] of [
-    [0, bounds.min.z + 1.6],
-    [-1.3, bounds.max.z - 1.6],
-    [1.3, bounds.max.z - 1.6],
-  ]) {
-    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 1.2, 8), steel);
-    strut.position.set(x, 0.6, z);
-    hangar.add(strut);
-  }
   hangar.position.set(14.5, 0, -15);
   hangar.rotation.y = Math.PI * 0.8;
   group.add(hangar);
@@ -420,7 +411,7 @@ export function createHothZone(landing: Landing, notify: (event: PadEvent) => vo
   const table = createBriefingTable(landing, { x: 0, z: 18, facing: Math.PI });
   group.add(table.group);
   circles.push(...table.colliders);
-  const parking = parkShip(metal);
+  const parking = parkShip();
   group.add(parking.ship);
   const life = createPadLife({ glow, engines: parking.exhausts, notify, guard: false, drone: false, taxi: false, ground: "snow", steam: 0xeef3f7 });
   group.add(life.group);

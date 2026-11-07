@@ -521,7 +521,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
 
   const stations = createTerminals(landing, metal, circles);
   group.add(stations.group);
-  const parking = parkShip(metal);
+  const parking = parkShip();
   group.add(parking.ship);
   const life = createPadLife({
     glow,

@@ -26,12 +26,13 @@ import * as THREE from "three";
 import { createCockpitGrogu } from "./cockpitGrogu";
 import { createDroidVoice } from "./droid/droidSounds";
 import { createCockpitModel } from "./cockpitModel";
+import { MUSTAFAR } from "./cockpitProjection";
 import { createCockpitSystems } from "./cockpitSystems";
 import { createCockpitProjection } from "./cockpitProjection";
 import { createMissionConsole } from "./cockpitMissionConsole";
 import { CockpitMissionTerminal } from "./jedi/JediArchives";
 import { holoMatrix } from "./jedi/holoProjection";
-import { OVERLAYS, setSithMode, unlockSecret, useJediProgression } from "./jediProgression";
+import { missions, OVERLAYS, setSithMode, startMission, unlockSecret, useJediProgression } from "./jediProgression";
 import { createStarfield } from "./spaceAmbience";
 import { destinations, landings, planetReferenceStyle } from "./universe";
 import { createArcadeConsole } from "./arcade/arcadeConsole3D";
@@ -69,6 +70,32 @@ type Props = {
   initialJournal?: boolean;
   onCombatChange?: (active: boolean) => void;
   onExperience: (experience: "temple" | "destiny") => void;
+  onLandMustafar: () => void;
+};
+
+// Where the lever was left, for the rest of the visit.
+let hologramOnThisVisit = true;
+// The worlds the pilot has already asked the hologram about, during this visit.
+const consultedWorlds = new Set<number>();
+
+// The hidden world, on the piece of the map that R-X7 has been keeping. It is not a destination of
+// the flight: its only way in is the fortress, once all ten secrets have been found.
+const PIECE_KEY = "orbital-galaxy-piece-v1";
+const PIECE_SECONDS = 3.4;
+const pieceAlreadyShown = () => {
+  try {
+    return localStorage.getItem(PIECE_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const mustafar = {
+  name: "Mustafar",
+  label: "Mustafar",
+  number: "??",
+  category: "La destinée",
+  description: "Absente de toutes les cartes de l’Empire, une planète de feu où une forteresse domine les rivières de lave. Celui qui vous y attend sait que vous avez tout découvert.",
+  style: { backgroundImage: "radial-gradient(circle at 38% 32%, #ffc27a, #d2401b 38%, #3a0d07 74%, #120403)", backgroundSize: "100% 100%" },
 };
 
 export default function CockpitMap({
@@ -81,9 +108,13 @@ export default function CockpitMap({
   onLaunch,
   initialJournal = false,
   onExperience,
+  onLandMustafar,
   onCombatChange,
 }: Props) {
   const [selected, setSelected] = useState(initialSelection);
+  useEffect(() => {
+    consultedWorlds.add(initialSelection);
+  }, [initialSelection]);
   const [graphics, setGraphics] = useState(false);
   const { progress } = useJediProgression();
   const [journal, setJournal] = useState(initialJournal);
@@ -128,6 +159,12 @@ export default function CockpitMap({
   const groguButton = useRef<HTMLButtonElement>(null);
   const groguApi = useRef<ReturnType<typeof createCockpitGrogu> | null>(null);
   const [groguHolds, setGroguHolds] = useState(false);
+  const leverButton = useRef<HTMLButtonElement>(null);
+  const leverSound = useRef<() => void>(() => undefined);
+  const [hologram, setHologram] = useState(hologramOnThisVisit);
+  const holoShown = hologram && !groguHolds;
+  const holoLive = useRef({ on: hologram, shown: holoShown });
+  holoLive.current = { on: hologram, shown: holoShown };
   const terminal = useRef<HTMLElement>(null);
   const controlsApi = useRef<ReturnType<typeof createMissionConsole> | null>(null);
   const mount = useRef<HTMLDivElement>(null);
@@ -158,12 +195,36 @@ export default function CockpitMap({
   const closeLogRef = useRef(closeFlightLog);
   closeLogRef.current = closeFlightLog;
 
-  // Opening the star map completes the cartographer's mission.
+  const onMustafar = selected === MUSTAFAR;
+  const current = onMustafar ? null : destinations[selected];
+  const accessibleSurface = !!current && !!landings[current.name];
+  // All ten secrets found: R-X7 projects the last piece of the map, once, and Mustafar is on it.
+  const allFound = progress.found.length >= missions.length;
+  const [pieceState, setPieceState] = useState<"none" | "projecting" | "placed">("none");
+  const pieceJustLanded = useRef(false);
+  const pieceLive = useRef(pieceState);
+  pieceLive.current = pieceState;
+  const fragments = missions.map((mission) => progress.found.includes(mission.id));
+  const fragmentsLive = useRef(fragments);
+  fragmentsLive.current = fragments;
+  const worlds = pieceState === "placed" ? destinations.length + 1 : destinations.length;
+  // The moment the piece lands, the view goes to the world on it.
   useEffect(() => {
-    unlockSecret("star-map");
-  }, []);
-  const current = destinations[selected];
-  const accessibleSurface = !!landings[current.name];
+    if (pieceState === "placed" && pieceJustLanded.current) {
+      pieceJustLanded.current = false;
+      setSelected(MUSTAFAR);
+    }
+    if (pieceState === "projecting") pieceJustLanded.current = true;
+  }, [pieceState]);
+  useEffect(() => {
+    if (!allFound) return;
+    if (pieceAlreadyShown() || reduced) {
+      setPieceState("placed");
+      return;
+    }
+    const start = window.setTimeout(() => setPieceState("projecting"), 1800);
+    return () => window.clearTimeout(start);
+  }, [allFound, reduced]);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -309,7 +370,15 @@ export default function CockpitMap({
     groguApi.current = grogu;
     scene.add(grogu.group);
     const droidVoice = createDroidVoice();
-    let jolt = 0;
+    let pieceAmount = 0,
+      pieceDone = false;
+    let jolt = 0,
+      holoFold = 0,
+      holoStarted = false;
+    const leverVoice = droidVoice;
+    leverSound.current = () => {
+      if (live.current.sound) leverVoice.play("servo");
+    };
     if (process.env.NODE_ENV !== "production") (window as unknown as { __cockpitGrogu?: unknown }).__cockpitGrogu = grogu;
     const fill = new THREE.PointLight(0x709cc6, 5, 7, 2);
     fill.position.set(1.6, 2.2, 1.4);
@@ -505,6 +574,20 @@ export default function CockpitMap({
       look.y = 1.35 + lean.y * 0.06 * enter;
       camera.lookAt(look);
       camera.updateMatrixWorld();
+      projection.setFragments(fragmentsLive.current);
+      if (pieceLive.current === "projecting") {
+        pieceAmount = Math.min(1, pieceAmount + dt / PIECE_SECONDS);
+        if (pieceAmount >= 1 && !pieceDone) {
+          pieceDone = true;
+          try {
+            localStorage.setItem(PIECE_KEY, "1");
+          } catch {
+            // It will simply be projected again next time.
+          }
+          setPieceState("placed");
+        }
+      } else if (pieceLive.current === "placed") pieceAmount = 1;
+      projection.setPiece(pieceAmount);
       projection.tick(age, live.current.selected, live.current.reduced);
       systems.tick(age, live.current.selected, live.current.reduced);
       const { journal: journalOpen, progress: book, coverOpen: lifted, compact: flat } = live.current;
@@ -516,9 +599,10 @@ export default function CockpitMap({
       placeOver(journalButton.current, controls.journalAnchor, 150, 70);
       placeOver(guardButton.current, controls.guardAnchor, 76, 70);
       placeOver(groguButton.current, grogu.anchor, 196, 38);
+      placeOver(leverButton.current, grogu.leverAnchor, 84, 84);
       // The stowaway only comes when nothing else is open, and the ball coming off shakes the ship.
       const calm = !live.current.journal && !live.current.arcade && !live.current.flightLog && !live.current.defense && !live.current.arcadeGame;
-      if (grogu.tick(dt, live.current.reduced, calm) === "pulled") {
+      if (grogu.tick(dt, live.current.reduced, calm, holoLive.current.shown) === "pulled") {
         setGroguHolds(true);
         jolt = 1.5;
         if (live.current.sound) droidVoice.play("error");
@@ -526,7 +610,6 @@ export default function CockpitMap({
       if (jolt > 0) {
         jolt = Math.max(0, jolt - dt);
         const flicker = !live.current.reduced && jolt > 0 && Math.sin(age * 44) > 0;
-        projection.group.visible = !flicker;
         amber.intensity = jolt > 0 ? (flicker ? 9 : 4) : 2.5;
         if (!live.current.reduced) {
           camera.position.x += (Math.random() - 0.5) * 0.022 * jolt;
@@ -588,14 +671,29 @@ export default function CockpitMap({
           }
         }
       }
-      projectorLight.intensity = live.current.reduced
-        ? 8
-        : 8 + Math.sin(age * 0.9) * 0.25;
+      // The lever strikes the hologram up over two seconds, or lets it collapse into its projector.
+      // It also lights up each time the pilot enters, once the cockpit has settled.
+      const holoTarget = holoLive.current.shown && age > 0.9 ? 1 : 0;
+      if (live.current.reduced) holoFold = holoLive.current.shown ? 1 : 0;
+      else holoFold = THREE.MathUtils.clamp(holoFold + (holoTarget ? dt / 2.3 : -dt / 0.6), 0, 1);
+      const pinned = process.env.NODE_ENV !== "production" ? (window as unknown as { __holoPower?: number }).__holoPower : undefined;
+      if (pinned !== undefined) holoFold = pinned;
+      if (holoFold > 0 && !holoStarted && holoTarget) {
+        holoStarted = true;
+        if (live.current.sound) droidVoice.play("wake");
+      }
+      if (holoFold === 0) holoStarted = false;
+      projection.setPower(holoFold);
+      if (!live.current.defense && !live.current.arcadeGame) {
+        projection.group.visible = holoFold > 0.001 && !(jolt > 0.9 && !live.current.reduced && Math.sin(age * 44) > 0);
+      }
+      const strike = holoFold > 0 && holoFold < 0.4 ? Math.sin((holoFold / 0.4) * Math.PI) * 26 : 0;
+      projectorLight.intensity = (live.current.reduced ? 8 : 8 + Math.sin(age * 0.9) * 0.25) * holoFold + strike;
       stars.tick(age, true);
       projection.group.updateMatrixWorld(true);
       projection.planets.forEach((planet, index) => {
         const marker = markers.current[index];
-        if (!marker) return;
+        if (!marker || !marker.isConnected) return;
         planet.getWorldPosition(projected);
         const distance = camera.position.distanceTo(projected);
         projected.project(camera);
@@ -606,6 +704,7 @@ export default function CockpitMap({
           42,
           180,
         );
+        marker.style.opacity = String(projection.appeared(index));
         marker.style.width = `${diameter}px`;
         marker.style.height = `${diameter}px`;
         marker.style.transform = `translate(${(projected.x * 0.5 + 0.5) * width - diameter / 2}px,${(-projected.y * 0.5 + 0.5) * height - diameter / 2}px)`;
@@ -853,6 +952,12 @@ export default function CockpitMap({
 
   const choose = (index: number, focus = false) => {
     setSelected(index);
+    // The cartographer's mission: the visitor has asked the hologram about every world on it.
+    if (index < destinations.length) {
+      startMission("star-map");
+      consultedWorlds.add(index);
+      if (consultedWorlds.size === destinations.length) unlockSecret("star-map");
+    }
     if (index !== selected) onSelectionCue();
     if (focus) markers.current[index]?.focus();
   };
@@ -958,8 +1063,8 @@ export default function CockpitMap({
       )}
       <header className="cockpit-titlebar">
         <div>
-          <p className="cockpit-eyebrow">X-WING / ASTRONAVIGATION</p>
-          <h2 id="cockpit-title">Carte stellaire</h2>
+          <p className="cockpit-eyebrow">ASTRONAVIGATION</p>
+          <h2 id="cockpit-title">Cockpit du X‑wing</h2>
         </div>
         <div className="cockpit-controls">
           <button
@@ -994,7 +1099,7 @@ export default function CockpitMap({
             ref={close}
             className="cockpit-close"
             onClick={onClose}
-            aria-label="Fermer la carte stellaire"
+            aria-label="Quitter le cockpit"
           >
             <X size={17} />
             <span>RETOUR</span>
@@ -1017,6 +1122,7 @@ export default function CockpitMap({
               markers.current[index] = element;
             }}
             className="holo-destination"
+            hidden={!holoShown}
             aria-label={`Sélectionner ${planet.name}`}
             aria-pressed={selected === index}
             aria-controls="cockpit-planet-details"
@@ -1031,17 +1137,11 @@ export default function CockpitMap({
                     : 0;
               if (step) {
                 event.preventDefault();
-                choose(
-                  (index + step + destinations.length) % destinations.length,
-                  true,
-                );
+                choose((index + step + worlds) % worlds, true);
               }
               if (event.key === "Home" || event.key === "End") {
                 event.preventDefault();
-                choose(
-                  event.key === "Home" ? 0 : destinations.length - 1,
-                  true,
-                );
+                choose(event.key === "Home" ? 0 : worlds - 1, true);
               }
             }}
           >
@@ -1055,22 +1155,74 @@ export default function CockpitMap({
             </span>
           </button>
         ))}
-      </motion.div>
-      {graphics && groguHolds && (
-        <div className="cockpit-instruments">
+        {pieceState === "placed" && (
           <button
-            ref={groguButton}
-            className="cockpit-grogu-button"
-            onClick={() => {
-              groguApi.current?.take();
-              setGroguHolds(false);
+            key="mustafar"
+            ref={(element) => {
+              markers.current[MUSTAFAR] = element;
+            }}
+            className="holo-destination is-hidden-world"
+            hidden={!holoShown}
+            aria-label="Sélectionner Mustafar, le monde caché"
+            aria-pressed={onMustafar}
+            aria-controls="cockpit-planet-details"
+            tabIndex={onMustafar ? 0 : -1}
+            onClick={() => choose(MUSTAFAR)}
+            onKeyDown={(event) => {
+              const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+              if (step) {
+                event.preventDefault();
+                choose((MUSTAFAR + step + worlds) % worlds, true);
+              }
             }}
           >
-            REPRENDRE LE POMMEAU
+            <span className="holo-fallback-globe" style={mustafar.style} aria-hidden="true" />
+            <span className="holo-name">Mustafar</span>
           </button>
-          <p className="cockpit-grogu-note" role="status">
-            R-X7 : bip ! Votre passager clandestin vient d’arracher le pommeau du levier.
+        )}
+        {holoShown && (
+          <p className="holo-fragments mono" aria-label={`Carte de la galaxie : ${progress.found.length} fragments sur ${missions.length}`}>
+            {pieceState === "placed" ? "CARTE COMPLÈTE" : `FRAGMENTS DE CARTE ${progress.found.length}/${missions.length}`}
           </p>
+        )}
+        {pieceState === "projecting" && (
+          <p className="holo-piece-note" role="status">
+            R-X7 : bip-boup ! J’ai toujours gardé la dernière pièce de la carte. La voici.
+          </p>
+        )}
+      </motion.div>
+      {graphics && !defense && !arcadeGame && (
+        <div className="cockpit-instruments">
+          {groguHolds ? (
+            <>
+              <button
+                ref={groguButton}
+                className="cockpit-grogu-button"
+                onClick={() => {
+                  groguApi.current?.take();
+                  setGroguHolds(false);
+                }}
+              >
+                REPRENDRE LE POMMEAU
+              </button>
+              <p className="cockpit-grogu-note" role="status">
+                R-X7 : bip ! Votre passager clandestin vient d’arracher le pommeau : le système orbital s’est éteint.
+              </p>
+            </>
+          ) : (
+            <button
+              ref={leverButton}
+              className="cockpit-lever-button"
+              aria-pressed={hologram}
+              aria-label={hologram ? "Éteindre le système orbital holographique" : "Allumer le système orbital holographique"}
+              title={hologram ? "Éteindre le système orbital" : "Allumer le système orbital"}
+              onClick={() => {
+                hologramOnThisVisit = !hologram;
+                setHologram(!hologram);
+                leverSound.current();
+              }}
+            />
+          )}
         </div>
       )}
       {graphics && !compact && (
@@ -1182,38 +1334,50 @@ export default function CockpitMap({
           id="cockpit-planet-details"
           aria-live="polite"
           aria-atomic="true"
+          inert={!holoShown}
           initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: reduced ? 0 : 0.7, duration: 0.4 }}
+          animate={holoShown ? { opacity: 1, y: 0 } : { opacity: 0, y: 46 }}
+          transition={{ delay: reduced || !holoShown ? 0 : 1.5, duration: reduced ? 0 : 0.4 }}
         >
           <motion.div
-            key={current.name}
+            key={current?.name ?? mustafar.name}
             className="cockpit-preview"
             role="img"
-            aria-label={`Vue en couleur : ${current.name}`}
-            style={planetReferenceStyle(current)}
+            aria-label={`Vue en couleur : ${current?.name ?? mustafar.name}`}
+            style={current ? planetReferenceStyle(current) : mustafar.style}
             initial={{ opacity: 0.3 }}
             animate={{ opacity: 1 }}
             transition={{ duration: reduced ? 0 : 0.25 }}
           />
           <div className="cockpit-planet-copy">
             <p className="cockpit-eyebrow">
-              {current.number} / {current.category}
+              {(current ?? mustafar).number} / {(current ?? mustafar).category}
             </p>
-            <h3>{current.name}</h3>
-            <p className="cockpit-description">{current.description}</p>
+            <h3>{(current ?? mustafar).name}</h3>
+            <p className="cockpit-description">{(current ?? mustafar).description}</p>
             <span className="cockpit-access">
               {accessibleSurface ? <MapPin size={11} /> : <Orbit size={11} />}{" "}
-              {accessibleSurface
-                ? "Zone d’atterrissage accessible"
-                : "Exploration en orbite"}
+              {onMustafar
+                ? "La forteresse de Dark Vador"
+                : accessibleSurface
+                  ? "Zone d’atterrissage accessible"
+                  : "Exploration en orbite"}
             </span>
           </div>
-          <button className="cockpit-launch" onClick={() => onLaunch(selected)}>
-            <Navigation size={14} />
-            <span>REJOINDRE L’ORBITE</span>
-            <ArrowUpRight size={15} />
-          </button>
+          <div className="cockpit-launches">
+            {onMustafar && (
+              <button className="cockpit-launch" onClick={onLandMustafar}>
+                <Navigation size={14} />
+                <span>SE POSER SUR MUSTAFAR</span>
+                <ArrowUpRight size={15} />
+              </button>
+            )}
+            <button className="cockpit-launch" onClick={() => (onMustafar ? onExperience("destiny") : onLaunch(selected))}>
+              <Navigation size={14} />
+              <span>{onMustafar ? "ENTRER DANS LA FORTERESSE" : "REJOINDRE L’ORBITE"}</span>
+              <ArrowUpRight size={15} />
+            </button>
+          </div>
         </motion.section>
       </div>
     </motion.section>

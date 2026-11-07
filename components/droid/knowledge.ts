@@ -57,5 +57,5 @@ ${profileNotes.ambitions.join(", ")}
 
 LIEUX DU PORTFOLIO
 ${worlds}
-Autres : carte stellaire et cockpit (avec Galactic Arcade), journal de dix missions secrètes, scanner, mode recruteur. Sur Coruscant, un taxi aérien mène au Temple Jedi et au Sénat.`;
+Autres : cockpit du X-wing (système orbital holographique et Galactic Arcade), journal de dix missions secrètes, scanner, mode recruteur. Sur Coruscant, un taxi aérien mène au Temple Jedi et au Sénat.`;
 }

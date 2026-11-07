@@ -89,7 +89,7 @@ export default function BridgeWelcome({ reduced, onExplore, onCockpit, onPortfol
               <Gauge size={18} aria-hidden="true" />
               <span>
                 <b>ACCÉDER AU COCKPIT</b>
-                <small>Carte stellaire, missions et arcade</small>
+                <small>Système orbital, missions et arcade</small>
               </span>
             </button>
             <button className="bridge-choice is-primary" onClick={onPortfolio} disabled={!ready}>

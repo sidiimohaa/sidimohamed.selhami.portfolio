@@ -422,7 +422,7 @@ export function createCoruscantZone(
 
   const stations = createTerminals(landing, metal, circles);
   group.add(stations.group);
-  const parking = parkShip(metal);
+  const parking = parkShip();
   group.add(parking.ship);
   const life = createPadLife({ glow, engines: parking.exhausts, notify });
   group.add(life.group);

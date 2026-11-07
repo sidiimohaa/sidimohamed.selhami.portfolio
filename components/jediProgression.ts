@@ -26,7 +26,12 @@ export type Mission = {
   // Shown under the classified folder: a riddle that never says exactly where to look.
   whisper: string;
   holocron: { name: string; lore: string };
+  // Its line of the prophecy of the Chosen One, revealed by a vision when the mission is completed.
+  verse: string;
 };
+
+// What the ten verses lead to, once they are all known.
+export const PROPHECY_END = "Alors la dernière pièce paraîtra, et l’Élu rendra l’équilibre à la Force.";
 
 export const XP_PER_MISSION = 100;
 // Full-screen progression screens that handle their own Escape key before anything else.
@@ -35,6 +40,7 @@ export const OVERLAYS = ".rank-cinematic, .holo-transmission, .reward-scene, .ho
 export const missions: Mission[] = [
   {
     id: "sith-mode",
+    verse: "L’ombre lui tendra la main avant la lumière.",
     number: "01",
     title: "L’appel de la Force",
     icon: "dark",
@@ -44,6 +50,7 @@ export const missions: Mission[] = [
   },
   {
     id: "hyperspace",
+    verse: "Sans carte ni calcul, l’Élu franchira le mur des étoiles.",
     number: "02",
     title: "Au-delà des étoiles",
     icon: "stars",
@@ -53,6 +60,7 @@ export const missions: Mission[] = [
   },
   {
     id: "lost-droid",
+    verse: "Dans le froid, un serviteur fidèle reconnaîtra son pas.",
     number: "03",
     title: "Le droïde perdu",
     icon: "droid",
@@ -62,6 +70,7 @@ export const missions: Mission[] = [
   },
   {
     id: "forgotten-archives",
+    verse: "Les archives oubliées parleront à qui saura les lire.",
     number: "04",
     title: "Les archives oubliées",
     icon: "archive",
@@ -71,6 +80,7 @@ export const missions: Mission[] = [
   },
   {
     id: "jedi-weapon",
+    verse: "Une lame perdue viendra d’elle-même à sa main.",
     number: "05",
     title: "L’arme d’un Jedi",
     icon: "saber",
@@ -80,6 +90,7 @@ export const missions: Mission[] = [
   },
   {
     id: "forbidden-holocron",
+    verse: "Sous les racines, le savoir des anciens s’ouvrira pour lui.",
     number: "06",
     title: "Le savoir interdit",
     icon: "holocron",
@@ -89,24 +100,27 @@ export const missions: Mission[] = [
   },
   {
     id: "star-map",
+    verse: "Il interrogera chaque monde, et les étoiles lui répondront.",
     number: "07",
     title: "Cartographe galactique",
     icon: "map",
-    description: "Vous avez déployé la carte stellaire holographique du vaisseau.",
-    whisper: "Sans carte, perdu même le meilleur pilote est. Au cockpit, les étoiles projetées sont.",
+    description: "Dans le cockpit, vous avez interrogé un à un les mondes de la carte holographique.",
+    whisper: "Sans carte, perdu même le meilleur pilote est. Au cockpit, chaque monde de l’hologramme, interroger tu dois.",
     holocron: { name: "Holocron du cartographe", lore: "Chaque route hyperspatiale a été tracée un jour par un éclaireur qui n’était pas sûr de revenir." },
   },
   {
     id: "order-66",
+    verse: "Il verra tomber le Temple, et il n’oubliera pas.",
     number: "08",
     title: "Ordre 66",
     icon: "empire",
-    description: "Le code secret a déclenché une transmission impériale. L’Empire écoute toujours.",
+    description: "Le code secret a déclenché une transmission impériale, et le Temple a brûlé sous vos yeux.",
     whisper: "Deux chiffres, identiques, l’Empereur prononça. Au clavier, les répéter tu pourrais.",
     holocron: { name: "Holocron de la trahison", lore: "Un seul ordre a suffi à changer la galaxie. Méfie-toi des ordres que l’on n’explique pas." },
   },
   {
     id: "kyber-crystal",
+    verse: "Sous deux soleils, un cristal chantera pour lui seul.",
     number: "09",
     title: "Le cristal Kyber",
     icon: "crystal",
@@ -116,6 +130,7 @@ export const missions: Mission[] = [
   },
   {
     id: "last-message",
+    verse: "Ceux qui ne sont plus veilleront sur sa route.",
     number: "10",
     title: "Le dernier message",
     icon: "hologram",

@@ -148,6 +148,22 @@ export type Landing = {
 // Présentations des zones : contact et formation à Coruscant, projets à Tatooine, formation à Hoth.
 // Hoth et Tatooine reprennent les données réelles du CV (components/deathStar/cvData.ts).
 export const landings: Partial<Record<string, Landing>> = {
+  // The hidden world: not a destination of the flight, reached only from the completed map.
+  Mustafar: {
+    pad: "PLATEFORME DE LA RAFFINERIE · SYSTÈME MUSTAFAR",
+    soundscape: "desert",
+    welcome:
+      "Vous êtes l’un des rares à savoir que ce monde existe. Au bout du bras collecteur, le Temple aurait voulu oublier ce qui s’est passé.",
+    terminals: [
+      {
+        id: "cap",
+        label: "Prochain cap",
+        heading: "Au bout de la prophétie",
+        body: "Vous avez trouvé tous les secrets de ce portfolio. Il ne reste qu’une chose à découvrir : je recherche une alternance d’assistant marketing digital pour l’année 2026-2027.",
+        links: [{ label: "M’écrire", href: "mailto:sidimohamed.selhami1@gmail.com" }],
+      },
+    ],
+  },
   Coruscant: {
     pad: "PLATEFORME 3-7 · NIVEAU 5127",
     soundscape: "city",

@@ -24,14 +24,19 @@ let saved = JSON.stringify({
   paid: ["first-win:space-battle"],
   playSeconds: 400,
 });
-global.localStorage = { getItem: () => saved, setItem: (_key, value) => { saved = value; } };
+const podium = JSON.stringify({ version: 1, credits: 300 });
+global.localStorage = {
+  getItem: (key) => (key === "orbital-galactic-arcade" ? saved : key === "orbital-podracing-v1" ? podium : null),
+  setItem: (key, value) => { if (key === "orbital-galactic-arcade") saved = value; },
+};
 global.window = { localStorage, addEventListener() {} };
 
-const { getArcade, recordResult } = require("../components/arcade/arcadeStore.ts");
+const { adjustCredits, getArcade, recordResult } = require("../components/arcade/arcadeStore.ts");
 const { arcadeGames, gameById } = require("../components/arcade/catalog.ts");
 assert.equal(arcadeGames.length, 6);
 assert.equal(gameById("podracing").mode, "environment");
-assert.equal(getArcade().credits, 740);
+assert.equal(getArcade().credits, 1040, "The podium's old balance joins the arcade's");
+assert.ok(JSON.parse(saved).paid.includes("wallet:podracing"), "The merge is saved, so it never happens twice");
 assert.equal(getArcade().equipped.holo, "holo-amber");
 assert.equal(getArcade().stats["podracing"].plays, 0);
 for (const id of oldGames) {
@@ -46,4 +51,10 @@ assert.equal(persisted.stats.podracing.best, 1080);
 assert.equal(persisted.stats.podracing.wins, 1);
 assert.equal(persisted.stats["speeder-racing"].bestTime, 62);
 assert.equal(persisted.equipped.holo, "holo-amber");
-console.log("Arcade save migration, podium record and legacy Galactic Legend passed.");
+// One wallet: spending or winning on the podium moves the same total.
+const before = getArcade().credits;
+assert.equal(adjustCredits(-100), before - 100);
+assert.equal(adjustCredits(250), before + 150);
+assert.equal(adjustCredits(-1e9), 0, "The wallet never goes below zero");
+assert.equal(JSON.parse(saved).credits, 0);
+console.log("Arcade save migration, shared wallet, podium record and legacy Galactic Legend passed.");

@@ -1,4 +1,5 @@
 "use client";
+import { MUSTAFAR } from "./cockpitProjection";
 import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -129,7 +130,8 @@ export default function Experience() {
     timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const current = destinations[destination],
     landing = landings[current.name],
-    ground = surface !== null ? destinations[surface] : null,
+    // Mustafar has no place among the destinations: it lies one past them.
+    ground = surface === null ? null : surface === MUSTAFAR ? { name: "Mustafar" } : destinations[surface],
     groundLanding = ground ? landings[ground.name] : undefined;
   const lastSix = useRef(0);
   const guidance = useRef<number | null>(null),
@@ -188,6 +190,11 @@ export default function Experience() {
     unlockSecret("hyperspace");
   }, []);
   const closeTransmission = useCallback(() => setTransmission(null), []);
+  // Development only: opens a full-screen reward directly, without earning it first.
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    (window as unknown as { __orbitalReward?: typeof setReward }).__orbitalReward = setReward;
+  }, []);
   const answerOrder = useCallback(() => {
     setTransmission(null);
     setReward("order-66");
@@ -256,7 +263,7 @@ export default function Experience() {
     }
   }, [arrived, destination]);
   useEffect(() => {
-    if (surface !== null) logLanding(destinations[surface].name);
+    if (surface !== null && surface !== MUSTAFAR) logLanding(destinations[surface].name);
   }, [surface]);
   useEffect(() => {
     if (loading) return;
@@ -668,10 +675,10 @@ export default function Experience() {
           <button
             className="map-trigger bridge-pill"
             onClick={() => openMap()}
-            aria-label="Ouvrir la carte stellaire"
+            aria-label="Entrer dans le cockpit du X-wing"
           >
             <Map size={15} aria-hidden="true" />
-            <span>CARTE STELLAIRE</span>
+            <span>COCKPIT</span>
           </button>
           {cruising && (
             <button className="bridge-pill" onClick={openScanner} aria-label="Scanner galactique" aria-keyshortcuts="R">
@@ -777,6 +784,14 @@ export default function Experience() {
             onExperience={(experience) => {
               setMapOpen(false);
               setReward(experience);
+            }}
+            onLandMustafar={() => {
+              timers.current.forEach(clearTimeout);
+              setArrived(false);
+              setTravel(false);
+              setMapOpen(false);
+              setSurface(MUSTAFAR);
+              audio.current?.exit(0.8);
             }}
           />
         )}
@@ -905,7 +920,7 @@ export default function Experience() {
                 </div>
                 <div>
                   <dt>Approcher</dt>
-                  <dd>Visez une planète puis E, ou ouvrez la carte</dd>
+                  <dd>Visez une planète puis E, ou passez par le cockpit</dd>
                 </div>
                 <div>
                   <dt>Atterrir</dt>
@@ -1077,13 +1092,14 @@ export default function Experience() {
       </AnimatePresence>
       {station && <DeathStarStation key="station" start={station} section={stationSection} reduced={reduced} sound={sound} onClose={leaveStation} />}
       {taxi && <CoruscantTaxi reduced={reduced} sound={sound} onClose={leaveTaxi} />}
-      <div className="jedi-toasts">
+      <div>
         <AnimatePresence>
+          {/* The verse first, then whatever rank it has earned. */}
           {toasts[0] && !combat && <SecretDiscoveryToast key={toasts[0].mission.id} mission={toasts[0].mission} total={toasts[0].total} reduced={reduced} onDone={dismissToast} />}
         </AnimatePresence>
       </div>
       <AnimatePresence>
-        {ceremonies[0] && !loading && !combat && <RankUpCinematic key={ceremonies[0].id} to={ceremonies[0]} reduced={reduced} onDone={finishCeremony} />}
+        {ceremonies[0] && !loading && !combat && !toasts[0] && <RankUpCinematic key={ceremonies[0].id} to={ceremonies[0]} reduced={reduced} onDone={finishCeremony} />}
       </AnimatePresence>
       {unsupported && (
         <div className="webgl-note mono">

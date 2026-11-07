@@ -310,7 +310,7 @@ export function createTaxiCity(trips: Trip[], lanes: Lane[], glow: THREE.Texture
     group.add(beacon);
     return beacon;
   });
-  const parked = parkShip(metal);
+  const parked = parkShip();
   group.add(parked.ship);
   const stand = createTaxiStand(glow);
   group.add(stand.group);

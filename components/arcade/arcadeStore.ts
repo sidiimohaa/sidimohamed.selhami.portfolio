@@ -154,6 +154,19 @@ function seedFromDefense(data: ArcadeData) {
     // No earlier record.
   }
 }
+// The podium once kept its own balance: it joins the ship's single wallet, a single time.
+function seedFromPodium(data: ArcadeData) {
+  const merged = "wallet:podracing";
+  if (data.paid.includes(merged)) return;
+  try {
+    const podium = JSON.parse(localStorage.getItem("orbital-podracing-v1") || "null");
+    if (podium && Number.isFinite(podium.credits)) data.credits += Math.max(0, Math.floor(podium.credits));
+    data.paid.push(merged);
+    localStorage.setItem(KEY, JSON.stringify(data));
+  } catch {
+    // Nothing readable or nothing writable: it will be tried again on the next visit.
+  }
+}
 function ensure() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
@@ -163,6 +176,7 @@ function ensure() {
     state = fresh();
   }
   seedFromDefense(state);
+  seedFromPodium(state);
   window.addEventListener("storage", (event) => {
     if (event.key !== KEY) return;
     try {
@@ -262,6 +276,13 @@ export function recordResult(result: GameResult): ResultSummary {
   return { result, credits, record, previousBest, achievements: achievements.filter((item) => earned.includes(item.id)), grade: { from: fromGrade, to: gradeFor(next) } };
 }
 
+/** The ship has one balance: credits earned or spent outside the arcade pass through here. */
+export function adjustCredits(amount: number) {
+  ensure();
+  const credits = Math.max(0, Math.floor(state.credits + amount));
+  if (credits !== state.credits) commit({ ...state, credits });
+  return credits;
+}
 /** Buys a cosmetic with credits; returns false if unaffordable or already owned. */
 export function purchase(id: string) {
   ensure();

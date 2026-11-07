@@ -20,7 +20,7 @@ export const droidActions: Record<string, DroidActionInfo> = {
   cv: { fr: "Télécharger le CV", en: "Download the CV", href: CV_PDF },
   email: { fr: "Écrire un e-mail", en: "Send an email", href: `mailto:${identity.email}` },
   linkedin: { fr: "LinkedIn", en: "LinkedIn", href: identity.linkedin, external: true },
-  map: { fr: "Ouvrir la carte stellaire", en: "Open the star map" },
+  map: { fr: "Entrer dans le cockpit", en: "Enter the cockpit" },
   journal: { fr: "Journal des missions", en: "Mission journal" },
   scanner: { fr: "Lancer le scanner", en: "Run the scanner" },
   station: { fr: "Explorer la station", en: "Explore the station" },

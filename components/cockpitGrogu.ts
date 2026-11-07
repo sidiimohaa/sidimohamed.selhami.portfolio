@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { createSeatedGrogu } from "./groguModel";
 
-// The stowaway: after a long, quiet while in the cockpit Grogu's ears rise behind the dashboard. He
-// climbs up, looks at the pilot, and pulls the ball off the lever beside him. Take it back and he
-// sulks, then tries again; take it back a second time and he slips away for the rest of the visit.
+// The lever on the dashboard switches the holographic orbital system on and off. And the stowaway:
+// after a long, quiet while in the cockpit Grogu's ears rise behind the dashboard. He climbs up, looks
+// at the pilot, and pulls the ball off that lever, which cuts the hologram. Take it back and he sulks,
+// then tries again; take it back a second time and he slips away for the rest of the visit.
 
 const SEAT = new THREE.Vector3(-1.3, 0.98, -1.62);
 const SCALE = 1.35;
@@ -20,13 +21,33 @@ export function createCockpitGrogu() {
   grogu.group.visible = false;
   const group = new THREE.Group();
   group.add(grogu.group);
-  // The lever and its polished ball, on the dashboard to his side.
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.03, 0.26, 10), new THREE.MeshStandardMaterial({ color: 0x3a3f44, roughness: 0.45, metalness: 0.7 }));
-  stem.position.set(SEAT.x + 0.42, SEAT.y + 0.1, SEAT.z + 0.14);
+  // The lever and its polished ball, on the dashboard to his side, with a lamp for each position.
+  const steel = new THREE.MeshStandardMaterial({ color: 0x3a3f44, roughness: 0.45, metalness: 0.7 });
+  const pivot = new THREE.Group();
+  pivot.position.set(SEAT.x + 0.42, SEAT.y - 0.02, SEAT.z + 0.14);
+  group.add(pivot);
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, 0.26), new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.5, metalness: 0.6 }));
+  plate.position.copy(pivot.position);
+  group.add(plate);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.028, 0.26, 10), steel);
+  stem.position.y = 0.13;
+  pivot.add(stem);
   const ball = new THREE.Mesh(new THREE.SphereGeometry(0.058, 22, 16), new THREE.MeshStandardMaterial({ color: 0xc9ced3, roughness: 0.16, metalness: 0.95 }));
-  const lever = new THREE.Vector3(stem.position.x, stem.position.y + 0.15, stem.position.z);
-  ball.position.copy(lever);
-  group.add(stem, ball);
+  group.add(ball);
+  const lampOn = new THREE.MeshBasicMaterial({ color: 0x47ccff, toneMapped: false }),
+    lampOff = new THREE.MeshBasicMaterial({ color: 0x3a0a0a, toneMapped: false });
+  for (const [z, material] of [
+    [-0.09, lampOn],
+    [0.09, lampOff],
+  ] as const) {
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), material);
+    lamp.position.set(pivot.position.x + 0.085, pivot.position.y + 0.02, pivot.position.z + z);
+    group.add(lamp);
+  }
+  const leverAnchor = new THREE.Object3D();
+  leverAnchor.position.set(pivot.position.x, pivot.position.y + 0.18, pivot.position.z);
+  group.add(leverAnchor);
+  const lever = new THREE.Vector3();
   const anchor = new THREE.Object3D();
   anchor.position.set(SEAT.x, SEAT.y + 1.06, SEAT.z);
   group.add(anchor);
@@ -37,6 +58,15 @@ export function createCockpitGrogu() {
     taken = 0,
     time = 0;
   const hand = new THREE.Vector3(SEAT.x + 0.02, SEAT.y + 0.36, SEAT.z + 0.33);
+  let tilt = -0.42;
+  // Back for on, forward for off; the ball rides on the tip until someone takes it.
+  const moveLever = (on: boolean, dt: number, reduced: boolean) => {
+    tilt = reduced ? (on ? -0.42 : 0.42) : THREE.MathUtils.damp(tilt, on ? -0.42 : 0.42, 14, dt);
+    pivot.rotation.x = tilt;
+    lever.set(pivot.position.x, pivot.position.y + Math.cos(tilt) * 0.28, pivot.position.z + Math.sin(tilt) * 0.28);
+    lampOn.color.setHex(on ? 0x47ccff : 0x0a2530);
+    lampOff.color.setHex(on ? 0x3a0a0a : 0xff4030);
+  };
   const go = (next: State) => {
     state = next;
     age = 0;
@@ -47,9 +77,12 @@ export function createCockpitGrogu() {
   return {
     group,
     anchor,
-    // calm: nothing else is open. Returns "pulled" on the frame the ball comes away.
-    tick(dt: number, reduced: boolean, calm: boolean): "pulled" | null {
+    leverAnchor,
+    // calm: nothing else is open; on: where the lever stands. Returns "pulled" on the frame the ball comes away.
+    tick(dt: number, reduced: boolean, calm: boolean, on: boolean): "pulled" | null {
       time += dt;
+      moveLever(on, dt, reduced);
+      if (state !== "holding" && state !== "scolded" && state !== "leaving") ball.position.copy(lever);
       if (state === "gone") return null;
       if (state === "waiting") {
         quiet = calm ? quiet + dt : quiet;
@@ -81,7 +114,6 @@ export function createCockpitGrogu() {
         grogu.group.rotation.y = -k * 0.4;
         grogu.arms[0].rotation.x = -k * 1.25;
         grogu.arms[1].rotation.x = -k * 1.25;
-        ball.position.copy(lever);
         if (!reduced && k > 0.5) ball.position.x += Math.sin(age * 34) * 0.012 * k;
         if (k >= 1) {
           event = "pulled";
