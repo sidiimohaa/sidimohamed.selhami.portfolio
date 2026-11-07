@@ -32,3 +32,14 @@ export const temple = {
     { id: "holocron", title: "L’holocron scellé", text: `${identity.search} ${identity.rhythm}.` },
   ],
 };
+
+// What Yoda says of each relic. His words, but only what the record above says.
+export const yoda = {
+  welcome: "Attendu, je t’ai, jeune Maître. Quatre reliques devant toi sont. De ton pilote, chacune une page garde.",
+  archives: "Apprendre, jamais il n’a cessé. Ce qui l’a formé, ces archives montrent.",
+  kyber: "Du commerce et du terrain, il vient. Vers le digital et l’IA, son cristal l’appelle.",
+  council: "Seul, un Jedi n’avance jamais. Avec son équipe, en magasin, cela il a appris.",
+  holocron: "Scellé, cet holocron n’est plus. Une alternance, il cherche. L’aider, peut-être tu pourrais.",
+  // When every secret has been found; until then he passes on the mission's own whisper.
+  fulfilled: "Accomplie, la prophétie est. Dans ton cockpit, la dernière pièce de la carte t’attend.",
+};

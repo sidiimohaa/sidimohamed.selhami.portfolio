@@ -983,7 +983,7 @@ export default function Experience() {
         {transmission === "archives" && <ArchivesDossier key="archives" onClose={closeTransmission} />}
       </AnimatePresence>
       <AnimatePresence>
-        {reward === "temple" && <TempleRoom key="temple" reduced={reduced} onClose={() => setReward(null)} />}
+        {reward === "temple" && <TempleRoom key="temple" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
         {reward === "order-66" && <OrderEscape key="order-66" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
         {reward === "destiny" && <FinalVaderExperience key="destiny" reduced={reduced} sound={sound} onClose={() => setReward(null)} />}
       </AnimatePresence>

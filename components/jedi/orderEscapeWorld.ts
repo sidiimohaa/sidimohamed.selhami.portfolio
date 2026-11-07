@@ -27,7 +27,7 @@ function canvasTexture(width: number, height: number, paint: (c: CanvasRendering
   return texture;
 }
 
-const stoneMap = () =>
+export const stoneMap = () =>
   canvasTexture(512, 512, (c, rand) => {
     c.fillStyle = "#b09c80";
     c.fillRect(0, 0, 512, 512);
@@ -107,7 +107,7 @@ function flutedShaft(radius: number, height: number) {
   return geometry;
 }
 
-function holobooks() {
+export function holobooks() {
   return canvasTexture(
     512,
     512,
@@ -475,6 +475,16 @@ export function createEscapeAudio() {
       noise(0.28, 0.14, 2600);
     },
     jump: () => noise(1.2, 0.16, 1400),
+    // A held, pure note, as a kyber crystal is said to sing, and a short bright one for a holocron.
+    sing: () => {
+      tone(660, 660, 2.6, 0.055, "sine");
+      tone(990, 993, 2.6, 0.032, "sine");
+      tone(1320, 1326, 2.2, 0.018, "sine");
+    },
+    chime: () => {
+      tone(880, 880, 0.9, 0.05, "sine");
+      tone(1320, 1320, 0.7, 0.028, "sine");
+    },
     setHum: (speed: number) => {
       humLevel.gain.setTargetAtTime(0.05 + Math.min(speed, 1) * 0.13, context.currentTime, 0.04);
       humFilter.frequency.setTargetAtTime(240 + Math.min(speed, 1) * 760, context.currentTime, 0.05);

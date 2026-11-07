@@ -508,9 +508,16 @@ const hologramFragment = `uniform float time;uniform float reveal;uniform float 
 
 /** Builds every member, ready to be placed on its seat. */
 export function createCouncilMembers() {
+  return COUNCIL_MEMBERS.map(buildMember);
+}
+/** Builds one member alone, for a scene outside the Council's chamber. */
+export function createCouncilMember(id: string) {
+  return buildMember(COUNCIL_MEMBERS.find((member) => member.id === id)!);
+}
+function buildMember(member: (typeof COUNCIL_MEMBERS)[number]) {
   const flesh = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.84, metalness: 0, emissive: 0x18110c, side: THREE.DoubleSide });
   flesh.userData.surfaceKind = "cloth";
-  return COUNCIL_MEMBERS.map((member) => {
+  {
     const bodyKit = kit();
     body(bodyKit, member.dress);
     const headKit = kit();
@@ -537,6 +544,6 @@ export function createCouncilMembers() {
     head.position.set(0, member.neck ?? 0.71, 0);
     group.add(trunk, head);
     return { ...member, group, trunk, head, hologram, phase: member.seat * 1.7, yaw: 0, pitch: 0 };
-  });
+  }
 }
 export type CouncilFigure = ReturnType<typeof createCouncilMembers>[number];

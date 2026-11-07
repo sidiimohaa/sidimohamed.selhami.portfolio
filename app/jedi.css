@@ -2052,3 +2052,54 @@
     opacity: 0;
   }
 }
+
+/* Yoda's words, in the Archives. */
+.temple-yoda {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  width: min(400px, calc(100vw - 56px));
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid #a8c47e55;
+  border-radius: 3px;
+  background: #0e120bcc;
+  color: #f2efe0;
+  font-size: 15px;
+  line-height: 1.42;
+  backdrop-filter: blur(4px);
+}
+.temple-yoda span {
+  color: #b6d48c;
+  font-size: 9px;
+  letter-spacing: 1.8px;
+}
+.temple-room .reward-scene-canvas {
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  .temple-yoda {
+    top: 88px;
+    right: 16px;
+    bottom: auto;
+    left: 16px;
+    width: auto;
+    font-size: 13px;
+  }
+}
+.jedi-tab-like.temple-visit {
+  border-color: #a8c47e77;
+  color: #d9eab8;
+}
+.jedi-tab-like.temple-visit[aria-pressed="true"] {
+  border-color: #b6d48c;
+  background: #a8c47e22;
+}
+.jedi-tab-like.temple-counsel {
+  margin-top: 8px;
+  border-color: #a8c47e77;
+  color: #d9eab8;
+}
