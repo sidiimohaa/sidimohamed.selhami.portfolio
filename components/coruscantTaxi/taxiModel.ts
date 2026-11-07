@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createPilotDroid } from "./pilotDroid";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { glowTexture } from "../landingKit";
 import { softBeam } from "../render/softBeam";
@@ -210,21 +211,10 @@ export function createAirTaxi(options: { glow?: THREE.Texture; holo?: boolean } 
   add(screen, glass, [0, 1.25, 1.36]);
   add(new THREE.TorusGeometry(1, 0.025, 6, 32, Math.PI).rotateX(Math.PI / 2).scale(0.95, 1, 0.72), chrome, [0, 1.25, 1.36]);
 
-  // The pilot droid: bronze head with two amber eyes, slim body, arms to the yoke.
-  const pilot = new THREE.Group();
-  pilot.position.set(0.45, 1.19, 0.8);
-  group.add(pilot);
-  add(new THREE.BoxGeometry(0.36, 0.42, 0.24), bronze, [0, 0.26, 0], [-0.08, 0, 0], pilot);
-  add(new THREE.CylinderGeometry(0.05, 0.06, 0.12, 10), trim, [0, 0.52, 0], [0, 0, 0], pilot);
-  const head = new THREE.Group();
-  head.position.set(0, 0.66, 0.02);
-  pilot.add(head);
-  const skull = add(new THREE.SphereGeometry(0.14, 20, 14), bronze, [0, 0, 0], [0, 0, 0], head);
-  skull.scale.set(1, 1.12, 1.05);
-  add(new THREE.BoxGeometry(0.2, 0.05, 0.05), trim, [0, -0.02, 0.12], [0, 0, 0], head);
-  const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffc070, toneMapped: false });
-  [-0.05, 0.05].forEach((x) => add(new THREE.SphereGeometry(0.022, 10, 8), eyeMaterial, [x, 0.03, 0.13], [0, 0, 0], head));
-  [-1, 1].forEach((side) => add(new THREE.CylinderGeometry(0.03, 0.025, 0.5, 8), trim, [side * 0.16, 0.22, 0.24], [Math.PI * 0.42, 0, side * -0.18], pilot));
+  // The pilot droid, in the front right seat, its hands on the yoke.
+  const pilot = createPilotDroid(new THREE.Vector3(0, 0.19, 0.32));
+  pilot.group.position.set(0.45, 1.19, 0.8);
+  group.add(pilot.group);
 
   // Holo projector on the console; the panel itself is drawn by the journey.
   add(new THREE.CylinderGeometry(0.07, 0.09, 0.05, 20), chrome, [-0.12, 1.17, 0.5]);
@@ -278,9 +268,13 @@ export function createAirTaxi(options: { glow?: THREE.Texture; holo?: boolean } 
   return {
     group,
     door,
-    head,
-    pilot,
+    head: pilot.head,
+    pilot: pilot.group,
     yoke,
+    // The droid at work: talking 0 to 1, steer -1 to 1, with the yoke turning under its hands.
+    tickPilot: (time: number, still: boolean, talking: number, steer: number) => {
+      yoke.rotation.z = Math.PI * -0.1 + pilot.tick(time, still, talking, steer);
+    },
     holo,
     // The passenger's eyes, on the rear right seat.
     eye: new THREE.Vector3(-0.45, 1.88, -0.6),

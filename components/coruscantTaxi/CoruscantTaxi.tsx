@@ -878,6 +878,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
       headTurn += ((elapsed < talkUntil ? 1 : 0) - headTurn) * (1 - Math.exp(-dt * 5));
       taxi.head.rotation.y = -headTurn * 2.0 + (still ? 0 : Math.sin(elapsed * 0.7) * 0.06);
       taxi.head.rotation.x = headTurn * 0.15;
+      taxi.tickPilot(elapsed, still, headTurn, mode === "flight" ? THREE.MathUtils.clamp(ride.roll * 3.5, -1, 1) : 0);
       // The holo leans out of the way during the flight.
       holo.mesh.scale.setScalar(THREE.MathUtils.damp(holo.mesh.scale.x, mode === "flight" ? 0.62 : 1, 4, dt));
       holo.mesh.position.y = THREE.MathUtils.damp(holo.mesh.position.y, mode === "flight" ? 1.62 : 1.74, 4, dt);
