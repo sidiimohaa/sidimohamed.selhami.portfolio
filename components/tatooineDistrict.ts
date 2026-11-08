@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { sandBanked } from "./weathering";
 import { createJawa, createSandcrawler } from "./jawaModels";
+import { createRobedFigure, skinOf, type Head } from "./cantinaCrowd";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { createCoruscantCargo } from "./coruscantCargo";
@@ -13,6 +14,7 @@ import { createStreetLife } from "./tatooineStreetLife";
 import { createTatooineResidents } from "./tatooineResidents";
 import { createDesertSpeeder } from "./tatooineVehicleModels";
 import { createTatooineMarket } from "./tatooineMarket";
+import { createMarketStand } from "./marketStand";
 export const TATOOINE_GATE = 2.58;
 export function districtPoint(u: number, v: number) { return new THREE.Vector3(Math.cos(TATOOINE_GATE) * u + Math.sin(TATOOINE_GATE) * v, 0, -Math.sin(TATOOINE_GATE) * u + Math.cos(TATOOINE_GATE) * v); }
 export function districtCoordinates(x: number, z: number) { return { u: Math.cos(TATOOINE_GATE) * x - Math.sin(TATOOINE_GATE) * z, v: Math.sin(TATOOINE_GATE) * x + Math.cos(TATOOINE_GATE) * z }; }
@@ -43,7 +45,6 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
     const metal = new THREE.MeshStandardMaterial({ color: 0x727b78, metalness: .55, roughness: .7 });
     const cloth = new THREE.MeshStandardMaterial({ color: 0xa56e42, roughness: 1, side: THREE.DoubleSide });
     const pale = new THREE.MeshStandardMaterial({ color: 0xc5b28d, roughness: .95, side: THREE.DoubleSide });
-    const amber = new THREE.MeshBasicMaterial({ color: 0xf4bd58 });
     const footprints=document.createElement("canvas");footprints.width=256;footprints.height=1024;
     const sandMarks=footprints.getContext("2d")!;sandMarks.fillStyle="#6e563927";
     for(let mark=0;mark<170;mark++){
@@ -116,27 +117,31 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         box(dark, .1, 2.1, 1.35, u - side * r, 1.05, v);
         add(new THREE.CylinderGeometry(.12, .12, 2.5, 8), rust, u - side * (r + .08), 1.25, v - .9);
         add(new THREE.CylinderGeometry(.12, .12, 2.5, 8), rust, u - side * (r + .08), 1.25, v + .9);
+        // Two shops keep a market stand out front; the others a plain awning on two posts.
+        const stand = ![0, 1, 3].includes(index);
+        if (stand) {
+            const stall = createMarketStand(index);
+            const standU = u - side * (r + 1.05);
+            stall.position.set(standU, -.04, v);
+            stall.rotation.y = -side * Math.PI / 2;
+            group.add(stall);
+            for (const dv of [-.8, .8]) block(standU, v + dv, .95);
+            for (const dv of [-1.85, 1.85]) block(standU + -side * .55, v + dv, .4);
+        }
         const awning = new THREE.PlaneGeometry(3.2, 5.8, 3, 8);
         awning.rotateX(-Math.PI / 2);
         const positions = awning.getAttribute("position");
         for (let i = 0; i < positions.count; i++)
             positions.setY(i, Math.sin((positions.getZ(i) + 2.9) / 5.8 * Math.PI) * -.23);
         awning.computeVertexNormals();
-        add(awning, index % 2 ? cloth : pale, u - side * (r + 1.1), 2.65, v);
-        for (const dz of [-2.85, 2.85]) {
-            const postU = u - side * (r + 2.6);
-            add(new THREE.CylinderGeometry(.045, .065, 2.7, 8), metal, postU, 1.35, v + dz);
-            block(postU, v + dz, .07);
-        }
-        if(![0,1,3].includes(index)){
-          box(rust, .8, .8, 2.5, u - side * (r + .6), .4, v + .2);
-          block(u - side * (r + .6), v + .2, 1.2);
-          for(let item=0;item<8;item++){
-            const atV=v-1+item*.28,atU=u-side*(r+.6);
-            if(index%2)add(new THREE.CylinderGeometry(.08,.12,.28+(item%3)*.07,12),item%2?rust:pale,atU,1.03,atV);
-            else {add(new THREE.TorusGeometry(.12,.055,6,16),rust,atU,.97,atV,Math.PI/2);}
-          }
-        }
+        if (!stand) {
+            add(awning, index % 2 ? cloth : pale, u - side * (r + 1.1), 2.65, v);
+            for (const dz of [-2.85, 2.85]) {
+                const postU = u - side * (r + 2.6);
+                add(new THREE.CylinderGeometry(.045, .065, 2.7, 8), metal, postU, 1.35, v + dz);
+                block(postU, v + dz, .07);
+            }
+        } else awning.dispose();
         for(let shutter=0;shutter<4;shutter++)box(dark,.09,.75,.18,u-side*(r+.06),1.75,v+1.5+shutter*.2);
         pipeDetail(u,v,r,side);
         for (let rib = 0; rib < 4; rib++)
@@ -172,47 +177,32 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
         phase: number;
         jawa: boolean;
         collider: Spot;
+        // The shoulder's resting angle, round which the arms swing.
+        rest: number;
     }[] = [];
+    // The townsfolk strolling the street, each of a different species of the galaxy.
+    const townsfolk: { head: Head; robe: number; skin: number; height: number }[] = [
+        { head: "snout", robe: 0x7c7056, skin: 0, height: 1.7 },
+        { head: "dome", robe: 0xb59c79, skin: 0, height: 1.8 },
+        { head: "lekku", robe: 0x8a4a2c, skin: 0, height: 1.72 },
+        { head: "human", robe: 0xa99471, skin: 0x8f6a4c, height: 1.78 },
+    ];
+    let townsfolkCount = 0;
     function character(jawa: boolean, u: number, v: number, range: number, phase: number) {
         if(jawa){
           const {group:g,arms,legs}=createJawa(),p=districtPoint(u,v),collider={x:p.x,z:p.z,r:.4};
-          movers.push(collider);shadow(g,1,.8,.012);actors.push({group:g,arms,legs,u,v,range,phase,jawa,collider});
+          movers.push(collider);shadow(g,1,.8,.012);actors.push({group:g,arms,legs,u,v,range,phase,jawa,collider,rest:0});
           g.position.set(u,-.06,v);group.add(g);return;
         }
-        const g = new THREE.Group();
-        const body = new THREE.MeshStandardMaterial({ color: jawa ? 0x62432c : [0xa99471, 0x7c7056, 0xb59c79][Math.floor(phase) % 3], roughness: 1 });
-        const headMat = new THREE.MeshStandardMaterial({ color: jawa ? 0x141411 : 0xa57e5b, roughness: .95 });
-        const piece = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D = g) => { const m = new THREE.Mesh(geometry, material); m.position.set(x, y, z); parent.add(m); return m; };
-        const h = jawa ? .72 : 1.32;
-        piece(new THREE.CylinderGeometry(jawa ? .21 : .23, jawa ? .37 : .34, h, 12), body, 0, h / 2 + .08, 0);
-        piece(new THREE.SphereGeometry(jawa ? .24 : .19, 12, 8), body, 0, h + .17, 0);
-        piece(new THREE.SphereGeometry(jawa ? .17 : .145, 10, 8), headMat, 0, h + .16, .13);
-        if (jawa)
-            for (const x of [-.055, .055])
-                piece(new THREE.SphereGeometry(.022, 6, 4), amber, x, h + .18, .28);
-        else{
-          const collar=piece(new THREE.TorusGeometry(.16,.045,6,16),body,0,h+.015,0);collar.rotation.x=Math.PI/2;
-          for(const x of[-.052,.052])piece(new THREE.SphereGeometry(.014,6,4),dark,x,h+.19,.265);
-          piece(new THREE.SphereGeometry(.03,8,6),headMat,0,h+.13,.279);
-        }
-        const arms: THREE.Group[] = [], legs: THREE.Group[] = [];
-        for (const side of [-1, 1]) {
-            const a = new THREE.Group();
-            a.position.set(side * .25, h * .8, 0);
-            g.add(a);
-            arms.push(a);
-            piece(new THREE.CylinderGeometry(.09, .12, jawa ? .32 : .52, 8), body, side * .04, -.17, 0, a);
-            piece(new THREE.SphereGeometry(.065, 8, 6), headMat, side * .04, jawa ? -.31 : -.42, .02, a);
-            const leg = new THREE.Group();
-            leg.position.set(side * .13, .24, 0);
-            g.add(leg);
-            legs.push(leg);
-            piece(new THREE.BoxGeometry(.16, .15, .29), dark, 0, -.13, .04, leg);
-        }
-        const p = districtPoint(u, v), collider = { x: p.x, z: p.z, r: jawa ? .32 : .39 };
+        const index = townsfolkCount++;
+        const look = townsfolk[index % townsfolk.length];
+        const figure = createRobedFigure({ head: look.head, robe: look.robe, skin: skinOf(look.head, index + 2, look.skin), height: look.height });
+        const g = figure.root;
+        g.name = `mos-eisley-townsfolk-${look.head}`;
+        const p = districtPoint(u, v), collider = { x: p.x, z: p.z, r: .39 };
         movers.push(collider);
-        shadow(g, jawa ? .9 : 1.1, .7, .012);
-        actors.push({ group: g, arms, legs, u, v, range, phase, jawa, collider });
+        shadow(g, 1.1, .7, .012);
+        actors.push({ group: g, arms: figure.arms, legs: [], u, v, range, phase, jawa, collider, rest: figure.rest.shoulder });
         group.add(g);
         g.position.set(u, -.06, v);
     }
@@ -314,7 +304,7 @@ export function createTatooineDistrict(adobe: THREE.Material, groundHeight: (x: 
                 const gap = Math.atan2(Math.sin(facing - a.group.rotation.y), Math.cos(facing - a.group.rotation.y));
                 if (!reduced)
                     a.group.rotation.y += gap * (1 - Math.exp(-dt * 3));
-                a.arms.forEach((arm, i) => arm.rotation.x = reduced ? 0 : Math.sin(clock * (near ? 1.5 : 3.2) + index + i * Math.PI) * (a.range && !near ? .22 : .09));
+                a.arms.forEach((arm, i) => arm.rotation.x = a.rest + (reduced ? 0 : Math.sin(clock * (near ? 1.5 : 3.2) + index + i * Math.PI) * (a.range && !near ? .22 : .09)));
                 a.legs.forEach((leg, i) => leg.rotation.x = reduced || near || !a.range ? 0 : Math.sin(clock * 3.2 + i * Math.PI) * .16);
                 const p = districtPoint(a.group.position.x, a.group.position.z);
                 a.collider.x = p.x;

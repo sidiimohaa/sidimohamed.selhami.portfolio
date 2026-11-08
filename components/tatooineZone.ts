@@ -2,6 +2,8 @@ import { eventLevels, createFlyby } from "./galaxy/worldEvents";
 import { galaxy } from "./galaxy/store";
 import { createPodModel } from "./podracing/podModel";
 import * as THREE from "three";
+import { createCargoStack, createPowerUnit } from "./cargoProps";
+import { createBuildingKit, type BuildingKind } from "./mosEisleyBuildings";
 import { createPadLife, type PadEvent } from "./coruscantLife";
 import {
   createTerminals,
@@ -351,12 +353,9 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
   });
   const circles: Spot[] = [];
   for (const angle of [GATE_AT-GATE,GATE_AT+GATE]) circles.push({x:Math.sin(angle)*17.5,z:Math.cos(angle)*17.5,r:.95});
-  const generator = mesh(new THREE.BoxGeometry(1.4, 1.2, 0.9), metal, [
-    Math.sin(4.55) * 15.6,
-    0.6,
-    Math.cos(4.55) * 15.6,
-  ]);
-  generator.lookAt(0, 0.6, 0);
+  const generator = createPowerUnit();
+  generator.position.set(Math.sin(4.55) * 15.6, 0, Math.cos(4.55) * 15.6);
+  generator.lookAt(0, 0, 0);
   group.add(generator);
   circles.push({ x: generator.position.x, z: generator.position.z, r: 0.9 });
 
@@ -382,6 +381,7 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     dummy.updateMatrix();
     pieces[kind].push(dummy.matrix.clone());
   };
+  const town = createBuildingKit(adobe, shade);
   const taken: Spot[] = [{ x: 0, z: 0, r: 19.5 }];
   const sightline = new THREE.Vector2(SUN.x + SECOND.x, SUN.z + SECOND.z).normalize();
   for (let attempt = 0; attempt < 400 && taken.length < 90; attempt++) {
@@ -398,28 +398,25 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       across = Math.abs((x - SPAWN.x) * sightline.y - (z - SPAWN.z) * sightline.x);
     if (along > 0 && across < 12 + along * 0.2) continue;
     if (angle > 0.7 && angle < 1.4) continue;
+    // Mostly the four kinds of the concept sheet, among a few plain domed huts and tall towers.
     const roll = rand(),
-      size = roll < 0.6 ? 2.5 + rand() * 3 : roll < 0.9 ? 2.5 + rand() * 2 : 1.4 + rand();
+      kinds: BuildingKind[] = ["twin", "tower", "hall", "gate"],
+      kind = roll < 0.25 ? null : kinds[Math.min(3, Math.floor(((roll - 0.25) / 0.75) * 4))],
+      size = kind ? 2.2 + rand() * 2 : roll < 0.15 ? 2.5 + rand() * 3 : 1.4 + rand();
     if (taken.some((spot) => Math.hypot(spot.x - x, spot.z - z) < spot.r + size + 1.5)) continue;
-    taken.push({ x, z, r: size * (roll < .6 ? 1.04 : roll < .9 ? 1.5 : 1.15) });
+    taken.push({ x, z, r: size * (kind ? 1.25 : roll < .15 ? 1.04 : 1.15) });
     const facing = Math.atan2(-x, -z),
       doorAt = (depth: number): [number, number, number] => [
         x - (x / reach) * depth,
         1.05,
         z - (z / reach) * depth,
       ];
-    if (roll < 0.6) {
+    if (kind) town.place(kind, x, z, size, 0.9 + rand() * 0.4, facing + (rand() - 0.5) * 0.5);
+    else if (roll < 0.15) {
       const height = 1.6 + rand() * 1.6;
       place("drum", [x, height / 2, z], [size, height, size]);
       place("dome", [x, height, z], [size, size * 0.85, size]);
       place("door", doorAt(size * 0.98), [1.2, 2.1, 0.3], facing);
-    } else if (roll < 0.9) {
-      const height = 3 + rand() * 3,
-        width = size * 2,
-        depth = size * (1.4 + rand() * 0.8);
-      place("block", [x, height / 2, z], [width, height, depth], facing);
-      if (rand() < 0.5) place("dome", [x, height, z], [size * 0.7, size * 0.6, size * 0.7]);
-      place("door", doorAt(depth / 2), [1.2, 2.1, 0.3], facing);
     } else {
       const height = 7 + rand() * 4;
       place("drum", [x, height / 2, z], [size, height, size]);
@@ -435,10 +432,12 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
       ["door", new THREE.BoxGeometry(1, 1, 1), shade],
     ] as const
   ).forEach(([kind, geometry, material]) => {
+    if (!pieces[kind].length) return;
     const instances = new THREE.InstancedMesh(geometry, material, pieces[kind].length);
     pieces[kind].forEach((matrix, i) => instances.setMatrixAt(i, matrix));
     group.add(instances);
   });
+  group.add(town.build());
 
   // Moisture vaporators dotted around the outskirts, and one inside the bay.
   const vaporator = (x: number, z: number) => {
@@ -500,22 +499,15 @@ export function createTatooineZone(landing: Landing, notify: (event: PadEvent) =
     group.add(mesa);
   }
 
-  // Cargo stacked between the terminals, as on every pad.
-  const crate = new THREE.MeshStandardMaterial({ color: 0x7a6a52, roughness: 0.85, metalness: 0.15 }),
-    accent = new THREE.MeshStandardMaterial({ color: 0xa8572c, roughness: 0.75, metalness: 0.2 });
+  // Cargo piled between the terminals, as on every pad: footlockers, hard cases and canisters.
   [0, Math.PI].forEach((angle, cluster) => {
     const x = Math.cos(angle) * 13.3,
       z = Math.sin(angle) * 13.3;
-    for (let i = 0; i < 4; i++) {
-      const size = 0.9 + rand() * 0.6;
-      const box = mesh(new THREE.BoxGeometry(size, size, size), i % 3 === cluster ? accent : crate, [
-        x + (rand() - 0.5) * 2,
-        size / 2 + (i === 3 ? 1.1 : 0),
-        z + (rand() - 0.5) * 2,
-      ]);
-      box.rotation.y = rand() * Math.PI;
-      group.add(box);
-    }
+    const stack = createCargoStack(cluster);
+    stack.position.set(x, 0, z);
+    // The long side of the pile faces the middle of the pad.
+    stack.rotation.y = Math.atan2(-x, -z) + (rand() - 0.5) * 0.3;
+    group.add(stack);
     circles.push({ x, z, r: 2.2 });
   });
 

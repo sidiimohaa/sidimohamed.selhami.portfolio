@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { bakePart } from "./tatooineCharacters";
+import { createHardCase } from "./cargoProps";
 import { createProbeDroid } from "./probeDroid";
 import { createDroidKit } from "./droidModels";
 import { createAirTaxi } from "./coruscantTaxi/taxiModel";
@@ -476,11 +477,14 @@ export function createPadLife(options: {
     mesh(new THREE.BoxGeometry(0.9, 0.24, 1.3), dark),
     mesh(new THREE.BoxGeometry(0.92, 0.06, 0.1), orange, [0, 0.1, 0.62]),
     mesh(new THREE.BoxGeometry(0.92, 0.06, 0.1), orange, [0, 0.1, -0.62]),
-    mesh(new THREE.BoxGeometry(0.75, 0.75, 0.75), orange, [0, 0.5, 0.1]),
     mesh(new THREE.BoxGeometry(0.7, 0.05, 0.05), dark, [0, 0.62, -0.66]),
     mesh(new THREE.BoxGeometry(0.05, 0.5, 0.05), dark, [-0.32, 0.37, -0.66]),
     mesh(new THREE.BoxGeometry(0.05, 0.5, 0.05), dark, [0.32, 0.37, -0.66]),
   );
+  // Its load: a hard case strapped down on the deck.
+  const load = createHardCase(0.74, 0.5, 0.62, 0xc8692d);
+  load.position.set(0, 0.12, 0.1);
+  cart.add(load, mesh(new THREE.BoxGeometry(0.06, 0.02, 0.72), dark, [0, 0.635, 0.1]));
   const underglow = mesh(new THREE.PlaneGeometry(0.8, 1.2), hover, [0, -0.14, 0]);
   underglow.rotation.x = Math.PI / 2;
   cart.add(underglow);

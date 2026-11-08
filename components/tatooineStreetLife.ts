@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createRobedFigure, skinOf, type Head } from "./cantinaCrowd";
 import { createJawa } from "./jawaModels";
 import { createDewbackPatrol } from "./dewbackPatrol";
 import { createDroidKit } from "./droidModels";
@@ -7,7 +8,7 @@ import { bakePart, createSandtrooper, part, rounded } from "./tatooineCharacters
 
 // Street scenes for Mos Eisley, all in the district's (u, y, v) frame, figures facing +v by default.
 type Spot = { u: number; v: number; r: number };
-type Robed = { root: THREE.Group; head: THREE.Group; arms: THREE.Group[] };
+type Robed = { root: THREE.Group; head: THREE.Group; arms: THREE.Group[]; elbows: THREE.Group[]; rest: { shoulder: number; elbow: number } };
 
 const ease = (from: number, to: number, value: number) => {
   const t = THREE.MathUtils.clamp((value - from) / (to - from), 0, 1);
@@ -16,44 +17,17 @@ const ease = (from: number, to: number, value: number) => {
 const toward = (current: number, target: number, dt: number, rate = 6) =>
   current + (target - current) * (1 - Math.exp(-dt * rate));
 
-// A robed figure: a hooded Jawa when no skin is given, otherwise a traveller.
-function robed(height: number, robe: number, skin?: number): Robed {
-  if(skin===undefined){const figure=createJawa(robe);figure.group.scale.setScalar(height/1.2);return{root:figure.group,head:figure.head,arms:figure.arms};}
-  const root = new THREE.Group();
-  const cloth = new THREE.MeshStandardMaterial({ color: robe, roughness: 1 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x0d0b09, roughness: 0.9 });
-  const jawa = skin === undefined;
-  const face = jawa ? dark : new THREE.MeshStandardMaterial({ color: skin, roughness: 0.85 });
-  const shoulder = height * (jawa ? 0.7 : 0.8);
-  const body = new THREE.Group();
-  root.add(body);
-  part(body, new THREE.CylinderGeometry(jawa ? 0.21 : 0.18, jawa ? 0.37 : 0.33, shoulder, 14), cloth, [0, shoulder / 2, 0]);
-  part(body, new THREE.SphereGeometry(0.21, 14, 10), cloth, [0, shoulder, 0]).scale.set(1.15, 0.6, 0.95);
-  bakePart(body);
-  const head = new THREE.Group();
-  head.position.y = shoulder + (jawa ? 0.12 : 0.2);
-  root.add(head);
-  if (jawa) {
-    // Deep hood, a shadowed face and two glowing eyes.
-    part(head, new THREE.SphereGeometry(0.24, 14, 10), cloth, [0, 0.05, 0]);
-    part(head, new THREE.SphereGeometry(0.17, 12, 8), dark, [0, 0.04, 0.13]);
-    const eye = new THREE.MeshBasicMaterial({ color: 0xf4bd58 });
-    for (const side of [-1, 1]) part(head, new THREE.SphereGeometry(0.024, 6, 4), eye, [side * 0.055, 0.06, 0.28]);
-  } else {
-    part(head, new THREE.SphereGeometry(0.15, 16, 12), face).scale.set(0.92, 1.08, 0.95);
-    part(head, new THREE.SphereGeometry(0.185, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), cloth, [0, 0.01, -0.04]);
-    for (const side of [-1, 1]) part(head, new THREE.SphereGeometry(0.017, 8, 6), dark, [side * 0.05, 0.02, 0.135]);
+// A robed figure: a hooded Jawa when no skin is given, otherwise a traveller of the given species,
+// built like the cantina's regulars, with jointed arms.
+function robed(height: number, robe: number, skin?: number, species: Head = "human", index = 0): Robed {
+  if (skin === undefined) {
+    const figure = createJawa(robe);
+    figure.group.scale.setScalar(height / 1.2);
+    return { root: figure.group, head: figure.head, arms: figure.arms, elbows: [], rest: { shoulder: 0, elbow: 0 } };
   }
-  bakePart(head);
-  const arms = [-1, 1].map((side) => {
-    const arm = new THREE.Group();
-    arm.position.set(side * (jawa ? 0.22 : 0.24), shoulder - 0.03, 0);
-    part(arm, new THREE.CylinderGeometry(0.06, 0.095, jawa ? 0.36 : 0.52, 8), cloth, [0, jawa ? -0.16 : -0.23, 0.02]);
-    part(arm, new THREE.SphereGeometry(0.05, 8, 6), face, [0, jawa ? -0.35 : -0.5, 0.04]);
-    root.add(arm);
-    return arm;
-  });
-  return { root, head, arms };
+  const figure = createRobedFigure({ head: species, robe, skin: skinOf(species, index, skin), height });
+  figure.root.name = `mos-eisley-traveller-${species}`;
+  return figure;
 }
 
 // Jawas talk up a droid to a farmer at their workbench, on a slow loop of offers and refusals.
@@ -101,10 +75,12 @@ function haggling(group: THREE.Group, colliders: Spot[]) {
     buyer.head.rotation.y = toward(buyer.head.rotation.y, shake ? Math.sin(time * 10) * 0.4 : point ? -0.35 : 0, dt, 12);
     buyer.head.rotation.x = toward(buyer.head.rotation.x, deal ? Math.sin(time * 8) * 0.2 : 0, dt, 12);
     buyer.root.rotation.y = toward(buyer.root.rotation.y, point ? pointAt * 0.4 - Math.PI / 2 * 0.6 : -Math.PI / 2, dt, 3);
+    // Arms folded while listening: elbows bent hard, forearms across the chest.
     buyer.arms.forEach((arm, side) => {
       const pointing = point && side === 0;
-      arm.rotation.x = toward(arm.rotation.x, pointing ? -1.45 : deal ? -0.2 : -1.25, dt);
-      arm.rotation.z = toward(arm.rotation.z, pointing ? 0 : deal ? 0 : side ? -0.75 : 0.75, dt);
+      arm.rotation.x = toward(arm.rotation.x, pointing ? -1.35 : deal ? -0.45 : -0.3, dt);
+      buyer.elbows[side].rotation.x = toward(buyer.elbows[side].rotation.x, pointing ? -0.15 : deal ? -0.9 : -1.85, dt);
+      buyer.elbows[side].rotation.y = toward(buyer.elbows[side].rotation.y, pointing ? 0 : (side ? 1 : -1) * -0.75, dt);
     });
     droid.dome.rotation.y = point ? Math.sin(time * 6) * 0.5 : Math.sin(time * 0.6) * 0.6;
   };
@@ -156,12 +132,12 @@ function checkpoint(group: THREE.Group, colliders: Spot[]) {
   guard.group.position.set(1.9, -0.06, 21.3);
   guard.group.rotation.y = -Math.PI / 2;
   group.add(guard.group);
-  const traveller = robed(1.72, 0x8d6b4a, 0xc79b78);
+  const traveller = robed(1.72, 0x8d6b4a, 0xc79b78, "lekku", 0);
   traveller.root.position.set(4, 0, 22.8);
   traveller.root.rotation.y = Math.PI;
   group.add(traveller.root);
   part(traveller.root, rounded(0.42, 0.55, 0.22, 0.06), new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.95 }), [0, 1.08, -0.24]);
-  const papers = part(traveller.arms[1], rounded(0.14, 0.02, 0.2, 0.01), new THREE.MeshBasicMaterial({ color: 0x8fd6ff }), [0, -0.52, 0.12]);
+  const papers = part(traveller.elbows[1], rounded(0.14, 0.02, 0.2, 0.01), new THREE.MeshBasicMaterial({ color: 0x8fd6ff }), [0, -0.35, 0.05]);
   const droid = createDroidKit().pitDroid();
   droid.droid.position.set(5, 0, 23.3);
   droid.droid.rotation.y = Math.PI - 0.3;
@@ -184,8 +160,9 @@ function checkpoint(group: THREE.Group, colliders: Spot[]) {
     scanner.arms[0].rotation.x = toward(scanner.arms[0].rotation.x, scanning ? -1.25 + Math.sin(time * 2.2) * 0.15 : handing ? -0.9 : -0.15, dt);
     line.visible = scanning && !reduced;
     line.position.y = 0.25 + (0.5 - 0.5 * Math.cos(time * 2.2)) * 1.5;
-    traveller.arms[1].rotation.x = toward(traveller.arms[1].rotation.x, handing ? -1.3 : scanning ? -0.25 : -0.05, dt);
-    traveller.arms[0].rotation.x = toward(traveller.arms[0].rotation.x, scanning ? -0.15 : 0, dt);
+    traveller.arms[1].rotation.x = toward(traveller.arms[1].rotation.x, handing ? -1.05 : traveller.rest.shoulder, dt);
+    traveller.elbows[1].rotation.x = toward(traveller.elbows[1].rotation.x, handing ? -0.45 : traveller.rest.elbow, dt);
+    traveller.arms[0].rotation.x = toward(traveller.arms[0].rotation.x, traveller.rest.shoulder, dt);
     papers.visible = t > 5.4;
     traveller.head.rotation.y = reduced ? 0 : Math.sin(time * 0.5) * 0.25;
     droid.head.rotation.y = reduced ? 0 : Math.sin(time * 1.3) * 0.45;
@@ -229,8 +206,11 @@ function herd(group: THREE.Group, heightAt: (u: number, v: number) => number) {
     group.add(root);
     return { root, legs, lag: index * 0.22 + (index % 2) * 0.06, side: ((index * 5) % 7) - 3, phase: index * 1.3 };
   });
-  const herder = robed(1.85, 0x6f5a44, 0x9c7454);
-  part(herder.arms[1], new THREE.CylinderGeometry(0.025, 0.025, 2.1, 6), dark, [0, -0.2, 0.15]);
+  const herder = robed(1.85, 0x6f5a44, 0x9c7454, "fins");
+  // The staff in his hand at his side, held upright whatever the bend of the arm.
+  herder.elbows[1].rotation.y = 0;
+  herder.arms[1].rotation.z = 0.22;
+  part(herder.elbows[1], new THREE.CylinderGeometry(0.025, 0.025, 2.1, 6), dark, [0, -0.32, 0.03], [-(herder.rest.shoulder + herder.rest.elbow), 0, -0.22]);
   herder.root.scale.setScalar(1.05);
   group.add(herder.root);
   let travelled = 0;
@@ -248,7 +228,7 @@ function herd(group: THREE.Group, heightAt: (u: number, v: number) => number) {
       beast.legs.forEach((leg, i) => (leg.rotation.x = reduced ? 0 : Math.sin(time * 1.6 + beast.phase + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.22));
     });
     place(herder.root, travelled - 1.75, 2.5);
-    herder.arms[0].rotation.x = reduced ? 0 : Math.sin(time * 2.2) * 0.25;
+    herder.arms[0].rotation.x = herder.rest.shoulder + (reduced ? 0 : Math.sin(time * 2.2) * 0.25);
   };
 }
 

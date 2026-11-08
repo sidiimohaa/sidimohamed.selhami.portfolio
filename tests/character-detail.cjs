@@ -110,7 +110,7 @@ trooper.tick(4, true, true);
 checkScene('Sandtrooper', trooper.group, 55);
 const crowd = createCantinaCrowd();
 crowd.tick(1, false); crowd.tick(1.05, false);
-for (const type of ['dome', 'snout', 'fins', 'hood', 'human']) {
+for (const type of ['dome', 'snout', 'fins', 'lekku', 'human']) {
   assert.ok(crowd.group.getObjectByName(`cantina-patron-${type}`), `${type} is present in the cantina`);
 }
 assert.equal(crowd.actions.length, 2, 'bounty puck and Grogu interactions are retained');

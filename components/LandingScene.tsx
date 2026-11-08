@@ -224,7 +224,7 @@ export default function LandingScene({
     await breathe();
     // Development only: what adaptive quality has settled on, for performance checks.
     if (process.env.NODE_ENV !== "production")
-      (window as unknown as { __orbitalRender?: object }).__orbitalRender = { scene, renderer, zone, walker: () => walker, tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
+      (window as unknown as { __orbitalRender?: object }).__orbitalRender = { scene, renderer, camera, zone, walker: () => walker, tier: () => pipeline.tier(), ratio: () => renderer.getPixelRatio(), calls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles,
         // Runs the zone forward and turns the visitor, to check a scene at any moment by hand.
         advance: (seconds = 1) => {
           for (let i = 0; i < seconds * 30; i++) {

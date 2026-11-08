@@ -6,11 +6,24 @@ import { createSeatedGrogu } from "./groguModel";
 import { createCantinaTableActions } from "./cantinaTableActions";
 
 // The cantina's regulars, all placed in the district's (u, y, v) frame, facing +v by default.
-type Head = "dome" | "snout" | "hood" | "fins" | "human";
-type Figure = { root: THREE.Group; head: THREE.Group; arms: THREE.Group[] };
+// Each is of a species of the galaxy, recognisable by its head and its colouring: Bith (dome),
+// Rodian (snout), Twi'lek (lekku), Duros (fins) and the human bartender.
+export type Head = "dome" | "snout" | "lekku" | "fins" | "human";
+const LEKKU_TONES = [0x5b8fc4, 0x79a85f, 0xb5544a];
+// The colour of a species' skin; only Twi'leks and humans vary from one to the next.
+export function skinOf(head: Head, index: number, fallback: number) {
+  if (head === "dome") return 0xe2c3a6;
+  if (head === "snout") return 0x5e8a47;
+  if (head === "fins") return 0x5b8c8e;
+  if (head === "lekku") return LEKKU_TONES[index % LEKKU_TONES.length];
+  return fallback;
+}
+// Arms are jointed at the shoulder and at the elbow; `rest` is how they hang when nothing is done.
+type Figure = { root: THREE.Group; head: THREE.Group; arms: THREE.Group[]; elbows: THREE.Group[]; rest: { shoulder: number; elbow: number } };
 const BEAT = 132 / 60;
 
-function figure(options: {
+/** A robed figure of one of the galaxy's species, seated when `seat` is given, standing otherwise. */
+export function createRobedFigure(options: {
   head: Head;
   robe: number;
   skin: number;
@@ -23,7 +36,6 @@ function figure(options: {
   const robe = new THREE.MeshStandardMaterial({ color: options.robe, roughness: 0.94 });
   robe.userData.surfaceKind = "cloth";
   const skin = new THREE.MeshStandardMaterial({ color: options.skin, roughness: 0.72 });
-  if (options.head === "fins") skin.color.lerp(new THREE.Color(0x557d81), 0.6);
   skin.userData.surfaceKind = "skin";
   const crease = new THREE.MeshStandardMaterial({ color: skin.color.clone().multiplyScalar(0.67), roughness: 0.85 });
   crease.userData.surfaceKind = "skin";
@@ -65,71 +77,121 @@ function figure(options: {
   }
   ball(body, [0, shoulder, 0], [0.25, 0.12, 0.195], robe);
   part(body, new THREE.CylinderGeometry(0.055, 0.07, 0.13, 14), skin, [0, shoulder + 0.1, 0]);
-  for (const side of [-1, 1]) {
-    part(body, rounded(0.09, 0.15, 0.018, 0.012), leather, [side * 0.062, shoulder - 0.013, 0.177], [0, 0, side * 0.3]);
-    part(body, rounded(0.09, 0.1, 0.028, 0.012), leather, [side * 0.145, robeBase + robeHeight * 0.45, 0.195]);
-  }
+  // The robe's radius at a height, to lay things on its surface.
+  const bottom = seated ? 0.25 : 0.32;
+  const radiusAt = (y: number) => bottom + (0.19 - bottom) * THREE.MathUtils.clamp((y - robeBase) / robeHeight, 0, 1);
+  // A rolled cowl round the neck, and the robe's front opening down from it, a shade darker.
+  const seam = new THREE.MeshStandardMaterial({ color: robe.color.clone().multiplyScalar(0.55), roughness: 0.95 });
+  part(body, new THREE.TorusGeometry(0.1, 0.035, 8, 20), robe, [0, shoulder + 0.045, 0.01], [Math.PI / 2, 0, 0]);
+  const opening = robeBase + robeHeight * 0.55;
+  pipe(body, [[0.02, shoulder - 0.02, 0.19], [0.03, (shoulder + opening) / 2, radiusAt((shoulder + opening) / 2) + 0.004], [0.035, robeBase + 0.04, radiusAt(robeBase) + 0.004]], 0.006, seam);
+  // A belt with its buckle and pouches, and a sash across the chest.
+  const belt = robeBase + (seated ? 0.16 : robeHeight * 0.52);
+  part(body, new THREE.TorusGeometry(radiusAt(belt) + 0.008, 0.022, 6, 28), leather, [0, belt, 0], [Math.PI / 2, 0, 0]);
+  part(body, rounded(0.065, 0.05, 0.02, 0.008), new THREE.MeshStandardMaterial({ color: 0x9b8458, metalness: 0.7, roughness: 0.4 }), [0, belt, radiusAt(belt) + 0.025]);
+  for (const side of [-1, 1]) part(body, rounded(0.07, 0.08, 0.04, 0.012), leather, [side * 0.15, belt - 0.05, radiusAt(belt) - 0.03], [0, side * 0.6, 0]);
+  pipe(body, [[-0.16, shoulder + 0.02, 0.12], [-0.05, (shoulder + belt) / 2 + 0.04, radiusAt((shoulder + belt) / 2) + 0.012], [0.13, belt + 0.02, radiusAt(belt) + 0.01]], 0.018, leather);
   bakePart(body);
+  // Each arm: one continuous sleeve, jointed at the shoulder and the elbow with balls of the same
+  // width as the sleeve so that no seam shows, then the hand. Held a little away from the robe, bent
+  // at the elbow, hands forward.
+  const rest = seated ? { shoulder: -0.3, elbow: -1.15 } : { shoulder: -0.12, elbow: -0.85 };
+  const elbows: THREE.Group[] = [];
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
-    arm.position.set(side * 0.24, shoulder - 0.02, 0);
-    ball(arm, [0, -0.055, 0], [0.085, 0.12, 0.085], robe);
-    part(arm, new THREE.CylinderGeometry(0.065, 0.08, 0.27, 12), robe, [0, -0.17, 0.025], [0.18, 0, 0]);
-    part(arm, new THREE.CylinderGeometry(0.054, 0.064, 0.22, 12), robe, [0, -0.36, 0.08], [0.32, 0, 0]);
-    part(arm, new THREE.TorusGeometry(0.054, 0.008, 5, 12), leather, [0, -0.457, 0.112], [Math.PI / 2 + 0.32, 0, 0]);
-    ball(arm, [0, -0.485, 0.124], [0.04, 0.04, 0.024], skin);
+    arm.position.set(side * 0.255, shoulder - 0.03, 0);
+    arm.rotation.set(rest.shoulder, 0, side * 0.08);
+    const upper = new THREE.Group();
+    arm.add(upper);
+    ball(upper, [0, -0.01, 0], [0.072, 0.075, 0.072], robe);
+    part(upper, new THREE.CylinderGeometry(0.072, 0.063, 0.28, 14), robe, [0, -0.14, 0]);
+    bakePart(upper);
+    const elbow = new THREE.Group();
+    elbow.position.set(0, -0.28, 0);
+    // Bent forward first, then turned in, so the hands come together in front.
+    elbow.rotation.order = "YXZ";
+    elbow.rotation.set(rest.elbow, -side * (seated ? 0.5 : 0.35), 0);
+    arm.add(elbow);
+    ball(elbow, [0, 0, 0], [0.063, 0.063, 0.063], robe);
+    part(elbow, new THREE.CylinderGeometry(0.063, 0.056, 0.24, 14), robe, [0, -0.12, 0]);
+    part(elbow, new THREE.CylinderGeometry(0.03, 0.034, 0.05, 10), skin, [0, -0.26, 0]);
+    // The hand, palm towards the body, fingers loosely curled.
+    ball(elbow, [0, -0.3, 0.004], [0.04, 0.045, 0.022], skin);
     for (let finger = 0; finger < 4; finger++) {
       const x = -0.026 + finger * 0.017;
-      const length = finger === 0 || finger === 3 ? 0.043 : 0.055;
-      ball(arm, [x, -0.515, 0.135], [0.009, length / 2, 0.01], skin);
-      ball(arm, [x, -0.523 - length / 4, 0.145], [0.008, 0.012, 0.011], skin);
+      const length = finger === 0 || finger === 3 ? 0.04 : 0.05;
+      ball(elbow, [x, -0.34 - length / 4, 0.01], [0.009, length / 2, 0.01], skin);
+      ball(elbow, [x, -0.355 - length / 2, 0.024], [0.008, 0.012, 0.011], skin);
     }
-    ball(arm, [-side * 0.041, -0.492, 0.14], [0.014, 0.025, 0.013], skin).rotation.z = -side * 0.55;
-    bakePart(arm);
+    ball(elbow, [-side * 0.038, -0.31, 0.02], [0.013, 0.026, 0.013], skin).rotation.z = -side * 0.55;
+    bakePart(elbow);
+    elbows.push(elbow);
     root.add(arm);
     return arm;
   });
   const head = new THREE.Group();
   head.position.y = shoulder + 0.2;
   root.add(head);
+  const eyeShine = new THREE.MeshStandardMaterial({ color: 0x0b0a0a, roughness: 0.12, metalness: 0.1 });
+  eyeShine.userData.skipSurfaceDetail = true;
   if (options.head === "dome") {
-    // Bith have a broad, lobed cranium and a small mouth below the deep eye sockets.
-    ball(head, [0, 0.075, -0.005], [0.19, 0.235, 0.165], skin);
-    ball(head, [0, -0.07, 0.07], [0.115, 0.1, 0.105], skin);
-    for (const side of [-1, 1]) {
-      ball(head, [side * 0.075, 0.18, -0.006], [0.095, 0.13, 0.13], skin);
-      ball(head, [side * 0.082, 0.025, 0.129], [0.07, 0.065, 0.033], crease).rotation.z = side * 0.19;
-      ball(head, [side * 0.082, 0.025, 0.151], [0.052, 0.048, 0.028], dark).rotation.z = side * 0.19;
-      ball(head, [side * 0.067, -0.061, 0.135], [0.05, 0.043, 0.022], skin);
-      pipe(head, [[side * 0.024, -0.044, 0.158], [side * 0.047, -0.077, 0.158], [side * 0.033, -0.102, 0.154]], 0.003, crease);
+    // Bith: a pale, towering cranium folded into lobes, great black eyes, no nose, and the folds of
+    // skin over a small puckered mouth.
+    ball(head, [0, 0.12, -0.035], [0.17, 0.25, 0.19], skin);
+    for (const side of [-1, 1]) ball(head, [side * 0.085, 0.16, -0.07], [0.11, 0.17, 0.15], skin);
+    ball(head, [0, 0.2, -0.13], [0.12, 0.16, 0.1], skin);
+    for (let fold = 0; fold < 4; fold++) {
+      const x = -0.075 + fold * 0.05;
+      pipe(head, [[x, 0.1, 0.12], [x * 1.1, 0.3, 0.02], [x * 1.15, 0.32, -0.1], [x, 0.2, -0.2]], 0.006, crease);
     }
-    ball(head, [0, -0.09, 0.162], [0.027, 0.008, 0.006], dark);
-    ball(head, [0, -0.105, 0.156], [0.034, 0.009, 0.011], skin);
+    ball(head, [0, -0.05, 0.06], [0.12, 0.11, 0.11], skin);
+    for (const side of [-1, 1]) {
+      ball(head, [side * 0.066, 0.015, 0.128], [0.055, 0.038, 0.03], crease).rotation.z = side * 0.4;
+      ball(head, [side * 0.066, 0.015, 0.145], [0.047, 0.031, 0.022], eyeShine).rotation.z = side * 0.4;
+      pipe(head, [[side * 0.03, -0.03, 0.155], [side * 0.075, -0.05, 0.14], [side * 0.1, -0.09, 0.105]], 0.006, crease);
+      pipe(head, [[side * 0.02, -0.065, 0.16], [side * 0.06, -0.085, 0.148], [side * 0.085, -0.115, 0.115]], 0.005, crease);
+    }
+    part(head, new THREE.TorusGeometry(0.018, 0.009, 6, 14), crease, [0, -0.115, 0.152]);
+    ball(head, [0, -0.115, 0.153], [0.011, 0.011, 0.006], dark);
   } else if (options.head === "snout") {
-    // Rodian eyes sit wide, above a rounded muzzle and paired antennae.
-    ball(head, [0, 0.015, -0.008], [0.145, 0.17, 0.135], skin);
-    ball(head, [0, -0.073, 0.13], [0.07, 0.059, 0.106], skin);
-    part(head, new THREE.TorusGeometry(0.026, 0.009, 6, 14), crease, [0, -0.077, 0.232]);
-    part(head, new THREE.CircleGeometry(0.022, 14), dark, [0, -0.077, 0.234]);
+    // Rodian: green and spined, huge dark faceted eyes, a tapering snout, small antennae.
+    ball(head, [0, 0.04, -0.02], [0.13, 0.15, 0.13], skin);
+    const snout = part(head, new THREE.CylinderGeometry(0.03, 0.062, 0.14, 16), skin, [0, -0.07, 0.13], [1.25, 0, 0]);
+    snout.scale.x = 0.9;
+    part(head, new THREE.TorusGeometry(0.024, 0.007, 6, 14), crease, [0, -0.095, 0.2], [0.3, 0, 0]);
+    ball(head, [0, -0.095, 0.202], [0.017, 0.017, 0.006], dark);
     for (const side of [-1, 1]) {
-      ball(head, [side * 0.105, 0.043, 0.085], [0.064, 0.069, 0.05], crease);
-      ball(head, [side * 0.11, 0.044, 0.114], [0.049, 0.053, 0.04], dark);
-      ball(head, [side * 0.155, 0.09, -0.015], [0.035, 0.063, 0.019], skin).rotation.z = -side * 0.55;
-      pipe(head, [[side * 0.05, 0.145, -0.02], [side * 0.066, 0.22, -0.035], [side * 0.086, 0.246, -0.045]], 0.009, skin);
-      ball(head, [side * 0.087, 0.247, -0.045], [0.013, 0.018, 0.013], crease);
+      ball(head, [side * 0.085, 0.055, 0.08], [0.066, 0.07, 0.055], crease);
+      ball(head, [side * 0.088, 0.056, 0.098], [0.058, 0.063, 0.046], eyeShine);
+      ball(head, [side * 0.06, -0.06, 0.07], [0.04, 0.035, 0.045], skin);
+      part(head, new THREE.ConeGeometry(0.025, 0.07, 8), skin, [side * 0.13, 0.03, -0.03], [0, 0, -side * 1.2]);
+      pipe(head, [[side * 0.04, 0.17, -0.01], [side * 0.05, 0.22, -0.02], [side * 0.065, 0.245, -0.03]], 0.006, skin);
+      ball(head, [side * 0.066, 0.247, -0.03], [0.012, 0.012, 0.012], crease);
     }
-    for (let spine = 0; spine < 5; spine++) {
-      const angle = spine / 4 * 1.3;
-      ball(head, [0, 0.17 * Math.cos(angle), -0.14 * Math.sin(angle)], [0.017, 0.035, 0.02], crease);
+    for (let spine = 0; spine < 6; spine++) {
+      const angle = 0.15 + (spine / 5) * 1.6;
+      part(head, new THREE.ConeGeometry(0.014, 0.05, 6), crease, [0, 0.04 + 0.15 * Math.cos(angle), -0.02 - 0.13 * Math.sin(angle)], [-angle, 0, 0]);
     }
-  } else if (options.head === "hood") {
-    ball(head, [0, 0.018, -0.015], [0.19, 0.215, 0.17], robe);
-    ball(head, [0, -0.02, 0.092], [0.126, 0.14, 0.068], dark);
-    ball(head, [0, -0.03, 0.134], [0.087, 0.095, 0.031], skin);
-    pipe(head, [[-.12, -.11, .1], [-.14, .05, .12], [0, .18, .1], [.14, .05, .12], [.12, -.11, .1]], .018, robe);
-    for (const side of [-1, 1]) ball(head, [side * .039, .004, .164], [.016, .008, .007], dark);
-    ball(head, [0, -.026, .17], [.019, .03, .014], skin);
-    pipe(head, [[-.06, -.101, .14], [0, -.12, .166], [.06, -.101, .14]], .022, robe);
+  } else if (options.head === "lekku") {
+    // Twi'lek: a fine face, a leather band across the brow, and the two head-tails falling from the
+    // back of the skull over the shoulders.
+    ball(head, [0, 0.03, -0.01], [0.12, 0.15, 0.125], skin);
+    ball(head, [0, -0.065, 0.035], [0.092, 0.075, 0.09], skin);
+    ball(head, [0, 0.07, -0.09], [0.11, 0.12, 0.1], skin);
+    for (const side of [-1, 1]) {
+      ball(head, [side * 0.045, 0.02, 0.105], [0.026, 0.016, 0.012], new THREE.MeshStandardMaterial({ color: 0xe8e2d6, roughness: 0.4 }));
+      ball(head, [side * 0.045, 0.02, 0.114], [0.011, 0.012, 0.005], dark);
+      pipe(head, [[side * 0.02, 0.05, 0.112], [side * 0.045, 0.058, 0.113], [side * 0.072, 0.048, 0.104]], 0.006, crease);
+      part(head, new THREE.ConeGeometry(0.02, 0.05, 8), skin, [side * 0.122, 0.01, -0.01], [0, 0, -side * 1.3]);
+      pipe(head, [[side * 0.045, 0.1, -0.12], [side * 0.09, -0.02, -0.16], [side * 0.13, -0.2, -0.1], [side * 0.15, -0.38, 0.02]], 0.042, skin);
+      pipe(head, [[side * 0.15, -0.37, 0.015], [side * 0.152, -0.5, 0.08], [side * 0.14, -0.58, 0.12]], 0.028, skin);
+      ball(head, [side * 0.14, -0.585, 0.122], [0.026, 0.03, 0.026], skin);
+      for (let ring = 0; ring < 3; ring++) part(head, new THREE.TorusGeometry(0.045, 0.006, 5, 14), crease, [side * (0.105 + ring * 0.013), -0.07 - ring * 0.08, -0.15 + ring * 0.03], [Math.PI / 2 + 0.5, side * 0.3, 0]);
+    }
+    ball(head, [0, -0.008, 0.124], [0.016, 0.03, 0.017], skin);
+    pipe(head, [[-0.03, -0.075, 0.113], [0, -0.082, 0.124], [0.03, -0.075, 0.113]], 0.006, crease);
+    part(head, new THREE.TorusGeometry(0.122, 0.014, 6, 28), leather, [0, 0.085, 0], [Math.PI / 2 - 0.25, 0, 0]);
+    part(head, rounded(0.035, 0.03, 0.012, 0.006), new THREE.MeshStandardMaterial({ color: 0x9b8458, metalness: 0.7, roughness: 0.4 }), [0, 0.11, 0.122]);
   } else if (options.head === "human") {
     ball(head, [0, .01, 0], [.128, .16, .116], skin);
     ball(head, [0, -.08, .035], [.103, .075, .092], skin);
@@ -143,22 +205,25 @@ function figure(options: {
     pipe(head, [[-.035,-.074,.116],[0,-.078,.129],[.035,-.074,.116]], .004, crease);
     ball(head, [0, .085, -.032], [.137, .104, .112], leather);
   } else {
-    // Duros silhouettes are smooth and elongated, with red inset eyes and pronounced brow ridges.
-    ball(head, [0, .035, -.018], [.15, .21, .142], skin);
-    ball(head, [0, -.092, .045], [.102, .083, .087], skin);
-    const eye = new THREE.MeshStandardMaterial({ color: 0x713b32, roughness: .28 });
+    // Duros: a tall, smooth, blue-green head, great red eyes with slit pupils, no nose but two
+    // slits, a lipless mouth, and the wide flat-brimmed hat of the spacers.
+    ball(head, [0, .06, -.015], [.13, .2, .14], skin);
+    ball(head, [0, -.08, .045], [.085, .075, .085], skin);
+    const eye = new THREE.MeshStandardMaterial({ color: 0xb2382e, roughness: .25 });
     eye.userData.skipSurfaceDetail = true;
     for (const side of [-1, 1]) {
-      ball(head, [side*.074,.023,.113], [.055,.042,.025], crease).rotation.z = side*.25;
-      ball(head, [side*.074,.023,.133], [.042,.029,.017], eye).rotation.z = side*.25;
-      ball(head, [side*.074,.023,.149], [.009,.023,.004], dark);
-      pipe(head, [[side*.028,.07,.119],[side*.07,.085,.114],[side*.118,.067,.09]], .012, skin);
-      ball(head, [side*.057,-.062,.105], [.043,.047,.024], skin);
+      ball(head, [side*.064,.03,.112], [.048,.034,.025], crease).rotation.z = side*.2;
+      ball(head, [side*.064,.03,.127], [.04,.027,.017], eye).rotation.z = side*.2;
+      ball(head, [side*.064,.03,.142], [.007,.022,.004], dark);
+      ball(head, [side*.013,-.045,.127], [.005,.012,.004], dark);
     }
-    pipe(head, [[-.039,-.112,.112],[0,-.119,.125],[.039,-.112,.112]], .004, crease);
+    pipe(head, [[-.035,-.1,.115],[0,-.104,.126],[.035,-.1,.115]], .003, crease);
+    part(head, new THREE.CylinderGeometry(.24, .24, .014, 32), leather, [0, .205, -.01], [-.08, 0, 0]);
+    part(head, new THREE.CylinderGeometry(.13, .14, .085, 28), leather, [0, .25, -.015], [-.08, 0, 0]);
+    part(head, new THREE.TorusGeometry(.137, .009, 6, 28), dark, [0, .225, -.015], [Math.PI / 2 - .08, 0, 0]);
   }
   bakePart(head);
-  return { root, head, arms };
+  return { root, head, arms, elbows, rest };
 }
 
 export function createCantinaCrowd() {
@@ -175,7 +240,7 @@ export function createCantinaCrowd() {
     { robe: 0x4d4436, skin: 0xa98060 },
     { robe: 0x7a3f2c, skin: 0x8f9a72 },
   ];
-  const heads: Head[] = ["dome", "snout", "hood", "fins"];
+  const heads: Head[] = ["dome", "snout", "lekku", "fins"];
 
   // Stools round the island bar, most of them taken; the bartender works its far side.
   type Regular = Figure & { phase: number; lift: number };
@@ -201,7 +266,8 @@ export function createCantinaCrowd() {
     circles.push({ u, v, r: 0.3 });
     if (index % 4 === 3) return;
     const look = palette[index % palette.length];
-    const regular = figure({ head: heads[index % heads.length], robe: look.robe, skin: look.skin, seat: 0.78 });
+    const species = heads[index % heads.length];
+    const regular = createRobedFigure({ head: species, robe: look.robe, skin: skinOf(species, index, look.skin), seat: 0.78 });
     // Turn to face the bar's spine.
     const target = new THREE.Vector2(-14.7, THREE.MathUtils.clamp(v, 59.25, 64.75));
     regular.root.position.set(u, 0, v);
@@ -220,7 +286,8 @@ export function createCantinaCrowd() {
     ] as const
   ).forEach(([u, v, yaw], index) => {
     const look = palette[(index + 2) % palette.length];
-    const patron = figure({ head: heads[(index + 1) % heads.length], robe: look.robe, skin: look.skin, seat: 0.55 });
+    const species = heads[(index + 1) % heads.length];
+    const patron = createRobedFigure({ head: species, robe: look.robe, skin: skinOf(species, index + 1, look.skin), seat: 0.55 });
     patron.root.position.set(u, 0, v);
     patron.root.rotation.y = yaw;
     group.add(patron.root);
@@ -244,7 +311,8 @@ export function createCantinaCrowd() {
     ] as const
   ).forEach(([u, v, yaw], index) => {
     const look = palette[(index + 4) % palette.length];
-    const stander = figure({ head: heads[(index + 2) % heads.length], robe: look.robe, skin: look.skin, height: 2.05 });
+    const species = heads[(index + 2) % heads.length];
+    const stander = createRobedFigure({ head: species, robe: look.robe, skin: skinOf(species, index + 2, look.skin), height: 2.05 });
     stander.root.position.set(u, 0, v);
     stander.root.rotation.y = yaw;
     group.add(stander.root);
@@ -253,8 +321,8 @@ export function createCantinaCrowd() {
   });
 
   // The bartender paces behind the far side of the counter, stopping to wipe and pour.
-  const bartender = figure({ head: "human", robe: 0x3d3229, skin: 0xb19374, height: 1.8 });
-  const rag = part(bartender.arms[1], rounded(0.12, 0.03, 0.1, 0.01), new THREE.MeshStandardMaterial({ color: 0xcfc3a5 }), [0, -0.5, 0.14]);
+  const bartender = createRobedFigure({ head: "human", robe: 0x3d3229, skin: 0xb19374, height: 1.8 });
+  const rag = part(bartender.elbows[1], rounded(0.12, 0.03, 0.1, 0.01), new THREE.MeshStandardMaterial({ color: 0xcfc3a5 }), [0, -0.36, 0.03]);
   rag.visible = true;
   group.add(bartender.root);
   const bartenderSpot = { u: -16.85, v: 62, r: 0.35 };
@@ -272,7 +340,7 @@ export function createCantinaCrowd() {
       [-9.95, 69.35, "drum"],
     ] as const
   ).map(([u, v, style], index) => {
-    const player = figure({ head: "dome", robe: [0x3b3a36, 0x4b3d30, 0x37342e, 0x45392c][index], skin: 0xc7a582, height: 1.7 });
+    const player = createRobedFigure({ head: "dome", robe: [0x3b3a36, 0x4b3d30, 0x37342e, 0x45392c][index], skin: skinOf("dome", index, 0), height: 1.7 });
     player.root.position.set(u, 0.32, v);
     player.root.rotation.y = Math.PI;
     const instrument = new THREE.Group();
@@ -324,7 +392,8 @@ export function createCantinaCrowd() {
         if (reduced) return;
         // Now and then a drink comes up, and heads turn to the room.
         const sip = Math.max(0, Math.sin(time * 0.35 + regular.phase)) ** 6;
-        regular.arms[regular.lift].rotation.x = -sip * 1.4;
+        regular.arms[regular.lift].rotation.x = regular.rest.shoulder - sip * 0.9;
+        regular.elbows[regular.lift].rotation.x = regular.rest.elbow - sip * 0.95;
         regular.head.rotation.y = Math.sin(time * 0.27 + regular.phase) * 0.5;
         regular.head.rotation.x = sip * -0.25;
       });
@@ -338,8 +407,10 @@ export function createCantinaCrowd() {
       bartender.root.position.set(bartenderSpot.u, 0, bartenderSpot.v);
       const facing = walking ? (step > 0 ? 0 : Math.PI) : Math.PI / 2;
       bartender.root.rotation.y += Math.atan2(Math.sin(facing - bartender.root.rotation.y), Math.cos(facing - bartender.root.rotation.y)) * (1 - Math.exp(-dt * 6));
-      bartender.arms[1].rotation.x = walking || reduced ? 0 : -0.9;
-      bartender.arms[1].rotation.z = walking || reduced ? 0 : Math.sin(time * 4) * 0.35;
+      const wiping = !walking && !reduced;
+      bartender.arms[1].rotation.x = wiping ? -0.55 : bartender.rest.shoulder;
+      bartender.arms[1].rotation.z = wiping ? 0.12 + Math.sin(time * 4) * 0.3 : 0.12;
+      bartender.elbows[1].rotation.x = wiping ? -0.75 : bartender.rest.elbow;
       // The band sways and plays on the beat.
       players.forEach((player, index) => {
         if (reduced) return;
@@ -348,9 +419,15 @@ export function createCantinaCrowd() {
         player.head.rotation.x = Math.max(0, pulse) * 0.18;
         if (player.style === "horn") {
           player.instrument.rotation.x = -0.15 + Math.sin(beat * 0.25 + index) * 0.12;
-          player.arms.forEach((arm) => (arm.rotation.x = -1.15));
-        } else if (player.style === "keys") player.arms.forEach((arm, i) => (arm.rotation.x = -0.9 + Math.sin(beat * 2 + i * Math.PI) * 0.12));
-        else player.arms.forEach((arm, i) => (arm.rotation.x = -0.8 + Math.max(0, Math.sin(beat * 2 + i * Math.PI)) * 0.6));
+          player.arms.forEach((arm) => (arm.rotation.x = -0.75));
+          player.elbows.forEach((elbow) => (elbow.rotation.x = -1.15));
+        } else if (player.style === "keys") {
+          player.arms.forEach((arm, i) => (arm.rotation.x = -0.35 + Math.sin(beat * 2 + i * Math.PI) * 0.1));
+          player.elbows.forEach((elbow) => (elbow.rotation.x = -1.05));
+        } else {
+          player.arms.forEach((arm, i) => (arm.rotation.x = -0.35 + Math.max(0, Math.sin(beat * 2 + i * Math.PI)) * 0.35));
+          player.elbows.forEach((elbow, i) => (elbow.rotation.x = -1.1 + Math.max(0, Math.sin(beat * 2 + i * Math.PI)) * 0.3));
+        }
       });
       haze.forEach(({ puff, base, phase }) => {
         if (reduced) return;
