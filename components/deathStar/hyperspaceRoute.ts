@@ -84,7 +84,7 @@ function label(stop: RouteStop) {
   canvas.height = 168;
   const c = canvas.getContext("2d")!;
   const color = COLORS[stop.kind];
-  c.fillStyle = "rgba(4,18,34,.55)";
+  c.fillStyle = "rgba(4,18,34,.86)";
   c.fillRect(0, 0, 640, 168);
   c.fillStyle = color;
   c.fillRect(0, 0, 6, 168);
