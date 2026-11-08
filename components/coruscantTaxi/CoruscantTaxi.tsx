@@ -587,6 +587,17 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
         panelTimer = window.setTimeout(() => setPanel(id), live.current.reduced ? 0 : 900);
       };
       const at = chamber.walk.toLocal(walker.x, walker.z);
+      if (council === "certifs") {
+        // The vault stands in the middle: step back towards the door to take it all in, going round
+        // it when coming from the far side of the room.
+        setPanel(null);
+        // A narrow screen stands further back, so the whole wheel of captions fits.
+        const back = camera.aspect < 0.8 ? 6.2 : 4.8;
+        const spot = local(0, back);
+        if (Math.hypot(at.x, at.z - back) < 0.4) show();
+        else walkTo(at.z > 7.5 ? [local(0, 11), spot] : at.z < 1.2 ? [local(at.x < 0 ? -2.4 : 2.4, 1.2), spot] : [spot], show);
+        return;
+      }
       if (Math.hypot(at.x, at.z) > 3) {
         setPanel(null);
         const path = at.z > 7.5 ? [local(0, 11), local(0, 1.4)] : [local(0, 1.4)];
@@ -654,7 +665,7 @@ export default function CoruscantTaxi({ reduced, sound, onClose }: Props) {
         const hit = raycaster.intersectObjects(chamber.pickables)[0];
         if (hit && hit.distance < 30) {
           const id = hit.object.userData.topic as CouncilTopic;
-          return { kind: "topic" as const, id, label: `Holocron · ${topicLabel[id]}` };
+          return { kind: "topic" as const, id, label: id === "certifs" ? "Voûte des holocrons · certifications IA" : `Holocron · ${topicLabel[id]}` };
         }
       }
       return null;

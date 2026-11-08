@@ -57,6 +57,8 @@ function ordinal(t: string) {
   if (has(t, /\b(deuxieme|second|seconde|2e|2eme)\b/)) return 1;
   if (has(t, /\b(troisieme|3e|3eme|third)\b/)) return 2;
   if (has(t, /\b(quatrieme|4e|4eme|fourth)\b/)) return 3;
+  if (has(t, /\b(cinquieme|5e|5eme|fifth)\b/)) return 4;
+  if (has(t, /\b(sixieme|6e|6eme|sixth)\b/)) return 5;
   if (has(t, /\b(dernier|derniere|last)\b/)) return -1;
   return null;
 }
@@ -81,7 +83,7 @@ function reply(t: string, memory: DroidMemory, set: (list: DroidMemory["list"]) 
     }
     if (memory.list === "experiences") {
       const item = experiences[rank < 0 ? experiences.length - 1 : rank];
-      if (item) return { text: `${item.company}, ${item.role} (${item.period}). ${item.missions.join(" ")}`, actions: ["recruiter:experiences"], mood: "talking" };
+      if (item) return { text: `${item.company}, ${item.role} (${item.contract}, ${item.period}${item.duration ? `, ${item.duration}` : ""}). ${[...item.missions, ...(item.credentials ?? [])].join(" ")}${item.skills.length ? ` ${say("Compétences", "Skills")} : ${item.skills.join(", ")}.` : ""}`, actions: ["recruiter:experiences"], mood: "talking" };
     }
     if (memory.list === "education") {
       const item = education[rank < 0 ? education.length - 1 : rank];
@@ -118,9 +120,9 @@ function reply(t: string, memory: DroidMemory, set: (list: DroidMemory["list"]) 
     return { text: say(`Côté création numérique : ${vibe.skills.map((skill) => `${skill.name} (${skill.status === "confirmed" ? "confirmé" : skill.status === "growing" ? "en développement" : "intérêt"})`).join(", ")}. Côté IA : ${ia.skills.map((skill) => skill.name).join(", ")}, en développement. Il dirige des assistants de code IA : il n'est pas présenté comme développeur de métier.`, `On the digital side: ${vibe.skills.map((skill) => skill.name).join(", ")}. On the AI side: ${ia.skills.map((skill) => skill.name).join(", ")}, still developing. He directs AI coding assistants; he is not presented as a professional developer.`), actions: ["recruiter:competences"], mood: "talking" };
   }
   if (has(t, /(competen|savoir faire|sait faire|skill|good at)/)) return { text: say(`Acquis : ${skillsWith("confirmed").join(", ")}. En développement : ${skillsWith("growing").join(", ")}. Centres d'intérêt à ce stade : ${skillsWith("interest").join(", ")}.`, `Confirmed: ${skillsWith("confirmed").join(", ")}. Developing: ${skillsWith("growing").join(", ")}. Interests so far: ${skillsWith("interest").join(", ")}. (Names in French, as in the portfolio.)`), actions: ["recruiter:competences"], mood: "talking" };
-  if (has(t, /(experience|bricoman|tecnomat|aldi|travail|emploi|job|work|magasin)/)) {
+  if (has(t, /(experience|bricoman|tecnomat|aldi|leader price|narguil|chauffage|bobigny|stagiaire|travail|emploi|job|work|magasin)/)) {
     set("experiences");
-    return { text: `${experiences.map((item, index) => `${index + 1}. ${item.company}, ${item.role} (${item.period})`).join("\n")}\n${say("Demande-moi le détail du premier ou du deuxième.", "Ask me about the first or the second.")}`, actions: ["recruiter:experiences"], mood: "talking" };
+    return { text: `${experiences.map((item, index) => `${index + 1}. ${item.company}, ${item.role} (${item.contract}, ${item.period})`).join("\n")}\n${say("Demande-moi le détail de l'un d'eux : « le premier », « le troisième »…", "Ask me about one of them: \"the first\", \"the third\"…")}`, actions: ["recruiter:experiences"], mood: "talking" };
   }
   if (has(t, /(parcours|background|career)/)) {
     set("education");
@@ -129,7 +131,8 @@ function reply(t: string, memory: DroidMemory, set: (list: DroidMemory["list"]) 
   if (has(t, /(formation|etude|diplome|bts|bachelor|inseec|ecole|education|degree|study|studies|certif)/)) {
     set("education");
     const list = education.map((item, index) => `${index + 1}. ${item.title} (${item.period}${item.status ? `, ${item.status}` : ""})`).join("\n");
-    return { text: `${list}${certifications.length ? "" : say("\nAucune certification n'est renseignée pour l'instant.", " No certification is listed yet.")}`, actions: ["recruiter:formations", "course:hoth"], mood: "talking" };
+    const certs = certifications.filter((item) => !item.program).map((item) => item.name).join(", ");
+    return { text: `${list}${certifications.length ? say(`\nCertifications Google : ${certs}, soit ${certifications.length} badges au total. Leurs holocrons sont gardés dans la salle du Conseil Jedi, sur Coruscant.`, `\nGoogle certifications: ${certs}, ${certifications.length} badges in all. Their holocrons are kept in the Jedi Council chamber, on Coruscant.`) : say("\nAucune certification n'est renseignée pour l'instant.", " No certification is listed yet.")}`, actions: ["recruiter:formations", "course:hoth", ...(certifications.length ? ["course:coruscant"] : [])], mood: "talking" };
   }
   if (has(t, /(pourquoi|why).*(portfolio|star wars|site)|(portfolio|star wars).*(pourquoi|why)/)) return { text: `${pro ? "" : "Biiip ! "}${say(profileNotes.whyThisPortfolio, "A plain CV could not hold all his ideas: he wanted to bring together his love of space, digital creation and AI in an interactive experience.")}`, actions: ["course:tatooine"], mood: "happy" };
   if (has(t, /(projet|project|realis|portfolio|orbital|arcade)/)) {

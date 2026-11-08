@@ -98,7 +98,7 @@ export const destinations = [
     },
     summary: "Un monde de glace où des plans holographiques retracent ma formation.",
     description:
-      "Des plaines gelées, des tempêtes et une base taillée dans la glace. Sur la table de briefing, des plans holographiques retracent ma formation, du baccalauréat au Bachelor en cours.",
+      "Des plaines gelées, des tempêtes et une base taillée dans la glace. Sur la table de briefing, des plans holographiques retracent ma formation, du brevet au Bachelor en cours.",
   },
 ];
 
@@ -244,7 +244,7 @@ export const landings: Partial<Record<string, Landing>> = {
     ],
   },
   // Hoth retrace la formation : une étape par terminal, de la plus ancienne à la plus récente
-  // (quatre au plus sur les plans holographiques), la dernière encore en cours.
+  // (les quatre plus récentes sur les plans holographiques), la dernière encore en cours.
   Hoth: {
     pad: "HANGAR PRINCIPAL · BASE ÉCHO",
     welcome:

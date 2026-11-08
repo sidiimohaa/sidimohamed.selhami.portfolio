@@ -2,7 +2,7 @@
 import { forwardRef } from "react";
 import { Download, ExternalLink, Mail, X } from "lucide-react";
 import Linkedin from "../LinkedinIcon";
-import { CV_PDF, education, experiences, identity, projects, skillTree, statusLabel } from "../deathStar/cvData";
+import { CV_PDF, certifications, education, experiences, identity, projects, skillTree, statusLabel } from "../deathStar/cvData";
 import type { CouncilTopic } from "./councilChamber";
 
 // What the Council and the Senate show. Everything comes from the CV data used by the Death
@@ -17,6 +17,7 @@ export const topicLabel: Record<TaxiTopic, string> = {
   quete: "La quête",
   orientation: "Orientation",
   projets: "Projets majeurs",
+  certifs: "Holocrons de l’IA",
   experiences: "Expériences",
   competences: "Compétences",
   dossiers: "Projets structurés",
@@ -114,6 +115,44 @@ function Body({ topic }: { topic: TaxiTopic }) {
           </ol>
         </>
       );
+    case "certifs": {
+      const groups = certifications.filter((item) => !item.program);
+      return (
+        <>
+          <p className="taxi-panel-lead">
+            {certifications.length} certifications Google consacrées à l’intelligence artificielle : comprendre l’IA, bien la questionner, l’utiliser de façon responsable et gagner en efficacité avec elle.
+          </p>
+          {groups.map((group) => {
+            const parts = certifications.filter((item) => item.program === group.id);
+            return (
+              <article key={group.id} className="taxi-card taxi-cert">
+                <span className="mono">{[group.issuer, group.date, parts.length ? `${parts.length} modules` : ""].filter(Boolean).join(" · ")}</span>
+                <h4>{group.name}</h4>
+                <p className="taxi-muted">{group.french}</p>
+                {parts.length > 0 && (
+                  <ol>
+                    {parts.map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.name}</strong>
+                        <small>
+                          {item.french} · {item.date}
+                        </small>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </article>
+            );
+          })}
+          <p className="taxi-muted">Chaque certification est consultable sur mon profil LinkedIn.</p>
+          <div className="taxi-panel-actions">
+            <a href={identity.linkedin} target="_blank" rel="noreferrer">
+              <Linkedin size={15} /> Voir les certifications sur LinkedIn
+            </a>
+          </div>
+        </>
+      );
+    }
     case "projets":
       return (
         <>
@@ -147,11 +186,14 @@ function Body({ topic }: { topic: TaxiTopic }) {
               <small className="taxi-muted">
                 {item.contract} · {item.place}
               </small>
-              <ul>
-                {item.missions.map((mission) => (
-                  <li key={mission}>{mission}</li>
-                ))}
-              </ul>
+              {item.missions.length + (item.credentials?.length ?? 0) > 0 && (
+                <ul>
+                  {[...item.missions, ...(item.credentials ?? [])].map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              )}
+              {item.missions.length === 0 && item.skills.length > 0 && <p className="taxi-muted">{item.skills.join(" · ")}</p>}
             </article>
           ))}
         </>
@@ -235,6 +277,7 @@ const kicker: Record<TaxiTopic, string> = {
   quete: "CONSEIL JEDI · LA RECHERCHE EN COURS",
   orientation: "CONSEIL JEDI · LE CHEMIN PARCOURU",
   projets: "CONSEIL JEDI · CE QUE J’AI CONSTRUIT",
+  certifs: "CONSEIL JEDI · LA VOÛTE DES HOLOCRONS",
   experiences: "SÉNAT GALACTIQUE · SÉANCE DES EXPÉRIENCES",
   competences: "SÉNAT GALACTIQUE · SÉANCE DES COMPÉTENCES",
   dossiers: "SÉNAT GALACTIQUE · DOSSIERS EN COMMISSION",
@@ -242,7 +285,7 @@ const kicker: Record<TaxiTopic, string> = {
 };
 
 export const TaxiPanel = forwardRef<HTMLElement, { topic: TaxiTopic; onClose: () => void }>(function TaxiPanel({ topic, onClose }, ref) {
-  const senate = !["vision", "quete", "orientation", "projets"].includes(topic);
+  const senate = !["vision", "quete", "orientation", "projets", "certifs"].includes(topic);
   return (
     <section ref={ref} className={`taxi-panel ${senate ? "is-senate" : "is-council"}`} role="dialog" aria-modal="false" aria-labelledby="taxi-panel-title">
       <header>

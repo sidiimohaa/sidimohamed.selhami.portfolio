@@ -11,6 +11,7 @@ import { createStationPresences, type Performance } from "./stationPresences";
 import { createStationExterior } from "./stationExterior";
 import { createStarDestroyer } from "./stationShips";
 import { createStationWings, type WingsContext } from "./stationWings";
+import { createHyperspaceRoute } from "./hyperspaceRoute";
 import type { ImperialPresenceId } from "./imperialRoster";
 
 // The inside of the Death Star, built for the professional record: a hangar that welcomes the
@@ -807,6 +808,11 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   terminal("exp-aldi", `Consulter : ${aldi.company}`, ["ARCHIVE · EXPÉRIENCE 02", aldi.company.toUpperCase(), `${aldi.role} · ${aldi.period}`], -46, -101.4, 0, false, "archives");
   terminal("exp-all", "Synthèse du parcours professionnel", ["ARCHIVE · SYNTHÈSE", "DU TERRAIN AU DIGITAL", "Le parcours commercial en un coup d’œil"], -46, -78.6, Math.PI, false, "archives");
   sign("ARCHIVES IMPÉRIALES", "EXPÉRIENCES PROFESSIONNELLES", -36.62, 6.4, -90, -Math.PI / 2, 6);
+  // The hyperspace route: the whole path as a star chart over a projector table, facing the door.
+  const route = createHyperspaceRoute(new THREE.Vector3(-46.5, 0, -90), Math.PI / 2);
+  root.add(route.group);
+  route.systems().forEach((system) => interact(system.id, system.label, "archives", system.position.x, 1.3, system.position.z, 0, system.hit));
+  block(-46.5, -90, 1.5);
 
   // East gallery and the training centre (education).
   room("east", { x0: 10, x1: 36, z0: -92, z1: -88, h: 5.5, walls: ["n", "s"], strips: 1 });
@@ -968,8 +974,10 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     skillGroup.add(label);
     skillNodes.push(hubNode);
     links.push(core.position.clone(), hubAt.clone());
+    // A crowded branch closes its fan, so it never reaches into the next category.
+    const step = Math.min(0.32, 0.9 / Math.max(1, category.skills.length - 1));
     category.skills.forEach((skill, si) => {
-      const b = a + (si - (category.skills.length - 1) / 2) * 0.32;
+      const b = a + (si - (category.skills.length - 1) / 2) * step;
       const at = new THREE.Vector3(Math.sin(b) * 5.2, hubAt.y + (si % 2 ? 0.55 : -0.45), Math.cos(b) * 5.2);
       const color = new THREE.Color(category.color);
       const mat = new THREE.MeshBasicMaterial({ color: skill.status === "interest" ? color.clone().multiplyScalar(0.5) : color, transparent: true, opacity: skill.status === "confirmed" ? 1 : skill.status === "growing" ? 0.75 : 0.5, wireframe: skill.status === "interest", toneMapped: false });
@@ -1401,6 +1409,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
           run.droid.rotation.y = Math.atan2(run.to[0] - run.from[0], run.to[1] - run.from[1]) + (q < 1 ? 0 : Math.PI);
         });
       }
+      route.tick(dt, time, room === "archives", reduced);
       // The training centre's documents unfold as the visitor enters the room.
       const unfold = room === "formation" ? 1 : 0;
       docs.scale.y = THREE.MathUtils.damp(docs.scale.y, Math.max(0.02, unfold), reduced ? 30 : 2.5, dt);

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Download, Globe, Mail, Rocket, X } from "lucide-react";
 import Linkedin from "../LinkedinIcon";
-import { CV_PDF, SECTIONS, certifications, education, experiences, identity, interests, languages, projects, sectionLabel, skillTree, statusLabel, type Section } from "./cvData";
+import { CV_PDF, SECTIONS, certificationLine, certifications, education, experiences, identity, interests, languages, projects, sectionLabel, skillTree, statusLabel, type Section } from "./cvData";
 
 // The recruiter's view of the record: every essential in a few clicks, readable without the 3D
 // station, by keyboard and on a phone. The station's CV terminal opens the same component on the
@@ -91,8 +91,9 @@ function Content({ id }: { id: Section }) {
               <span>{item.company} · {item.place}</span>
               <small className="mono">{item.contract} · {item.period}{item.duration ? ` · ${item.duration}` : ""}</small>
             </header>
-            <ul>{item.missions.map((mission) => <li key={mission}>{mission}</li>)}</ul>
-            <p className="ds-tags">{item.skills.map((skill) => <span key={skill}>{skill}</span>)}</p>
+            {item.missions.length > 0 && <ul>{item.missions.map((mission) => <li key={mission}>{mission}</li>)}</ul>}
+            {item.credentials?.map((line) => <p key={line} className="ds-credential">{line}</p>)}
+            {item.skills.length > 0 && <p className="ds-tags">{item.skills.map((skill) => <span key={skill}>{skill}</span>)}</p>}
           </li>
         ))}
       </ol>
@@ -115,7 +116,7 @@ function Content({ id }: { id: Section }) {
         {certifications.length > 0 && (
           <>
             <h4>Certifications</h4>
-            <ul className="ds-plain">{certifications.map((item) => <li key={item.name}>{item.name} · {item.issuer} · {item.date}</li>)}</ul>
+            <ul className="ds-plain">{certifications.map((item) => <li key={item.id}>{certificationLine(item)}{item.program ? ` · module de ${certifications.find((parent) => parent.id === item.program)?.name}` : ""}</li>)}</ul>
           </>
         )}
       </>

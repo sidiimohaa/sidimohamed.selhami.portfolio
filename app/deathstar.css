@@ -841,6 +841,14 @@
 .ds-recruiter .ds-tags span {
   border-color: #ffffff22;
 }
+.ds-credential {
+  margin: 6px 0;
+  padding-left: 10px;
+  border-left: 2px solid #ffc56b;
+  color: #e4d6bd;
+  font-size: 13px;
+  line-height: 1.5;
+}
 .ds-plain {
   margin: 0;
   padding-left: 18px;

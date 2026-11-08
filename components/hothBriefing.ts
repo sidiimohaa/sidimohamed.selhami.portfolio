@@ -160,7 +160,9 @@ export function createBriefingTable(landing: Landing, at: { x: number; z: number
 
   // One target and one callout per diploma, joined by a leader line.
   const marker = new THREE.MeshBasicMaterial({ color: 0xffd28a, opacity: 0.9, side: THREE.DoubleSide, ...additive });
-  const targets = landing.terminals.slice(0, TARGETS.length).map((diploma, index) => {
+  // Four targets at most: the plans keep the most recent qualifications.
+  const offset = Math.max(0, landing.terminals.length - TARGETS.length);
+  const targets = landing.terminals.slice(offset).map((diploma, index) => {
     const spot = TARGETS[index];
     const point = onSphere(spot.lat, spot.lon, RADIUS * 1.01);
     const reticle = new THREE.Group();
@@ -237,7 +239,7 @@ export function createBriefingTable(landing: Landing, at: { x: number; z: number
       if (!reduced && t > 0.97) targets[(leg + 1) % legs].flash = 1;
       group.updateMatrixWorld();
       targets.forEach((target, i) => {
-        const focus = terminals[i]?.focus ?? 0;
+        const focus = terminals[offset + i]?.focus ?? 0;
         target.flash = Math.max(0, target.flash - 0.03);
         const glow = 0.35 + focus * 0.65 + target.flash * 0.4;
         target.reticle.scale.setScalar(1 + focus * 0.8 + target.flash * 0.6);

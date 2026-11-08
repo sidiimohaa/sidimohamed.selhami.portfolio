@@ -404,6 +404,19 @@
 .taxi-card li {
   margin: 0 0 4px;
 }
+.taxi-cert ol {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+.taxi-cert li strong,
+.taxi-cert li small {
+  display: block;
+}
+.taxi-cert li small {
+  color: rgba(238, 246, 255, 0.66);
+}
 .taxi-card .taxi-facts div {
   grid-template-columns: 96px 1fr;
 }

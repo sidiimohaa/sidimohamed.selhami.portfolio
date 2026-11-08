@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Download, FileText, Mail, Map, X } from "lucide-react";
 import Linkedin from "../LinkedinIcon";
-import { CV_PDF, education, experiences, identity, interests, languages, projects, skillTree, statusLabel, type Section } from "./cvData";
+import { CV_PDF, certificationLine, certifications, education, experiences, identity, interests, languages, projects, skillTree, statusLabel, type Section } from "./cvData";
 import { IMPERIAL_PRESENCES } from "./imperialRoster";
 
 // The holographic sheets the station's consoles open: one per kind of terminal. Content comes
@@ -43,6 +43,10 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
   const [code, setCode] = useState("");
   const [reply, setReply] = useState("Saisissez le code d’accès.");
   useEffect(() => setPick(focus), [focus, id]);
+  // Coming from the route's certification system: show the certifications straight away.
+  useEffect(() => {
+    if (id === "formation" && focus === "certs") document.getElementById("ds-certifications")?.scrollIntoView({ block: "start" });
+  }, [id, focus]);
   useEffect(() => {
     close.current?.focus();
     const seen: Partial<Record<PanelId, Section[]>> = { accueil: ["profil", "contact"], experience: ["experiences"], experiences: ["experiences"], formation: ["formations"], skills: ["competences"], projects: ["projets"], secret: ["contact"] };
@@ -109,10 +113,24 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
             <p className="ds-holo-kicker">{item.contract} · {item.period}{item.duration ? ` · ${item.duration}` : ""}</p>
             <h2>{item.company}</h2>
             <p className="ds-holo-sub">{item.role} · {item.place}</p>
-            <h3>Missions principales</h3>
-            <ul>{item.missions.map((mission) => <li key={mission}>{mission}</li>)}</ul>
-            <h3>Compétences développées</h3>
-            <p className="ds-tags">{item.skills.map((skill) => <span key={skill}>{skill}</span>)}</p>
+            {item.missions.length > 0 && (
+              <>
+                <h3>Missions principales</h3>
+                <ul>{item.missions.map((mission) => <li key={mission}>{mission}</li>)}</ul>
+              </>
+            )}
+            {item.credentials && (
+              <>
+                <h3>Habilitation</h3>
+                <ul>{item.credentials.map((line) => <li key={line}>{line}</li>)}</ul>
+              </>
+            )}
+            {item.skills.length > 0 && (
+              <>
+                <h3>Compétences développées</h3>
+                <p className="ds-tags">{item.skills.map((skill) => <span key={skill}>{skill}</span>)}</p>
+              </>
+            )}
           </article>
         ))}
       </>
@@ -138,6 +156,20 @@ export default function StationPanel({ id, focus, reduced, onClose, onSeen, onRe
           <p className="ds-holo-sub">{current.school}{current.place ? ` · ${current.place}` : ""}</p>
           <ul>{current.details.map((detail) => <li key={detail}>{detail}</li>)}</ul>
         </article>
+        {certifications.length > 0 && (
+          <article className="ds-holo-card ds-document" id="ds-certifications">
+            <p className="ds-holo-kicker">{certifications.length} badges · Google</p>
+            <h2>Certifications en intelligence artificielle</h2>
+            <ul>
+              {certifications.map((item) => (
+                <li key={item.id}>
+                  {certificationLine(item)}
+                  {item.program ? ` · module de ${certifications.find((parent) => parent.id === item.program)?.name}` : ""}
+                </li>
+              ))}
+            </ul>
+          </article>
+        )}
       </>
     );
   }

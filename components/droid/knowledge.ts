@@ -36,10 +36,10 @@ Ce qu'il dit de lui : ${profileNotes.facts.join(" ")}
 
 FORMATIONS (de la plus ancienne à la plus récente)
 ${education.map((item) => `- ${item.period} : ${item.title}, ${item.school}${item.place ? `, ${item.place}` : ""}${item.status ? ` (${item.status})` : ""}. ${item.details.join(" ")}`).join("\n")}
-Certifications : ${certifications.length ? certifications.map((item) => item.name).join(", ") : "aucune renseignée pour l'instant"}.
+Certifications : ${certifications.length ? certifications.map((item) => `${item.name} (${item.issuer}${item.date ? `, ${item.date}` : ""}${item.program ? `, module de ${certifications.find((parent) => parent.id === item.program)?.name}` : ""})`).join(", ") : "aucune renseignée pour l'instant"}.
 
 EXPÉRIENCES
-${experiences.map((item) => `- ${item.company}, ${item.place} : ${item.role} (${item.contract}, ${item.period}). ${item.missions.join(" ")}`).join("\n")}
+${experiences.map((item) => `- ${item.company}, ${item.place} : ${item.role} (${item.contract}, ${item.period}${item.duration ? `, ${item.duration}` : ""}). ${[...item.missions, ...(item.credentials ?? [])].join(" ")}${item.skills.length ? ` Compétences : ${item.skills.join(", ")}.` : ""}`).join("\n")}
 
 COMPÉTENCES (respecter le statut : "En développement" n'est pas acquis, "Domaine d'intérêt" n'est pas une pratique)
 ${skills}

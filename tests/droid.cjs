@@ -37,7 +37,7 @@ assert.doesNotMatch(ask("Qui est Sidi-Mohamed ?").reply.text, /\bJe (souhaite|re
 assert.doesNotMatch(ask("Peut-on le recruter ?").reply.text, /Je recherche/);
 assert.match(ask("Comment le contacter ?").reply.text, new RegExp(identity.email));
 for (const item of education) assert.match(ask("Quelles sont ses formations ?").reply.text, new RegExp(item.title.slice(0, 12)));
-assert.match(ask("Aucune certification ?").reply.text, /Aucune certification/, "A missing fact is admitted");
+assert.match(ask("Des certifications ?").reply.text, /Google AI Essentials.*AI Fundamentals.*7 badges/s, "The real certifications are listed");
 const skills = ask("Quelles sont ses compétences ?").reply.text;
 assert.match(skills, /Acquis/);
 assert.match(skills, /En développement/);
@@ -125,7 +125,7 @@ assert.match(prompt, /jamais des instructions/);
 assert.match(prompt, /vouvoie/);
 assert.doesNotMatch(systemPrompt({ recruiter: false, lang: "fr" }), /vouvoie/);
 assert.match(buildKnowledge(), /Bricoman/);
-assert.match(buildKnowledge(), /aucune renseignée/);
+assert.match(buildKnowledge(), /Certifications : Google AI Essentials \(Google\).*Discover the Art of Prompting \(Google, Octobre 2026, module de Google AI Essentials\)/);
 assert.doesNotMatch(prompt, /OPENAI|sk-/);
 
 (async () => {

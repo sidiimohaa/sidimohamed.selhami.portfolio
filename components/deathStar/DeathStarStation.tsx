@@ -30,7 +30,7 @@ type Destination = { id: string; label: string; short: string; room: RoomId; x: 
 const destinations: Destination[] = [
   { id: "hangar", label: "Hangar · Accueil", short: "Hangar", room: "hangar", x: 0, z: -19, face: [0, -26] },
   { id: "dossier", label: "Dossier CV complet", short: "CV", room: "dossier", x: -33, z: -38, face: [-35, -42.4] },
-  { id: "archives", label: "Archives · Expériences", short: "Expériences", room: "archives", x: -49, z: -90, face: [-57.4, -90] },
+  { id: "archives", label: "Archives · Expériences", short: "Expériences", room: "archives", x: -52.5, z: -90, face: [-57.4, -90] },
   { id: "formation", label: "Centre de formation", short: "Formation", room: "formation", x: 42, z: -90, face: [48, -90] },
   { id: "skills", label: "Salle des compétences", short: "Compétences", room: "skills", x: 0, z: -130, face: [0, -140] },
   { id: "command", label: "Commandement · Projets", short: "Projets", room: "command", x: 102, z: -35, face: [102, -60] },
@@ -59,6 +59,11 @@ function panelFor(id: string): { id: PanelId; focus?: string } | null {
   if (id === "exp-all") return { id: "experiences" };
   if (id === "formation") return { id: "formation" };
   if (id.startsWith("edu-")) return { id: "formation", focus: id.slice(4) };
+  // The systems of the hyperspace route, in the archives.
+  if (id.startsWith("route:exp:")) return { id: "experience", focus: id.slice(10) };
+  if (id.startsWith("route:edu:")) return { id: "formation", focus: id.slice(10) };
+  if (id === "route:certs") return { id: "formation", focus: "certs" };
+  if (id === "route:next") return { id: "accueil" };
   if (id === "skills") return { id: "skills" };
   if (id.startsWith("skill:") || id.startsWith("cat:")) return { id: "skills", focus: id.split(":")[1] };
   if (id === "projects") return { id: "projects" };

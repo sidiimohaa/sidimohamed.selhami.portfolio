@@ -3,15 +3,19 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { COUNCIL, COUNCIL_FACING, COUNCIL_FLOOR } from "./taxiPlaces";
 import { createWalkArea } from "./walkArea";
 import { createCouncilMembers } from "./councilMembers";
+import { createCertVault } from "./certVault";
 
 // The Council chamber in the crown of the Temple spire: a round room of pale stone and fluted metal
 // columns, a golden mosaic floor, twelve seats along tall round-cornered windows open on the sunset
 // city, and a door to the landing platform. Ten members of the Council sit here and two attend by
-// hologram; four of them each guard a holocron, one per chapter of the visitor's reading. Local +Z
-// points out through the door to the platform.
+// hologram; four of them each guard a holocron, one per chapter of the visitor's reading. In the
+// middle of the floor, the vault of holocrons keeps the pilot's certifications. Local +Z points out
+// through the door to the platform.
 
-export type CouncilTopic = "vision" | "quete" | "orientation" | "projets";
-export const COUNCIL_TOPICS: CouncilTopic[] = ["vision", "quete", "orientation", "projets"];
+type SeatedTopic = "vision" | "quete" | "orientation" | "projets";
+export type CouncilTopic = SeatedTopic | "certifs";
+export const COUNCIL_TOPICS: CouncilTopic[] = ["vision", "quete", "orientation", "projets", "certifs"];
+const SEATED_TOPICS: SeatedTopic[] = ["vision", "quete", "orientation", "projets"];
 const WALL = 10.6,
   HEIGHT = 9.6,
   SEATS = 12,
@@ -19,7 +23,7 @@ const WALL = 10.6,
 // Seats go round the room from just past the door, leaving the doorway free.
 const seatAngle = (i: number) => THREE.MathUtils.degToRad(26 + (i * 308) / (SEATS - 1));
 // The seats whose members hold a holocron: two on each side of the room.
-const TOPIC_SEATS: Record<CouncilTopic, number> = { vision: 4, quete: 7, orientation: 2, projets: 9 };
+const TOPIC_SEATS: Record<SeatedTopic, number> = { vision: 4, quete: 7, orientation: 2, projets: 9 };
 // Each seat's shape: 0 an armchair, 1 an egg pod, 2 a tall-backed throne.
 const SEAT_KIND = [0, 2, 0, 1, 0, 1, 2, 0, 2, 1, 0, 2];
 const CUSHION = [0.56, 0.58, 0.56];
@@ -296,7 +300,7 @@ export function createCouncilChamber(glow: THREE.Texture) {
     speakerAt = new THREE.Vector3();
 
   // Holocrons: an amber cube floating before each speaking member.
-  const topics = COUNCIL_TOPICS.map((id) => {
+  const topics = SEATED_TOPICS.map((id) => {
     const seat = TOPIC_SEATS[id],
       a = seatAngle(seat);
     const holder = new THREE.Group();
@@ -314,6 +318,8 @@ export function createCouncilChamber(glow: THREE.Texture) {
     group.add(holder);
     return { id, seat, holder, cube, halo, hit, world: new THREE.Vector3() };
   });
+  const vault = createCertVault(glow);
+  group.add(vault.group);
   const light = new THREE.PointLight(0xffd8ae, 40, 30, 1.3);
   light.position.set(0, 5.6, 0);
   group.add(light);
@@ -327,7 +333,10 @@ export function createCouncilChamber(glow: THREE.Texture) {
     { kind: "rect", x: 0, z: 14.4, hx: 1.45, hz: 4.6 },
     { kind: "disc", x: 0, z: 25.5, r: 6.9 },
   ]);
-  walk.setBlocks([{ x: 0, z: 27, hx: 1.5, hz: 3.4 }]);
+  walk.setBlocks([
+    { x: 0, z: 27, hx: 1.5, hz: 3.4 },
+    { x: 0, z: 0, hx: 0.55, hz: 0.55 },
+  ]);
 
   let reveal = 0,
     target = 0,
@@ -336,23 +345,30 @@ export function createCouncilChamber(glow: THREE.Texture) {
     group,
     walk,
     topics,
-    pickables: topics.map((topic) => topic.hit),
+    pickables: [...topics.map((topic) => topic.hit), vault.hit],
     // A spot in the room, in world space: local x and z, at eye height.
     point: (x: number, z: number, y = 0) => new THREE.Vector3(x, y, z).applyMatrix4(group.matrixWorld),
     seatWorld: (topic: CouncilTopic) => {
+      if (topic === "certifs") return vault.centre.clone().applyMatrix4(group.matrixWorld);
       const a = seatAngle(TOPIC_SEATS[topic]);
       return new THREE.Vector3(Math.sin(a) * SEAT_RING, 1.3, Math.cos(a) * SEAT_RING).applyMatrix4(group.matrixWorld);
     },
     setPresence: (on: boolean) => (target = on ? 1 : 0),
-    focus: (topic: CouncilTopic | null) => (focused = topic),
+    focus: (topic: CouncilTopic | null) => {
+      focused = topic;
+      vault.setOpen(topic === "certifs");
+    },
     tick: (dt: number, elapsed: number, reduced: boolean, viewer?: THREE.Vector3) => {
       reveal = reduced ? target : THREE.MathUtils.damp(reveal, target, 1.6, dt);
       if (viewer) group.worldToLocal(lookAt.copy(viewer));
-      const speakerSeat = focused === null ? -1 : TOPIC_SEATS[focused];
+      const speakerSeat = focused === null || focused === "certifs" ? -1 : TOPIC_SEATS[focused];
       if (speakerSeat >= 0) {
         const a = seatAngle(speakerSeat);
         speakerAt.set(Math.sin(a) * SEAT_RING, 1.3, Math.cos(a) * SEAT_RING);
       }
+      // When the vault opens, the whole Council turns to look at it.
+      const watching = focused === "certifs";
+      vault.tick(dt, elapsed, reduced, reveal);
       members.forEach((member) => {
         const speaking = speakerSeat === member.seat;
         if (member.hologram) {
@@ -364,7 +380,7 @@ export function createCouncilChamber(glow: THREE.Texture) {
         // While the visitor is in the room, heads turn: to the visitor, or to the member speaking.
         // Outside it they rest, facing the centre.
         const p = member.group.position,
-          aim = speakerSeat >= 0 && !speaking ? speakerAt : lookAt;
+          aim = watching ? vault.centre : speakerSeat >= 0 && !speaking ? speakerAt : lookAt;
         const dx = aim.x - p.x,
           dz = aim.z - p.z;
         let yaw = 0,
