@@ -305,10 +305,34 @@
   border: 1px solid var(--pod-line);
   font: 10px var(--pod-mono);
 }
-.liveStandings li { display: flex; align-items: center; gap: 9px; padding: 4px 2px; }
+.liveStandings li { display: flex; align-items: center; gap: 9px; padding: 6px 2px; }
+.liveStandings b { flex: 1; font-weight: 500; }
+.liveStandings small { color: var(--pod-muted); font-size: 9px; font-variant-numeric: tabular-nums; }
 .liveStandings li + li { border-top: 1px solid #9bafb320; }
 .liveStandings span { color: var(--pod-muted); }
 .liveStandings li[data-player="true"] { color: var(--pod-cyan); }
+.liveStandings li[data-player="true"] small { color: var(--pod-cyan); }
+.routeGuide {
+  position: absolute;
+  top: calc(max(14px, env(safe-area-inset-top)) + 65px);
+  left: 17px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--pod-line);
+  background: var(--pod-glass);
+  box-shadow: 0 8px 25px #07080b44;
+}
+.routeGuide > div { display: grid; gap: 4px; }
+.routeGuide small { color: var(--pod-muted); font: 8px var(--pod-mono); text-transform: uppercase; letter-spacing: .12em; }
+.routeGuide strong { font-size: 13px; font-weight: 650; }
+.routeGuide div > span { color: var(--pod-cyan); font: 8px var(--pod-mono); }
+.routeArrow { display: grid; place-items: center; width: 36px; height: 38px; color: var(--pod-cyan); border: 1px solid #9fdfec36; background: #1e394555; }
+.routeGuide[data-sharp="true"] .routeArrow { color: #ffb780; background: #64412366; border-color: #ffb78066; }
+.lapProgress { width: 100%; height: 3px; overflow: hidden; background: #b7c6d332; margin: 3px 0 5px; }
+.lapProgress i { display: block; height: 100%; background: var(--pod-cyan); }
+.autoBadge { display: block; margin-top: 5px; font: 7px var(--pod-mono); color: var(--pod-cyan); letter-spacing: .06em; }
 @media (max-width: 740px), (max-height: 525px) {
   .liveStandings { display: none; }
 }
@@ -433,6 +457,12 @@
   .navigation { padding: 2px 3px 4px; }
   .navigation .mapSmall { width: 65px; height: 65px; }
   .alert { top: 57px; }
+  .routeGuide { top: 96px; left: 9px; gap: 7px; padding: 6px 8px; }
+  .routeGuide strong { font-size: 11px; }
+  .routeGuide small { font-size: 7px; }
+  .routeArrow { width: 27px; height: 31px; }
+  .routeArrow svg { width: 19px; }
+  .autoBadge { font-size: 6px; }
 }
 
 @media (max-width: 390px) {
@@ -484,6 +514,8 @@
   .engineCluster { min-width: 126px; }
   .speed strong { font-size: 33px; }
   .alert { top: 57px; }
+  .routeGuide { top: 94px; padding: 5px 7px; }
+  .routeGuide small { display: none; }
 }
 
 /* Modules, paints, medals and the Mos Espa board. */

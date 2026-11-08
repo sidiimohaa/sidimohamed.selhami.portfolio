@@ -28,6 +28,33 @@ function advance(sim, seconds, input = throttle, dt = 1 / 60) {
   return events;
 }
 
+const startSequence = simulation();
+const startEvents = startSequence.drainEvents();
+const beats = [startSequence.state.countdown];
+for (let frame = 1; frame <= 360; frame++) {
+  const previous = startSequence.state.countdown;
+  startSequence.step(1 / 120, throttle);
+  assert.ok(startSequence.state.countdown < previous, "The camera countdown advances every simulation step");
+  const events = startSequence.drainEvents();
+  startEvents.push(...events);
+  if (events.includes("countdown")) beats.push(startSequence.state.countdown);
+  assert.equal(startSequence.state.player.distance, 0, "Holding throttle cannot launch before the start signal");
+}
+assert.deepEqual(beats, [3, 2, 1], "Countdown audio fires once on each numbered beat");
+assert.deepEqual(startEvents, ["countdown", "countdown", "countdown", "go"]);
+assert.equal(startSequence.state.countdown, 0);
+assert.equal(startSequence.state.phase, "racing");
+assert.equal(startSequence.state.time, 0);
+startSequence.step(1 / 120, throttle);
+assert.ok(startSequence.state.player.distance > 0, "Throttle held through the countdown launches the pod");
+
+const grid = simulation({ mode: "classic" });
+advance(grid, 3.25);
+const gridSpeed = (id) => grid.state.opponents.find((opponent) => opponent.id === id).speed;
+assert.ok(gridSpeed("quadinaros") > gridSpeed("sebulba") * 1.14, "The light Quadra module accelerates faster than the heavy Mammoth on the rival grid");
+assert.ok(gridSpeed("mawhonic") > gridSpeed("gasgano"), "Rivals receive the acceleration traits of their own fitted modules");
+assert.equal(grid.state.crashes, 0);
+
 for (const track of Object.values(tracks)) {
   assert.ok(track.length > 2000);
   const start = track.sample(0);

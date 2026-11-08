@@ -1,5 +1,5 @@
-// The racing modules of the Mos Espa grid. Each one changes the silhouette of the pod and, for the
-// visitor's own pod, trades a few percent of one quality against another.
+// The racing modules of the Mos Espa grid. Each one changes the silhouette of the pod and,
+// for both the visitor and rival pilots, trades a few percent of one quality against another.
 
 export type PodModuleId = "ulzer" | "mammoth" | "pedrovia" | "quadra" | "longtail" | "manta" | "gpe";
 export type PodFins = "blade" | "split" | "tail" | "boom" | "wing" | "ring";

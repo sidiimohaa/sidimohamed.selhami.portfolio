@@ -6,7 +6,7 @@
     "dev": "next dev --webpack --hostname 0.0.0.0",
     "build": "next build --webpack",
     "start": "next start",
-    "test:podracing": "node tests/pod-sim.cjs && node tests/pod-runtime.cjs && node tests/pod-progression.cjs && node tests/pod-arcade.cjs && node tests/pod-tusken.cjs",
+    "test:podracing": "node tests/pod-sim.cjs && node tests/pod-runtime.cjs && node tests/pod-progression.cjs && node tests/pod-arcade.cjs && node tests/pod-tusken.cjs && node tests/pod-guidance.cjs",
     "test:galaxy": "node tests/galaxy-director.cjs",
     "test:droid": "node tests/droid.cjs",
     "test:hoth": "node tests/hoth-defense.cjs && node tests/hoth-world.cjs"

@@ -9,6 +9,7 @@ import {
 import { moduleTraits, podModuleIds, podModules, podPaintIds, podPaints, type PodModuleId, type PodPaintId } from "./modules";
 import PodPreview from "./PodPreview";
 import { mountPodRace } from "./runtime";
+import { courseGuidance, nearbyStandings } from "./raceGuidance";
 import { branchOffset, tracks } from "./tracks";
 import {
   boardFor, buyModule, buyPaint, buyUpgrade, challenges, clockLabel, emptyProfile, fitModule, fitPaint, loadProfile, maxUpgrade, medalNames, medalTime, podTrackIds, registerRace,
@@ -29,7 +30,7 @@ type Run = { options: PodStageOptions; round: number; cup: CupEntry[]; challenge
 type Outcome = { result: PodResult; award: RaceAward; cup: CupEntry[]; challengePassed: boolean };
 
 const modes: { id: PodMode; name: string; description: string }[] = [
-  { id: "classic", name: "Boonta Eve Classic", description: "Deux tours face à cinq rivaux. Gérez vos moteurs jusqu’à l’arrivée." },
+  { id: "classic", name: "Boonta Eve Classic", description: "Deux tours face à six rivaux. Gérez vos moteurs jusqu’à l’arrivée." },
   { id: "arcade", name: "Mode arcade", description: "Deux tours, chocs moins sévères et mini-turbos plus puissants." },
   { id: "time", name: "Contre-la-montre", description: "Un tour en solo. Battez votre record et affrontez votre propre fantôme." },
   { id: "championship", name: "Championnat", description: "Trois circuits, un tour par manche. Les points déterminent le classement final." },
@@ -156,6 +157,8 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
   const [quality, setQuality] = useState<Quality>("auto");
   const [camera, setCamera] = useState<CameraView>("chase");
   const [muted, setMuted] = useState(!sound);
+  const [autoThrottle, setAutoThrottle] = useState(false);
+  const autoThrottleRef = useRef(false);
   const [run, setRun] = useState<Run | null>(null);
   const [hud, setHud] = useState<PodRaceState | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -172,6 +175,13 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
     profileRef.current = { ...loadProfile(), credits: getArcade().credits };
     setProfile(profileRef.current);
     saveProfile(profileRef.current);
+    let automatic = matchMedia("(pointer: coarse)").matches;
+    try {
+      const saved = localStorage.getItem("orbital-pod-auto-throttle");
+      if (saved !== null) automatic = saved === "1";
+    } catch { /* Touch defaults still work when storage is unavailable. */ }
+    autoThrottleRef.current = automatic;
+    setAutoThrottle(automatic);
     root.current?.focus({ preventScroll: true });
     return onArcadeChange(() => {
       const credits = getArcade().credits;
@@ -199,10 +209,18 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
   function syncControls() {
     const held = new Set([...heldKeys.current.values(), ...heldPointers.current.values()]);
     const input: PodInput = {
-      steer: Number(held.has("right")) - Number(held.has("left")), throttle: held.has("throttle"), brake: held.has("brake"),
+      steer: Number(held.has("right")) - Number(held.has("left")),
+      throttle: (autoThrottleRef.current || held.has("throttle")) && !held.has("brake"), brake: held.has("brake"),
       boost: held.has("boost"), drift: held.has("drift"), repair: held.has("repair"),
     };
     stage.current?.setInput(input);
+  }
+
+  function changeAutoThrottle(value: boolean) {
+    autoThrottleRef.current = value;
+    setAutoThrottle(value);
+    try { localStorage.setItem("orbital-pod-auto-throttle", value ? "1" : "0"); } catch { /* Keep the choice for this session. */ }
+    if (!live.current.paused) syncControls();
   }
 
   function pause(value: boolean) {
@@ -210,6 +228,7 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
     live.current.paused = value;
     stage.current?.setPaused(value);
     setPaused(value);
+    if (!value) syncControls();
   }
 
   function hangar() {
@@ -284,6 +303,7 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
       instance.setCamera(live.current.camera);
       instance.setQuality(live.current.quality);
       instance.setPaused(live.current.paused);
+      if (!live.current.paused) syncControls();
     } else setFailed(true);
     return () => {
       active = false;
@@ -333,7 +353,13 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
         if (!down) heldKeys.current.delete(keyId);
         return;
       }
-      if (name === " " && down && event.target instanceof HTMLButtonElement) return;
+      if (name === " " && event.target instanceof HTMLButtonElement) {
+        if (!down) {
+          heldKeys.current.delete(keyId);
+          syncControls();
+        }
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       if (down) heldKeys.current.set(keyId, binding);
@@ -366,6 +392,7 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
     return {
       onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
         event.preventDefault();
+        root.current?.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
         heldPointers.current.set(event.pointerId, control);
         syncControls();
@@ -379,6 +406,8 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
   const chosenMode = modes.find((option) => option.id === mode)!;
   const canAdvance = !!outcome && run?.options.mode === "championship" && run.round < podTrackIds.length - 1;
   const raceRecord = run ? profile.records[run.options.track.id] : undefined;
+  const guidance = hud ? courseGuidance(track, hud) : null;
+  const standings = hud ? nearbyStandings(hud) : [];
 
   return (
     <div ref={root} tabIndex={-1} className={`arcade-game pod-racing ${styles.root}`} aria-label="Podracing de Tatooine">
@@ -433,6 +462,10 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
                   <input type="checkbox" checked={showGhost} disabled={!profile.records[trackId]?.ghost.length} onChange={(event) => setShowGhost(event.target.checked)} />
                   {profile.records[trackId]?.ghost.length ? `Fantôme du record · ${clockLabel(profile.records[trackId]!.time)}` : "Un premier chrono valide débloque le fantôme"}
                 </label>}
+                <label className={styles.check}>
+                  <input type="checkbox" checked={autoThrottle} onChange={(event) => changeAutoThrottle(event.target.checked)} />
+                  Accélération automatique · le frein reste prioritaire
+                </label>
                 <div className={styles.launchLine}>
                   <button type="button" className={styles.secondary} onClick={() => setQuality((q) => q === "auto" ? "low" : q === "low" ? "high" : "auto")}><Settings2 size={15} /> Qualité {qualityNames[quality]}</button>
                   <button type="button" className={styles.primary} onClick={start}><Play size={17} fill="currentColor" /> {mode === "championship" ? "Lancer la manche 1" : "Prendre le départ"}</button>
@@ -512,18 +545,26 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
                 <div><span>TOUR</span><b>{hud?.lap ?? 1}<small>/{run.options.laps}</small></b></div>
                 <div><span>CHRONO</span><b>{clockLabel(hud?.time ?? 0)}</b></div>
               </div>
-              <div className={styles.raceControls}>
+              <div className={styles.raceControls} onClick={(event) => {
+                // Pointer users return to the driving keys; keyboard users keep button focus.
+                if (event.detail > 0 && !live.current.paused) root.current?.focus({ preventScroll: true });
+              }}>
                 <button type="button" className={styles.iconButton} aria-label={camera === "chase" ? "Vue cockpit" : "Vue extérieure"} onClick={() => setCamera(camera === "chase" ? "cockpit" : "chase")}><Camera size={18} /></button>
                 <button type="button" className={styles.iconButton} aria-label={muted ? "Activer le son" : "Couper le son"} onClick={() => setMuted(!muted)}>{muted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
                 <button type="button" className={styles.iconButton} aria-label="Pause" onClick={() => pause(true)}><Pause size={18} /></button>
               </div>
             </div>
-            {hud && hud.standings.length > 1 && <ol className={styles.liveStandings} aria-label="Tête de course">
-              {hud.standings.slice(0, 3).map((entry) => <li key={entry.id} data-player={entry.id === "player"}>
-                <span>{entry.position.toString().padStart(2, "0")}</span><b>{entry.name}</b>
+            {guidance && <div className={styles.routeGuide} data-sharp={guidance.sharp}>
+              <span className={styles.routeArrow} aria-hidden="true">{guidance.direction === "left" ? <ArrowLeft /> : guidance.direction === "right" ? <ArrowRight /> : <ArrowUp />}</span>
+              <div><small>{guidance.sectorLabel}</small><strong>{guidance.turnLabel}</strong>
+                <span>{guidance.direction === "straight" ? "Gardez votre trajectoire" : guidance.distance < 15 ? "MAINTENANT" : `DANS ${Math.round(guidance.distance / 10) * 10} M`}</span></div>
+            </div>}
+            {standings.length > 1 && <ol className={styles.liveStandings} aria-label="Classement et écarts en mètres">
+              {standings.map((entry) => <li key={entry.id} data-player={entry.id === "player"}>
+                <span>{entry.position.toString().padStart(2, "0")}</span><b>{entry.name}</b><small>{entry.gapLabel}</small>
               </li>)}
             </ol>}
-            {hud?.phase === "countdown" && <div className={styles.countdown}><span>MOTEURS AU RALENTI</span><strong>{Math.max(1, Math.ceil(hud.countdown))}</strong><small>Maintenez l’accélérateur au départ</small></div>}
+            {hud?.phase === "countdown" && <div className={styles.countdown}><span>MOTEURS AU RALENTI</span><strong>{Math.max(1, Math.ceil(hud.countdown))}</strong><small>{autoThrottle ? "Accélération automatique activée" : "Maintenez l’accélérateur au départ"}</small></div>}
             {hud?.phase === "racing" && hud.time < 0.7 && <div className={styles.countdown} aria-hidden="true"><strong>GO</strong></div>}
             {!hud && !failed && <div className={styles.countdown} role="status"><span>MISE EN GRILLE</span></div>}
             {hud?.alert && <p className={styles.alert} role="status">{hud.alert}</p>}
@@ -535,13 +576,16 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
                   <EngineHud side="D" health={hud?.player.health[0] ?? 1} heat={hud?.player.heat[0] ?? 0} />
                 </div>
                 <small>{hud?.player.repairing ? "RÉPARATION EN COURS" : "R · RÉPARER"}</small>
+                {autoThrottle && <span className={styles.autoBadge}>ACCÉLÉRATION AUTO</span>}
               </div>
               <div className={styles.speedCluster}>
                 <div className={styles.speed}><strong>{Math.round((hud?.player.speed ?? 0) * 3.6)}</strong><span>KM/H</span></div>
                 <div className={styles.boost}><Zap size={13} /><Meter value={hud?.player.boost ?? 1} kind="boost" label="Réserve de boost" /></div>
                 <div className={styles.drift}><span>{hud?.player.miniTurbo ? "MINI-TURBO" : hud?.player.slipstream && hud.player.slipstream > 0.4 ? "ASPIRATION" : "DÉRAPAGE"}</span><Meter value={hud?.player.driftCharge ?? 0} kind="drift" label="Charge de dérapage" /></div>
               </div>
-              <div className={styles.navigation}><CourseMap track={track} hud={hud} small raiders={run.options.raiders} /><small>{run.options.mode === "time" && raceRecord ? `RECORD ${clockLabel(raceRecord.time)}` : "TRACÉ / REPÈRE"}</small></div>
+              <div className={styles.navigation}><CourseMap track={track} hud={hud} small raiders={run.options.raiders} />
+                <div className={styles.lapProgress} role="progressbar" aria-label="Progression du tour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent(guidance?.progress ?? 0)}><i style={{ width: `${percent(guidance?.progress ?? 0)}%` }} /></div>
+                <small>{run.options.mode === "time" && raceRecord ? `RECORD ${clockLabel(raceRecord.time)}` : `TOUR ${percent(guidance?.progress ?? 0)} %`}</small></div>
             </div>
             <div className={styles.touch}>
               <div>
@@ -590,6 +634,7 @@ export default function PodRacing({ reduced, sound, onQuit, onResult }: Props) {
               </> : <>
                 <h2>Course en pause</h2>
                 <p>Le chrono et les moteurs sont à l’arrêt.</p>
+                <label className={styles.check}><input type="checkbox" checked={autoThrottle} onChange={(event) => changeAutoThrottle(event.target.checked)} /> Accélération automatique</label>
                 <div className={styles.dialogActions}>
                   <button type="button" className={styles.secondary} onClick={hangar}><ArrowLeft size={16} /> Hangar</button>
                   <button type="button" className={styles.secondary} onClick={() => prepare({ ...run })}><RotateCcw size={16} /> Recommencer</button>

@@ -1,5 +1,5 @@
 import { branchOffset, hazardLane } from "./tracks";
-import { neutralStats, podModules, type PodModuleId, type PodModuleStats } from "./modules";
+import { podModules, type PodModuleId, type PodModuleStats } from "./modules";
 import { neutralInput, upgradeKeys } from "./types";
 import type { GhostFrame, PodInput, PodRaceEvent, PodRaceOptions, PodRaceState, PodResult, PodSimulation, PodUpgrades, PodVehicle } from "./types";
 
@@ -71,7 +71,7 @@ function levels(value?: PodUpgrades): PodUpgrades {
 function createRacer(id: string, name: string, color: number, module: PodModuleId, distance: number, lane: number, upgrades: PodUpgrades, pilot?: Pilot): Racer {
   return {
     vehicle: { id, name, color, module, distance, lane, speed: 0, lateral: 0, roll: 0, heat: [.06, .08], health: [1, 1], boost: 1, boosting: false, repairing: false, drifting: false, driftCharge: 0, miniTurbo: 0, slipstream: 0, hit: 0, branch: -1, finishedAt: null },
-    pilot, upgrades, stats: neutralStats, overheating: [false, false], nextPlan: 0, targetLane: lane, aiBoost: false, aiBrake: false, aiDrift: false, aiRepair: false,
+    pilot, upgrades, stats: podModules[module].stats, overheating: [false, false], nextPlan: 0, targetLane: lane, aiBoost: false, aiBrake: false, aiDrift: false, aiRepair: false,
     errorUntil: 0, errorSide: 0, contactCooldown: 0, boostCooldown: 0, branchMetres: 0, branchLap: -1,
     creditedBranches: new Set(), lastPad: -1, startedLapAt: null, bestLap: null,
   };
@@ -87,7 +87,6 @@ export function createPodSimulation(options: PodRaceOptions): PodSimulation {
   const random = randomGenerator(options.seed ?? 1999);
   const playerModule = options.pod?.module ?? "ulzer";
   const player = createRacer("player", "Toi", options.pod?.color ?? 0x68c5ff, playerModule, solo ? 0 : -24, 0, levels(options.upgrades));
-  player.stats = podModules[playerModule].stats;
   const opponents = solo ? [] : rivals.map((pilot, i) => createRacer(pilot.id, pilot.name, pilot.color, pilot.module, -Math.floor(i / 2) * 8 - 2, i % 2 ? 3.6 : -3.6, levels(), pilot));
   const racers = [player, ...opponents];
   const state: PodRaceState = {
@@ -100,7 +99,7 @@ export function createPodSimulation(options: PodRaceOptions): PodSimulation {
   const previousDistance = racers.map((racer) => racer.vehicle.distance);
   const previousLane = racers.map((racer) => racer.vehicle.lane);
   let accumulator = 0;
-  let countdown = 3;
+  let countdownSteps = Math.round(state.countdown / STEP);
   let nextGhost = 0;
   let ghostInterval = .1;
   let alertUntil = 0;
@@ -322,7 +321,7 @@ export function createPodSimulation(options: PodRaceOptions): PodSimulation {
     }
     if (racer.overheating.some(Boolean)) v.boosting = false;
 
-    const difficultyPower = difficulty === "rookie" ? .88 : difficulty === "ace" ? 1.055 : 1;
+    const difficultyPower = difficulty === "rookie" ? .84 : difficulty === "ace" ? 1.055 : 1;
     const base = (93 + upgrades.speed * 5.4) * (racer.pilot ? racer.pilot.power * difficultyPower : 1) * racer.stats.speed;
     const engineLimit = .55 + health * .45;
     const boostSpeed = v.boosting ? 52 + upgrades.boost * 5.8 : 0;
@@ -515,11 +514,11 @@ export function createPodSimulation(options: PodRaceOptions): PodSimulation {
 
   function fixedStep(input: PodInput) {
     if (state.phase === "countdown") {
-      const previous = state.countdown;
-      countdown = Math.max(0, countdown - STEP);
-      state.countdown = Math.ceil(countdown - 1e-8);
-      if (state.countdown !== previous && state.countdown > 0) announce("countdown");
-      if (countdown <= 1e-8) {
+      const previousBeat = Math.ceil(state.countdown);
+      countdownSteps = Math.max(0, countdownSteps - 1);
+      state.countdown = countdownSteps * STEP;
+      if (Math.ceil(state.countdown) !== previousBeat && countdownSteps > 0) announce("countdown");
+      if (countdownSteps === 0) {
         state.phase = "racing";
         for (const racer of racers) if (racer.vehicle.distance >= 0) racer.startedLapAt = 0;
         announce("go", "DÉPART");
