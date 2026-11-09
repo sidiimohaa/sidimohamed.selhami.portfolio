@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import { createFlightLogConsole } from "./flightLogConsole";
 import { FlightLogPanel } from "./FlightLogPanel";
@@ -30,6 +30,7 @@ import { MUSTAFAR } from "./cockpitProjection";
 import { createCockpitSystems } from "./cockpitSystems";
 import { createCockpitProjection } from "./cockpitProjection";
 import { createMissionConsole } from "./cockpitMissionConsole";
+import { createCockpitKonami, SUPERCLUSTERS, type Supercluster, type WarpPhase } from "./cockpitKonami";
 import { CockpitMissionTerminal } from "./jedi/JediArchives";
 import { holoMatrix } from "./jedi/holoProjection";
 import { missions, OVERLAYS, setSithMode, startMission, unlockSecret, useJediProgression } from "./jediProgression";
@@ -72,6 +73,15 @@ type Props = {
   onExperience: (experience: "temple" | "destiny") => void;
   onLandMustafar: () => void;
 };
+
+// What R-X7 shouts when the hidden code sets off the red alert: a different line each time.
+const ALERT_LINES = [
+  "BIP-BIIIP ! Séquence non autorisée sur la console de vol ! Le motivateur d’hyperpropulsion s’emballe tout seul, accrochez-vous !",
+  "Bou-ouiiip ! Qui a touché au manche ? Les coordonnées du saut ne figurent sur aucune carte de la galaxie !",
+  "BIP BIP BIP ! Le calculateur de navigation vient de viser au-delà de la galaxie. Je ne peux plus l’arrêter !",
+  "Vrrr… bip ?! Un vieux code d’essai des ingénieurs d’Incom vient de se réveiller. Saut hyperspatial imminent !",
+  "BIIIP ! Toutes les lumières sont rouges, même celles que je ne connaissais pas ! Bouclez votre harnais, pilote !",
+];
 
 // Where the lever was left, for the rest of the visit.
 let hologramOnThisVisit = true;
@@ -159,6 +169,13 @@ export default function CockpitMap({
   const groguButton = useRef<HTMLButtonElement>(null);
   const groguApi = useRef<ReturnType<typeof createCockpitGrogu> | null>(null);
   const [groguHolds, setGroguHolds] = useState(false);
+  // The hidden code (↑ ↑ ↓ ↓ ← → ← → B A): red alert, then a jump to another galaxy.
+  const [warp, setWarp] = useState<WarpPhase>("idle");
+  const [warpTo, setWarpTo] = useState<Supercluster>(SUPERCLUSTERS[0]);
+  const [alertLine, setAlertLine] = useState(ALERT_LINES[0]);
+  const konamiApi = useRef<ReturnType<typeof createCockpitKonami> | null>(null);
+  const warpAlert = useRef<HTMLDivElement>(null);
+  const warpFlash = useRef<HTMLDivElement>(null);
   const leverButton = useRef<HTMLButtonElement>(null);
   const leverSound = useRef<() => void>(() => undefined);
   const [hologram, setHologram] = useState(hologramOnThisVisit);
@@ -356,7 +373,8 @@ export default function CockpitMap({
       (o.material as THREE.Material).dispose();
     });
     pmrem.dispose();
-    scene.add(new THREE.HemisphereLight(0x8da9c9, 0x151b26, 1.5));
+    const sky = new THREE.HemisphereLight(0x8da9c9, 0x151b26, 1.5);
+    scene.add(sky);
     const key = new THREE.DirectionalLight(0xd3c4ad, 2.6);
     key.position.set(-2, 4, 4);
     scene.add(key);
@@ -370,6 +388,22 @@ export default function CockpitMap({
     groguApi.current = grogu;
     scene.add(grogu.group);
     const droidVoice = createDroidVoice();
+    // R-X7 sounds the alarm before the alarm does, and has something to say on arrival.
+    const droidTimers: number[] = [];
+    const konami = createCockpitKonami(renderer.getPixelRatio(), (phase, destination) => {
+      setWarp(phase);
+      setWarpTo(destination);
+      if (phase === "alert") setAlertLine(ALERT_LINES[Math.floor(Math.random() * ALERT_LINES.length)]);
+      if (!live.current.sound) return;
+      if (phase === "alert") {
+        droidVoice.play("error");
+        droidTimers.push(window.setTimeout(() => droidVoice.play("chirp"), 700), window.setTimeout(() => droidVoice.play("error"), 1600));
+      }
+      if (phase === "arrived") droidTimers.push(window.setTimeout(() => droidVoice.play("think"), 1400));
+    });
+    konami.setSound(live.current.sound);
+    konamiApi.current = konami;
+    scene.add(konami.group);
     let pieceAmount = 0,
       pieceDone = false;
     let jolt = 0,
@@ -601,7 +635,7 @@ export default function CockpitMap({
       placeOver(groguButton.current, grogu.anchor, 196, 38);
       placeOver(leverButton.current, grogu.leverAnchor, 84, 84);
       // The stowaway only comes when nothing else is open, and the ball coming off shakes the ship.
-      const calm = !live.current.journal && !live.current.arcade && !live.current.flightLog && !live.current.defense && !live.current.arcadeGame;
+      const calm = !live.current.journal && !live.current.arcade && !live.current.flightLog && !live.current.defense && !live.current.arcadeGame && konami.phase === "idle";
       if (grogu.tick(dt, live.current.reduced, calm, holoLive.current.shown) === "pulled") {
         setGroguHolds(true);
         jolt = 1.5;
@@ -616,6 +650,24 @@ export default function CockpitMap({
           camera.position.y += (Math.random() - 0.5) * 0.022 * jolt;
         }
       }
+      // The hidden code's alert and jump: cabin lights, shake, field of view, flashes.
+      const warpFrame = konami.tick(dt, age, live.current.reduced);
+      if (!live.current.defense && !live.current.arcadeGame) {
+        if (warpFrame.shake > 0) {
+          camera.position.x += (Math.random() - 0.5) * 0.03 * warpFrame.shake;
+          camera.position.y += (Math.random() - 0.5) * 0.03 * warpFrame.shake;
+        }
+        const fov = (camera.aspect < 0.8 ? 58 : 52) + warpFrame.fov;
+        if (Math.abs(camera.fov - fov) > 0.001) {
+          camera.fov = fov;
+          camera.updateProjectionMatrix();
+        }
+        stars.points.visible = !warpFrame.away;
+      }
+      sky.intensity = 1.5 * (1 - 0.6 * warpFrame.alert);
+      key.intensity = 2.6 * (1 - 0.65 * warpFrame.alert);
+      if (warpAlert.current) warpAlert.current.style.opacity = String(warpFrame.alert);
+      if (warpFlash.current) warpFlash.current.style.opacity = String(warpFrame.flash);
       placeOver(logButton.current, logConsole.anchor, 172, 52);
       logConsole.tick(age, live.current.reduced, live.current.flightLog);
       placeOver(arcadeButton.current, arcadeConsole.anchor, 124, 54);
@@ -673,7 +725,8 @@ export default function CockpitMap({
       }
       // The lever strikes the hologram up over two seconds, or lets it collapse into its projector.
       // It also lights up each time the pilot enters, once the cockpit has settled.
-      const holoTarget = holoLive.current.shown && age > 0.9 ? 1 : 0;
+      // The red alert of the hidden code shuts it down too, until the ship is back home.
+      const holoTarget = holoLive.current.shown && age > 0.9 && konami.phase === "idle" ? 1 : 0;
       if (live.current.reduced) holoFold = holoLive.current.shown ? 1 : 0;
       else holoFold = THREE.MathUtils.clamp(holoFold + (holoTarget ? dt / 2.3 : -dt / 0.6), 0, 1);
       const pinned = process.env.NODE_ENV !== "production" ? (window as unknown as { __holoPower?: number }).__holoPower : undefined;
@@ -685,7 +738,7 @@ export default function CockpitMap({
       if (holoFold === 0) holoStarted = false;
       projection.setPower(holoFold);
       if (!live.current.defense && !live.current.arcadeGame) {
-        projection.group.visible = holoFold > 0.001 && !(jolt > 0.9 && !live.current.reduced && Math.sin(age * 44) > 0);
+        projection.group.visible = holoFold > 0.001 && !warpFrame.away && !(jolt > 0.9 && !live.current.reduced && Math.sin(age * 44) > 0);
       }
       const strike = holoFold > 0 && holoFold < 0.4 ? Math.sin((holoFold / 0.4) * Math.PI) * 26 : 0;
       projectorLight.intensity = (live.current.reduced ? 8 : 8 + Math.sin(age * 0.9) * 0.25) * holoFold + strike;
@@ -723,6 +776,8 @@ export default function CockpitMap({
       removed = true;
       stopDefense(); defenseApi.current = null;
       stopGame(); arcadeApi.current = null;
+      konami.dispose(); konamiApi.current = null;
+      droidTimers.forEach((timer) => window.clearTimeout(timer));
       live.current.onCombatChange?.(false);
       cancelAnimationFrame(frame);
       observer.disconnect();
@@ -789,7 +844,18 @@ export default function CockpitMap({
       setArcade(true);
     } else requestAnimationFrame(() => (arcadeButton.current ?? close.current)?.focus());
   };
-  useEffect(() => { defenseRuntime.current?.setSound(sound); }, [sound]);
+  useEffect(() => { defenseRuntime.current?.setSound(sound); konamiApi.current?.setSound(sound); }, [sound]);
+  // The hidden code is typed anywhere in the cockpit, while no console or simulation is open.
+  useEffect(() => {
+    const typed = (event: KeyboardEvent) => {
+      const now = live.current;
+      if (event.repeat || now.defense || now.arcadeGame || now.arcade || now.journal || now.flightLog) return;
+      if (event.target instanceof Element && event.target.closest("input,textarea,select,[contenteditable]")) return;
+      konamiApi.current?.key(event.key.length === 1 ? event.key.toLowerCase() : event.key);
+    };
+    window.addEventListener("keydown", typed);
+    return () => window.removeEventListener("keydown", typed);
+  }, []);
   useEffect(() => { defenseRuntime.current?.setVolume(defenseVolume); }, [defenseVolume]);
   useEffect(() => {
     if (!defense) return;
@@ -970,6 +1036,7 @@ export default function CockpitMap({
       data-journal={journal}
       data-arcade={arcade || flightLog}
       data-sith={progress.sith}
+      data-warp={warp}
       role="dialog"
       aria-modal="true"
       aria-labelledby={defense || arcadeGame ? undefined : "cockpit-title"}
@@ -983,6 +1050,54 @@ export default function CockpitMap({
       <div className="cockpit-fallback" aria-hidden="true" />
       <div ref={mount} className="cockpit-canvas" />
       <div className="cockpit-vignette" aria-hidden="true" />
+      <div ref={warpAlert} className="cockpit-warp-alert" aria-hidden="true" />
+      <div ref={warpFlash} className="cockpit-warp-flash" aria-hidden="true" />
+      {warp === "alert" && (
+        <div className="cockpit-warp-banner" role="alert">
+          <strong>ALERTE ROUGE</strong>
+          <span>Saut hyperspatial non programmé · coordonnées inconnues</span>
+        </div>
+      )}
+      {warp === "alert" && (
+        <p className="cockpit-warp-droid" role="status">
+          R-X7 : {alertLine}
+        </p>
+      )}
+      {warp === "arrived" && <p className="cockpit-warp-droid is-calm" role="status">{warpTo.droid}</p>}
+      {warp === "arrived" && (
+        <div className="cockpit-readout-shell cockpit-warp-readout">
+          <motion.section
+            className="cockpit-readout"
+            role="status"
+            aria-atomic="true"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: reduced ? 0 : 1.2, duration: reduced ? 0 : 0.4 }}
+          >
+            <div
+              className="cockpit-preview cockpit-warp-preview"
+              role="img"
+              aria-label={`Vue en couleur : ${warpTo.name}`}
+              style={{ "--warp-heart": `rgb(${warpTo.heart.map((c) => Math.round(c * 255)).join(",")})` } as CSSProperties}
+            />
+            <div className="cockpit-planet-copy">
+              <p className="cockpit-eyebrow">{warpTo.eyebrow}</p>
+              <h3>{warpTo.name}</h3>
+              <p className="cockpit-description">{warpTo.description}</p>
+              <span className="cockpit-access">
+                <Orbit size={11} /> {warpTo.access}
+              </span>
+            </div>
+            <div className="cockpit-launches">
+              <button className="cockpit-launch" onClick={() => konamiApi.current?.home()}>
+                <Navigation size={14} />
+                <span>RENTRER DANS LA GALAXIE</span>
+                <ArrowUpRight size={15} />
+              </button>
+            </div>
+          </motion.section>
+        </div>
+      )}
       {!defense && !arcadeGame && graphics && !compact && (
         <button
           ref={arcadeButton}

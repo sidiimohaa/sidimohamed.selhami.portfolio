@@ -792,3 +792,118 @@
   gap: 8px;
   justify-items: stretch;
 }
+
+/* The hidden code: red alert, jump flash, and the arrival in intergalactic space. */
+.cockpit-warp-alert,
+.cockpit-warp-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.cockpit-warp-alert {
+  z-index: 3;
+  background: radial-gradient(ellipse at 50% 45%, transparent 30%, #ff1a0a55 78%, #ff1a0aa8 100%);
+  mix-blend-mode: screen;
+  animation: cockpit-warp-pulse 0.7s steps(2, jump-none) infinite;
+}
+
+.cockpit-warp-flash {
+  z-index: 9;
+  background: radial-gradient(circle at 50% 42%, #ffffff 0%, #dff0ff 45%, #a9d4ff 100%);
+}
+
+@keyframes cockpit-warp-pulse {
+  50% {
+    filter: brightness(0.45);
+  }
+}
+
+.cockpit-warp-banner {
+  position: absolute;
+  z-index: 8;
+  top: 18%;
+  left: 50%;
+  display: grid;
+  gap: 6px;
+  padding: 14px 22px;
+  border: 1px solid #ff4a33;
+  background: #2a0402cc;
+  color: #ffd6cf;
+  font-family: var(--mono);
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: cockpit-warp-blink 0.7s steps(2, jump-none) infinite;
+}
+
+.cockpit-warp-banner strong {
+  color: #ff5a42;
+  font-size: 18px;
+  letter-spacing: 6px;
+}
+
+.cockpit-warp-banner span {
+  font-size: 9px;
+  letter-spacing: 1.6px;
+}
+
+@keyframes cockpit-warp-blink {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* The arrival readout keeps the planets' panel; only its preview changes, to a field of galaxies. */
+.cockpit-warp-preview {
+  background:
+    radial-gradient(circle at 46% 44%, #fff2df 0 2%, color-mix(in srgb, var(--warp-heart, #f3b77a) 45%, transparent) 6%, transparent 22%),
+    radial-gradient(circle at 70% 30%, #cfe0ff 0 1.5%, transparent 4%),
+    radial-gradient(circle at 26% 66%, #d9e6ff 0 1.2%, transparent 3.5%),
+    radial-gradient(circle at 62% 72%, #ffe2bd 0 1%, transparent 3%),
+    radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--warp-heart, #5a3f8a) 28%, transparent), transparent 70%),
+    radial-gradient(circle at 50% 50%, #120d24, #05040c 75%);
+}
+
+/* R-X7's lines during the jump, in the same strip as its other cockpit remarks. */
+.cockpit-warp-droid {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  top: calc(18% + 86px);
+  width: min(480px, calc(100vw - 32px));
+  margin: 0;
+  padding: 8px 12px;
+  color: #ffd9cf;
+  background: #0a0704bf;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.cockpit-warp-droid.is-calm {
+  top: 92px;
+  color: #ffe9bd;
+}
+
+/* Nothing of the home galaxy's interface while the ship is away or jumping. */
+.cockpit-map:not([data-warp="idle"]) :is(
+    .cockpit-targets,
+    .cockpit-readout-shell:not(.cockpit-warp-readout),
+    .cockpit-instruments,
+    .cockpit-arcade-button,
+    .cockpit-log-button,
+    .cockpit-activity-button
+  ) {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cockpit-warp-alert,
+  .cockpit-warp-banner {
+    animation: none;
+  }
+}
