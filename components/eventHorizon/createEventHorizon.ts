@@ -13,35 +13,36 @@ type Options = {
   host: HTMLElement; state: () => FlightState; onActive: (active: boolean) => void;
   releaseControls: () => void;
 };
-const phaseNames = { anomaly: "01 / L’ANOMALIE", birth: "02 / THE SINGULARITY", infall: "03 / POINT OF NO RETURN", void: "04 / LE NÉANT", rebirth: "05 / LA RENAISSANCE" };
 
 export function createEventHorizon({ scene, camera, renderer, host, state, onActive, releaseControls }: Options) {
   const root = host.closest<HTMLElement>(".experience") ?? host;
   const overlay = document.createElement("div");
-  overlay.className = `${styles.overlay} ${styles.letterbox}`;
+  overlay.className = styles.overlay;
   overlay.dataset.eventHorizon = "true";
   overlay.hidden = true;
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-label", "Event Horizon — cinématique secrète");
+  // Full screen and wordless: the image and the sound tell it. Only a discreet way out, and one
+  // line at the very end.
   overlay.innerHTML = `<div class="${styles.shade}" data-shade></div><div class="${styles.flash}" data-flash></div>
-    <div class="${styles.top}"><p class="${styles.eyebrow}">ORBITAL / EVENT HORIZON<span>CLASSIFIED DEEP SPACE PHENOMENON</span></p><button type="button" class="${styles.skip}" data-skip>PASSER <span aria-hidden="true">[ ÉCHAP ]</span></button></div>
-    <div class="${styles.caption}"><p class="${styles.phase}" data-phase-label></p><h2 class="${styles.message}" data-message aria-live="polite" aria-atomic="true"></h2><p class="${styles.readout}" data-readout></p></div>
-    <div class="${styles.progress}" aria-hidden="true"><i data-progress></i></div>`;
+    <button type="button" class="${styles.skip}" data-skip>PASSER · ÉCHAP</button>
+    <div class="${styles.caption}"><h2 class="${styles.message}" data-message aria-live="polite" aria-atomic="true"></h2></div>`;
   root.appendChild(overlay);
   const skip = overlay.querySelector<HTMLButtonElement>("[data-skip]")!;
   const shade = overlay.querySelector<HTMLElement>("[data-shade]")!;
   const flash = overlay.querySelector<HTMLElement>("[data-flash]")!;
   const message = overlay.querySelector<HTMLElement>("[data-message]")!;
-  const phaseLabel = overlay.querySelector<HTMLElement>("[data-phase-label]")!;
-  const readout = overlay.querySelector<HTMLElement>("[data-readout]")!;
-  const progress = overlay.querySelector<HTMLElement>("[data-progress]")!;
   const hole = createBlackHole(state().quality === "lite" || state().quality === "eco");
   scene.add(hole.group);
   const pass = createGravityPass();
   const konami = createKonami();
   const center = new THREE.Vector3(), axis = new THREE.Vector3(), projected = new THREE.Vector3(), size = new THREE.Vector2();
   const dolly = new THREE.Vector3(), roll = new THREE.Quaternion();
+  const ray = new THREE.Raycaster(), ahead = new THREE.Vector3();
+  // How far ahead the singularity opens: 95 units, or just in front of a planet on that line, so
+  // that it is never born hidden behind a world. Its size follows, to keep the same look.
+  let reach = 95;
   let running = false, disposed = false, began = 0, lastDraw = -Infinity, lastMessage = "";
   let reduced = false;
   let previousFocus: HTMLElement | null = null;
@@ -82,10 +83,25 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
     if (!eligible()) return false;
     running = true;
     reduced = state().reduced;
-    began = performance.now(); lastDraw = -Infinity; lastMessage = "";
+    // The clock starts on the first frame, with the timestamp the frame loop hands over: a frame
+    // timestamp and performance.now() can drift seconds apart, which skipped whole phases or
+    // ended the cinematic on its first frame.
+    began = -1; lastDraw = -Infinity; lastMessage = "";
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     cameraSnapshot = { position: camera.position.clone(), rotation: camera.quaternion.clone(), fov: camera.fov, zoom: camera.zoom };
-    center.set(0, 1.5, -95).applyQuaternion(cameraSnapshot.rotation).add(cameraSnapshot.position);
+    ahead.set(0, 1.5, -95).normalize().applyQuaternion(cameraSnapshot.rotation);
+    ray.set(cameraSnapshot.position, ahead);
+    ray.camera = camera;
+    ray.near = 25; ray.far = 115;
+    reach = 95;
+    try {
+      const blocker = ray.intersectObjects(scene.children.filter((object) => object !== hole.group && object.visible), true)
+        .find((hit) => hit.object.visible && hit.object instanceof THREE.Mesh && !(hit.object instanceof THREE.InstancedMesh));
+      if (blocker) reach = THREE.MathUtils.clamp(blocker.distance - 18, 30, 95);
+    } catch {
+      // A placement probe never stands in the way of the cinematic: keep the default distance.
+    }
+    center.copy(ahead).multiplyScalar(reach).add(cameraSnapshot.position);
     axis.set(0, 0, 1).applyQuaternion(cameraSnapshot.rotation);
     hole.group.position.copy(center);
     hole.group.quaternion.copy(cameraSnapshot.rotation);
@@ -147,7 +163,8 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
       if (!running || !cameraSnapshot) return;
       const s = state();
       if (s.hidden || s.travel || !s.flying || (!reduced && s.reduced)) { finish(); return; }
-      const seconds = (now - began) / 1000;
+      if (began < 0) began = now;
+      const seconds = Math.max(0, (now - began) / 1000);
       const frame = horizonFrame(seconds, reduced);
       if (frame.done) { finish(); return; }
       if (now - lastDraw < (s.quality === "lite" ? 66 : s.quality === "eco" ? 33 : 0)) return;
@@ -169,17 +186,13 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
         }
         camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
         worldSnapshot!.update(collapse, center, axis, seconds, reduced);
-        const holeSize = (5.2 * birth + frame.pull * 6.5) * (1 - rebuild);
+        const holeSize = (5.2 * birth + frame.pull * 6.5) * (1 - rebuild) * (reach / 95);
         hole.group.scale.setScalar(Math.max(0.0001, holeSize));
         hole.group.visible = birth > 0 && frame.phase !== "void" && rebuild < 0.999;
         hole.update(seconds, birth * (1 - rebuild), reduced);
         projected.copy(center).project(camera);
         const cx = projected.x * 0.5 + 0.5, cy = -projected.y * 0.5 + 0.5;
         interfaceSnapshot!.update(collapse, cx, cy, reduced ? 0 : seconds, reduced);
-        renderer.getSize(size);
-        const ratio = Math.min(renderer.getPixelRatio(), s.quality === "lite" ? 0.65 : s.quality === "eco" ? 1 : 1.5, 1920 / size.x, 1200 / size.y);
-        const w = Math.max(1, Math.round(size.x * ratio)), h = Math.max(1, Math.round(size.y * ratio));
-        if (pass.target.width !== w || pass.target.height !== h) pass.target.setSize(w, h);
         const u = pass.uniforms;
         u.center.value.set(cx, 1 - cy); u.aspect.value = camera.aspect;
         u.radius.value = holeSize / Math.max(0.2, camera.position.distanceTo(center)) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
@@ -187,17 +200,17 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
         u.pull.value = reduced ? 0 : collapse;
         u.anomaly.value = reduced ? 0 : frame.pressure;
         u.fade.value = reduced ? collapse : frame.blackout;
-        renderer.setRenderTarget(pass.target); renderer.render(scene, camera);
-        renderer.setRenderTarget(null); renderer.render(pass.scene, pass.camera);
+        // The scene is drawn exactly as in flight (tone mapping, colour space, antialiasing), then
+        // the finished image is copied and bent. Drawing it into a linear target instead ran the
+        // sky's ready-to-display shaders through tone mapping and sRGB twice: the view lightened.
+        renderer.setRenderTarget(null); renderer.render(scene, camera);
+        renderer.getDrawingBufferSize(size);
+        renderer.copyFramebufferToTexture(pass.frame(size.x, size.y));
+        renderer.render(pass.scene, pass.camera);
         overlay.dataset.phase = frame.phase;
-        overlay.style.setProperty("--horizon-bars", String(smooth(0, 1.8, seconds) * (1 - smooth(frame.duration - 1.2, frame.duration, seconds))));
-        phaseLabel.textContent = phaseNames[frame.phase];
         if (lastMessage !== frame.message) { message.textContent = frame.message; lastMessage = frame.message; }
-        readout.textContent = frame.phase === "rebirth" ? "SIGNAL RESTORED · FLIGHT RECORD INTACT"
-          : `GRAVITY ${(1 + frame.pressure * 8 + frame.pull * 990).toFixed(2)} G  /  HULL ${Math.max(0, 100 - collapse * 100).toFixed(0)}%  /  T+${seconds.toFixed(1).padStart(4, "0")}`;
         shade.style.opacity = String(frame.blackout);
         flash.style.opacity = String(frame.flash);
-        progress.style.transform = `scaleX(${seconds / frame.duration})`;
         audio?.update(frame);
       } catch (error) {
         finish();

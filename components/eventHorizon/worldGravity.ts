@@ -35,7 +35,8 @@ export function captureWorld(scene: THREE.Scene, excluded: THREE.Object3D) {
         const size = Math.max(0.000001, Math.pow(1 - p, 1.4));
         body.object.scale.copy(body.scale).multiplyScalar(size);
         body.object.scale.z *= 1 + Math.sin(p * Math.PI) * 3.5;
-        body.object.visible = body.visible && (reduced ? collapse < 0.99 : p < 0.999);
+        // Thin lines (the orbit traces) would stretch into white threads round the hole: hidden.
+        body.object.visible = body.visible && !(body.object instanceof THREE.Line) && (reduced ? collapse < 0.99 : p < 0.999);
       }
       // Instanced debris uses local matrices as well: every asteroid follows its own
       // shrinking orbit, without allocating meshes or breaking the original instance buffer.

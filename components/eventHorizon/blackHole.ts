@@ -99,14 +99,15 @@ export function createBlackHole(low: boolean) {
 }
 
 export function createGravityPass() {
-  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: true });
+  // A copy of the finished frame, already tone mapped and in display colours.
+  let copy: THREE.FramebufferTexture | null = null;
   const uniforms = {
-    image: { value: target.texture }, center: { value: new THREE.Vector2(0.5, 0.5) },
+    image: { value: null as THREE.Texture | null }, center: { value: new THREE.Vector2(0.5, 0.5) },
     aspect: { value: 1 }, radius: { value: 0 }, lens: { value: 0 },
     time: { value: 0 }, pull: { value: 0 }, anomaly: { value: 0 }, fade: { value: 0 },
   };
   const material = new THREE.ShaderMaterial({
-    uniforms, depthTest: false, depthWrite: false,
+    uniforms, depthTest: false, depthWrite: false, toneMapped: false,
     vertexShader: `varying vec2 uvScreen;void main(){uvScreen=uv;gl_Position=vec4(position.xy,0.,1.);}`,
     fragmentShader: /* glsl */ `
       varying vec2 uvScreen; uniform sampler2D image; uniform vec2 center;
@@ -129,13 +130,23 @@ export function createGravityPass() {
         color*=smoothstep(horizon*.97,horizon*1.005,r);
         color*=1.-fade;
         gl_FragColor=vec4(color,1.);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
       }`,
   });
   const geometry = new THREE.PlaneGeometry(2, 2);
   const scene = new THREE.Scene();
   scene.add(new THREE.Mesh(geometry, material));
   const camera = new THREE.Camera();
-  return { target, uniforms, scene, camera, dispose() { target.dispose(); geometry.dispose(); material.dispose(); } };
+  return {
+    uniforms, scene, camera,
+    /** The texture to copy the frame into, at the drawing buffer's size. */
+    frame(width: number, height: number) {
+      if (!copy || copy.image.width !== width || copy.image.height !== height) {
+        copy?.dispose();
+        copy = new THREE.FramebufferTexture(width, height);
+        uniforms.image.value = copy;
+      }
+      return copy;
+    },
+    dispose() { copy?.dispose(); geometry.dispose(); material.dispose(); },
+  };
 }

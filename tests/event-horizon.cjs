@@ -6,7 +6,7 @@ require.extensions[".ts"] = (module, file) => module._compile(ts.transpileModule
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, file);
 const { createKonami } = require("../components/eventHorizon/konami.ts");
-const { horizonFrame } = require("../components/eventHorizon/timeline.ts");
+const { horizonFrame, HORIZON_END_LINE } = require("../components/eventHorizon/timeline.ts");
 const { captureWorld } = require("../components/eventHorizon/worldGravity.ts");
 const code = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "B", "A"];
 const type = (detector, keys, eligible = true, start = 0) => keys.map((key, i) => detector.feed(key, start + i * 100, eligible));
@@ -26,13 +26,13 @@ for (const blockedPlace of ["Coruscant", "Hoth", "Tatooine", "Endor", "Death Sta
   assert.equal(type(createKonami(), [...code.slice(0, 5), "x", ...code.slice(5)]).some(Boolean), false);
 }
 for (const reduced of [false, true]) {
-  const end = reduced ? 16 : 32, voidAt = reduced ? 7 : 21;
+  const end = reduced ? 11 : 20, voidAt = reduced ? 5.5 : 13, rebirthAt = reduced ? 6.5 : 14;
   assert.equal(horizonFrame(0, reduced).phase, "anomaly");
   assert.equal(horizonFrame(voidAt, reduced).phase, "void");
-  assert.equal(horizonFrame(voidAt + 1.99, reduced).message, "", "Two full seconds of darkness");
-  assert.equal(horizonFrame(voidAt + 2, reduced).message, "REALITY HAS COLLAPSED");
-  assert.equal(horizonFrame(voidAt + 3.6, reduced).message, "REINITIALIZING GALACTIC SYSTEMS...");
-  assert.equal(horizonFrame(end - 0.5, reduced).message, "EVENT HORIZON — SECRET DISCOVERED");
+  assert.equal(horizonFrame(rebirthAt, reduced).phase, "rebirth");
+  // Wordless until the very end, then a single line.
+  for (let t = 0; t < end - 2.6; t += 0.05) assert.equal(horizonFrame(t, reduced).message, "", `silent caption at ${t}`);
+  assert.equal(horizonFrame(end - 0.5, reduced).message, HORIZON_END_LINE);
   assert.equal(horizonFrame(end, reduced).done, true);
   assert.equal(horizonFrame(end, reduced).collapse, 0);
   for (let t = 0; t <= end; t += 0.01) {
@@ -40,7 +40,7 @@ for (const reduced of [false, true]) {
     for (const field of ["birth", "pull", "collapse", "rebuild", "blackout", "flash", "pressure"]) {
       assert.ok(Number.isFinite(frame[field]) && frame[field] >= 0 && frame[field] <= 1, `${field} at ${t}`);
     }
-    if (t >= voidAt && t < (reduced ? 12 : 26)) assert.equal(frame.blackout, 1);
+    if (t >= voidAt && t < rebirthAt) assert.equal(frame.blackout, 1, "One full second of darkness");
   }
 }
 
@@ -57,11 +57,14 @@ for (const collapse of [0, 0.13, 0.5, 0.98, 1]) {
   const rocks = new THREE.InstancedMesh(mesh.geometry, material, 3);
   for (let i = 0; i < 3; i++) rocks.setMatrixAt(i, new THREE.Matrix4().makeTranslation(i * 7, 4, 9));
   scene.add(rocks);
+  const orbit = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial()); scene.add(orbit);
   const before = planet.matrix.clone(); planet.updateMatrix(); before.copy(planet.matrix);
   const matrices = Array.from(rocks.instanceMatrix.array);
   const capture = captureWorld(scene, excluded);
   capture.update(collapse, new THREE.Vector3(0, 2, -95), new THREE.Vector3(0, 0, 1), 17, false);
+  assert.equal(orbit.visible, false, "Orbit traces are hidden during the sequence");
   capture.restore(); planet.updateMatrix();
+  assert.equal(orbit.visible, true, "Orbit traces come back on restore");
   assert.deepEqual(planet.matrix.elements, before.elements);
   assert.deepEqual(Array.from(rocks.instanceMatrix.array), matrices);
   assert.equal(material.emissiveIntensity, 0.734);
@@ -69,8 +72,8 @@ for (const collapse of [0, 0.13, 0.5, 0.98, 1]) {
   assert.equal(hidden.visible, false);
   assert.equal(planet.children[0], mesh);
   assert.equal(mesh.material, material);
-  assert.equal(scene.children.length, 5);
+  assert.equal(scene.children.length, 6);
   capture.restore(); // Idempotent restoration.
-  mesh.geometry.dispose(); material.dispose();
+  mesh.geometry.dispose(); material.dispose(); orbit.geometry.dispose(); orbit.material.dispose();
 }
 console.log("Event Horizon: Konami gates, timing, darkness and exact scene restoration passed");

@@ -16,7 +16,7 @@ import { galaxy } from "./galaxy/store";
 import { createApproachFlight } from "./approachFlight";
 import { createEventHorizon } from "./eventHorizon/createEventHorizon";
 import { isTextEntry } from "./eventHorizon/konami";
-import { ORBITAL_BODIES, SYSTEM_CENTER, SYSTEM_ORBITS, DEBRIS_ORBIT, HOME_CAMERA_Z, FLIGHT_SPEED, orbitalPoint, homeCameraZ } from "./orbitalSystem";
+import { ORBITAL_BODIES, SYSTEM_CENTER, DEBRIS_ORBIT, HOME_CAMERA_Z, FLIGHT_SPEED, orbitalPoint, homeCameraZ } from "./orbitalSystem";
 export type FlightState = {
   flying: boolean;
   boost: boolean;
@@ -532,17 +532,6 @@ export default function SpaceScene({
       twinSun.scale.setScalar(1.8);
       scene.add(twinSun);
     });
-    // Faint navigation traces share a single inclined plane and a fixed stellar centre.
-    // Four static lines, with no per-frame geometry updates or extra render pass.
-    for (const reach of SYSTEM_ORBITS) {
-      const geometry = new THREE.BufferGeometry().setFromPoints(
-        Array.from({ length: 193 }, (_, i) => new THREE.Vector3(...orbitalPoint(reach, i / 192 * Math.PI * 2))),
-      );
-      scene.add(new THREE.Line(geometry, new THREE.LineBasicMaterial({
-        color: 0x809b9e, transparent: true, opacity: 0.085, depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      })));
-    }
     const rocks = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(0.1, 0),
       new THREE.MeshStandardMaterial({ color: 0x79766b, roughness: 1 }),

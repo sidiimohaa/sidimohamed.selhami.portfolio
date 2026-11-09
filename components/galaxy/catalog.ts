@@ -85,7 +85,7 @@ export const galacticEvents: GalacticEvent[] = [
     line: "Patrouille impériale à proximité. Ils demandent notre code d’identification.",
     endLine: "La patrouille poursuit sa ronde.",
     choices: [
-      { id: "code", label: "Transmettre le code", line: "Code transmis : « navette de ravitaillement ». Ils n’y ont vu que du feu." },
+      { id: "code", label: "Transmettre le code", line: "Code transmis : ↑ ↑ ↓ ↓ ← → ← → B A. Ils n’y ont vu que du feu. Retenez-le, pilote : ce vieux code ouvre plus que des barrages." },
       { id: "silence", label: "Garder le silence", line: "Silence radio. Espérons qu’ils aient mieux à faire." },
     ],
   },

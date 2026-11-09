@@ -4,8 +4,11 @@ const properties = ["translate", "rotate", "scale", "opacity", "will-change"] as
 type Fragment = {
   element: HTMLElement;
   original: { value: string; priority: string }[];
-  x: number; y: number; opacity: number; seed: number; backdrop: boolean;
+  x: number; y: number; opacity: number; seed: number; backdrop: boolean; hidden: boolean;
 };
+// Hit areas laid over 3D objects (planets, the droid): the objects themselves are pulled in, so
+// their rings and hover labels are simply hidden; stretched, a ring became a white oval.
+const OVER_SCENE = ".planet-hit, .droid-hit";
 
 // Individual CSS transforms compose with Motion's existing `transform`. Nothing is
 // cloned, unmounted or written to storage; every inline property is restored verbatim.
@@ -34,6 +37,7 @@ export function captureInterface(root: HTMLElement, overlay: HTMLElement) {
       y: (rect.top + rect.height / 2) / height,
       opacity: Number(style.opacity), seed: ((fragments.length * 37 + 11) % 101) / 101,
       backdrop: rect.width > width * 0.95 && rect.height > height * 0.95,
+      hidden: !!element.closest(OVER_SCENE),
     });
     element.style.willChange = "translate, rotate, scale, opacity";
   };
@@ -53,7 +57,11 @@ export function captureInterface(root: HTMLElement, overlay: HTMLElement) {
   return {
     update(collapse: number, centerX: number, centerY: number, time: number, reduced: boolean) {
       for (const fragment of fragments) {
-        const { element, seed, backdrop } = fragment;
+        const { element, seed, backdrop, hidden } = fragment;
+        if (hidden) {
+          element.style.opacity = "0";
+          continue;
+        }
         if (backdrop || reduced) {
           element.style.opacity = String(fragment.opacity * (1 - smooth(0, 0.9, collapse)));
           continue;
