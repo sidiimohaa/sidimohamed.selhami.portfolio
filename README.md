@@ -210,3 +210,15 @@ Le lien `/?cap=<destination>` (`tatooine`, `endor`, `coruscant`, `etoile-de-la-m
 - **Images** : les cinq planètes passent en JPEG (0,6 Mo au lieu de 3,2 Mo), et le préchargeur attend moins longtemps sur une connexion lente.
 - **Rendu** : canvas spatial opaque (moins de composition), ciel précalculé en 512 px sur le profil Élevé, reflets d'objectif réservés aux profils Élevé et Ultra.
 - **Mesure locale** (build statique, Mac, écran Retina, profil Élevé) : 1,0 Mo transféré à l'arrivée, 60 images/s au repos comme en vol, pire image 18 ms, 23 Mo de mémoire JavaScript.
+
+## Event Horizon · Easter Egg spatial
+
+En exploration spatiale, saisir **↑ ↑ ↓ ↓ ← → ← → B A**, avec moins de 2,4 secondes entre deux touches. Le déclenchement vérifie l'état réel du vol : aucun lancement sur une surface, dans l'Étoile de la Mort, dans le cockpit-carte, pendant un trajet, un chargement ou une autre fenêtre. Les champs de texte et les touches maintenues sont ignorés.
+
+La séquence dure **32 secondes** : anomalie, naissance du trou noir, aspiration, néant puis renaissance. Le trou noir utilise le renderer Three.js existant : sphère, disque de plasma procédural, image secondaire du disque, couronne photonique, particules GPU et passe de lentille gravitationnelle. Les objets 3D, les astéroïdes instanciés et les interfaces HTML convergent vers le même point projeté. La caméra finit par franchir l'horizon.
+
+Le son suit le bouton d'ambiance existant. Le mode de mouvement réduit, demandé par le système ou les réglages, remplace le vol par une séquence de **16 secondes** avec fondus. Les deux versions conservent deux secondes de noir et de silence avant les messages. **Passer** ou **Échap** restaure immédiatement le vol ; changement d'onglet, perte WebGL et démontage utilisent la même restauration. Les composants restent montés, les simulations et compteurs sont suspendus, les poses et styles d'origine sont réappliqués ; aucune sauvegarde n'est supprimée.
+
+- Implémentation : `components/eventHorizon/`, intégrée à `SpaceScene.tsx` et `Experience.tsx`.
+- Tests : `npm run test:event-horizon` (code, expiration, chronologie, noir, poses, instances et matériaux).
+- Vérification visuelle en développement : `/?sol=espace`, puis saisir le code. Vérifier aussi Passer, Échap, un champ de texte, une surface et le mouvement réduit.

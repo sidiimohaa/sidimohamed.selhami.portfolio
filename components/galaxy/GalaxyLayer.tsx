@@ -19,15 +19,16 @@ const priorityNames = ["", "ROUTINE", "NOTABLE", "MAJEUR"];
 const statusNames = { active: "EN COURS", found: "DÉCOUVERT", ended: "TERMINÉ", ignored: "IGNORÉ" };
 const clock = (at: number) => new Date(at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-type Props = { place: EventPlace | null; blocked: boolean; sound: boolean; reduced: boolean };
+type Props = { place: EventPlace | null; blocked: boolean; suspended?: boolean; sound: boolean; reduced: boolean };
 
-export default function GalaxyLayer({ place, blocked, sound, reduced }: Props) {
+export default function GalaxyLayer({ place, blocked, suspended = false, sound, reduced }: Props) {
   const director = useGalaxy();
   const open = useMonitorOpen();
   const [notice, setNotice] = useState<DirectorNotice | null>(null);
   const queue = useRef<DirectorNotice[]>([]);
-  const live = useRef({ place, blocked });
-  live.current = { place, blocked };
+  const noticeClock = useRef({ key: "", remaining: 0 });
+  const live = useRef({ place, blocked, suspended });
+  live.current = { place, blocked, suspended };
 
   useEffect(() => galaxyAudio.setEnabled(sound), [sound]);
   // Development only: trigger any event, or set the hour, from the console.
@@ -42,7 +43,7 @@ export default function GalaxyLayer({ place, blocked, sound, reduced }: Props) {
       const now = performance.now(),
         dt = Math.min(5, (now - last) / 1000);
       last = now;
-      if (document.hidden) return;
+      if (document.hidden || live.current.suspended) return;
       director.tick(dt, { place: live.current.place, blocked: live.current.blocked || galaxyBusy(), enabled: enabledPlace });
       queue.current.push(...director.drainNotices());
       // Nothing is said over a trip or a cinematic, and what no longer applies is dropped: a signal
@@ -62,10 +63,16 @@ export default function GalaxyLayer({ place, blocked, sound, reduced }: Props) {
   // Each notification stays long enough to read, a little longer if it asks something.
   useEffect(() => {
     if (!notice) return;
-    const wait = notice.kind === "start" && notice.event.choices ? 12000 : 7500;
-    const id = window.setTimeout(() => setNotice(null), wait);
-    return () => window.clearTimeout(id);
-  }, [notice]);
+    const key = `${notice.key}-${notice.kind}`;
+    if (noticeClock.current.key !== key) noticeClock.current = { key, remaining: notice.kind === "start" && notice.event.choices ? 12000 : 7500 };
+    if (suspended) return;
+    const began = performance.now();
+    const id = window.setTimeout(() => setNotice(null), noticeClock.current.remaining);
+    return () => {
+      window.clearTimeout(id);
+      noticeClock.current.remaining = Math.max(0, noticeClock.current.remaining - (performance.now() - began));
+    };
+  }, [notice, suspended]);
 
   const running = notice && director.active().find((run) => run.key === notice.key);
   const choices = notice?.kind === "start" && running && !running.choice ? notice.event.choices : undefined;

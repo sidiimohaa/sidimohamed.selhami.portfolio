@@ -35,6 +35,7 @@ import {
 } from "./graphicsQuality";
 import { createFlightAudio, type FlightAudio } from "./flightAudio";
 import type { FlightTelemetry } from "./SpaceScene";
+import { isTextEntry } from "./eventHorizon/konami";
 import type { HyperspacePhase } from "./spaceTraffic";
 import type { SurfaceCue } from "./LandingScene";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
@@ -90,6 +91,7 @@ export default function Experience() {
     [resetKey, setResetKey] = useState(0),
     [droidSignal, setDroidSignal] = useState(0),
     [surface, setSurface] = useState<number | null>(null),
+    [singularity, setSingularity] = useState(false),
     // The Jedi progression's screens: toasts, rank ceremonies, mission scenes and rewards.
     [toasts, setToasts] = useState<{ mission: Mission; total: number }[]>([]),
     [ceremonies, setCeremonies] = useState<Rank[]>([]),
@@ -120,6 +122,8 @@ export default function Experience() {
   const reduced = systemReduced || bridge.reduceMotion,
     quality = bridge.quality === "auto" ? autoQuality : bridge.quality;
   const flownTimer = useRef<number | null>(null);
+  const singularityRef = useRef(singularity);
+  singularityRef.current = singularity;
   // A course set from a link (?cap=hoth): flown as soon as the ship is out of hyperspace.
   const pendingCap = useRef<number | null>(null);
   const distances = useRef<number[]>([]),
@@ -268,7 +272,7 @@ export default function Experience() {
   useEffect(() => {
     if (loading) return;
     const timer = window.setInterval(() => {
-      if (!document.hidden) addFlightTime(15);
+      if (!document.hidden && !singularityRef.current) addFlightTime(15);
     }, 15000);
     return () => window.clearInterval(timer);
   }, [loading]);
@@ -334,11 +338,12 @@ export default function Experience() {
   }, []);
   const soundscape = groundLanding?.soundscape ?? null;
   useEffect(() => {
-    audio.current?.setEnabled(sound && !combat);
-    audio.current?.ambience(sound && !combat ? soundscape : null);
-  }, [soundscape, sound, combat]);
+    audio.current?.setEnabled(sound && !combat && !singularity);
+    audio.current?.ambience(sound && !combat && !singularity ? soundscape : null);
+  }, [soundscape, sound, combat, singularity]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.composedPath().some(isTextEntry)) return;
       if (document.querySelector(".hoth-defense, .arcade-game, .arcade, .death-star-station, .coruscant-taxi, .bridge-welcome, .galactic-scanner, .photo-bar, .bridge-settings")) { lastSix.current = 0; return; }
       // Escape is taken by an overlay or the mission journal first when one is open.
       if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(OVERLAYS)) {
@@ -585,7 +590,7 @@ export default function Experience() {
     launch(cap);
   }, [loading, launch]);
   const paused =
-    loading || mapOpen || helpOpen || surface !== null || reward !== null || station !== null || welcome || settingsOpen || scan !== null;
+    loading || mapOpen || helpOpen || surface !== null || reward !== null || station !== null || welcome || settingsOpen || scan !== null || singularity;
   const cruising = !loading && !mapOpen && surface === null && station === null && !photo && !unsupported;
   // Where the visitor is, for the Galactic Event Director, and when it must keep quiet: any
   // transition, cinematic or game, the photo mode, and always the recruiter's record.
@@ -594,7 +599,10 @@ export default function Experience() {
     : ground
       ? ground.name === "Coruscant" ? "coruscant" : ground.name === "Tatooine" ? "tatooine" : ground.name === "Hoth" ? "hoth" : ground.name === "Endor" ? "endor" : null
       : "space";
-  const eventsBlocked = loading || welcome || travel || jumping || reward !== null || transmission !== null || photo || mapOpen || helpOpen || settingsOpen || station === "recruiter" || unsupported;
+  const eventsBlocked = loading || welcome || travel || jumping || reward !== null || transmission !== null || photo || mapOpen || helpOpen || settingsOpen || station === "recruiter" || unsupported || singularity;
+  // This gate comes from the actual scene state. SpaceScene checks it again alongside
+  // the live flight, transition and WebGL state before accepting the last Konami key.
+  const singularityEligible = ready && !eventsBlocked && surface === null && station === null && !taxi && !combat && !scan && !toasts.length && !ceremonies.length;
   return (
     <main
       aria-busy={loading}
@@ -622,9 +630,12 @@ export default function Experience() {
           fov: photo ? photoFov : null,
           captureKey,
           skipKey,
+          singularityEligible,
+          singularitySound: sound && !combat,
         }}
         onPerformance={onPerformance}
         onCapture={onCapture}
+        onSingularity={setSingularity}
         onSelect={launch}
         onFlight={onFlight}
         onApproachComplete={completeApproach}
@@ -666,7 +677,7 @@ export default function Experience() {
       </h1>
       <header
         className="header"
-        inert={loading || mapOpen || station !== null}
+        inert={loading || mapOpen || station !== null || singularity}
         style={mapOpen || station ? { visibility: "hidden" } : undefined}
       >
         {/* Left: where to go. Right: the record for recruiters, then the ship's systems. */}
@@ -1020,12 +1031,12 @@ export default function Experience() {
           />
         )}
       </AnimatePresence>
-      <GalaxyLayer place={eventPlace} blocked={eventsBlocked} sound={sound && !combat} reduced={reduced} />
+      <GalaxyLayer place={eventPlace} blocked={eventsBlocked} suspended={singularity} sound={sound && !combat && !singularity} reduced={reduced} />
       {livingOn("droid") && (
         <DroidLayer
           visible={cruising && !welcome && !jumping && !taxi && reward === null && transmission === null}
           reduced={reduced}
-          sound={sound && !combat}
+          sound={sound && !combat && !singularity}
           quality={quality}
           openSignal={droidSignal}
           onEnableSound={toggleSound}

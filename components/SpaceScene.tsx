@@ -14,6 +14,8 @@ import { livingProfile } from "./galaxy/quality";
 import { createSpaceEvents } from "./galaxy/spaceEvents";
 import { galaxy } from "./galaxy/store";
 import { createApproachFlight } from "./approachFlight";
+import { createEventHorizon } from "./eventHorizon/createEventHorizon";
+import { isTextEntry } from "./eventHorizon/konami";
 import { ORBITAL_BODIES, SYSTEM_CENTER, SYSTEM_ORBITS, DEBRIS_ORBIT, HOME_CAMERA_Z, FLIGHT_SPEED, orbitalPoint, homeCameraZ } from "./orbitalSystem";
 export type FlightState = {
   flying: boolean;
@@ -36,6 +38,8 @@ export type FlightState = {
   // Changing these keys asks for a capture of the frame, or ends the approach flight at once.
   captureKey: number;
   skipKey: number;
+  singularityEligible: boolean;
+  singularitySound: boolean;
 };
 export type FlightTelemetry = {
   throttle: number;
@@ -58,6 +62,7 @@ type Props = {
   // Average frame rate over the last few seconds of drawing, for the automatic graphics profile.
   onPerformance?: (fps: number) => void;
   onCapture?: (image: Blob | null) => void;
+  onSingularity?: (active: boolean) => void;
 };
 function random(seed: number) {
   let s = seed;
@@ -327,6 +332,7 @@ export default function SpaceScene({
   onUnsupported,
   onPerformance,
   onCapture,
+  onSingularity,
 }: Props) {
   const mount = useRef<HTMLDivElement>(null),
     live = useRef(state);
@@ -343,6 +349,8 @@ export default function SpaceScene({
     hyperspaceCallback = useRef(onHyperspace),
     performanceCallback = useRef(onPerformance),
     captureCallback = useRef(onCapture);
+  const singularityCallback = useRef(onSingularity);
+  singularityCallback.current = onSingularity;
   performanceCallback.current = onPerformance;
   captureCallback.current = onCapture;
   flightCallback.current = onFlight;
@@ -375,6 +383,7 @@ export default function SpaceScene({
     renderer.toneMappingExposure = 1.25;
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
+    let horizon: ReturnType<typeof createEventHorizon> | null = null;
     scene.fog = new THREE.FogExp2(0x080d0d, 0.0025);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 650);
     camera.position.set(0, 0, HOME_CAMERA_Z);
@@ -462,6 +471,7 @@ export default function SpaceScene({
         .then(() => {
           if (disposed) return;
           onReady();
+          horizon?.prepare();
           // The ships of the galactic events, while nothing else is going on.
           spaceEventsRef.current?.prepare(renderer, camera, scene);
         });
@@ -696,7 +706,8 @@ export default function SpaceScene({
       baseZ = HOME_CAMERA_Z,
       lastReset = state.resetKey;
     const keydown = (e: KeyboardEvent) => {
-      if (live.current.paused || live.current.travel) return;
+      if (live.current.paused || live.current.hidden || live.current.travel || horizon?.active ||
+        e.composedPath().some(isTextEntry)) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key))
         e.preventDefault();
       keys.add(e.key.toLowerCase());
@@ -767,10 +778,10 @@ export default function SpaceScene({
       // Resizing clears the canvas: draw again even when nothing moves.
       dirtyFrames = Math.max(dirtyFrames, 2);
       camera.aspect = w / h;
-      camera.fov = w / h < 0.8 ? 52 : 50;
+      if (!horizon?.active) camera.fov = w / h < 0.8 ? 52 : 50;
       // Fit the compressed orbital system in landscape and portrait alike.
-      const nextZ = homeCameraZ(camera.aspect, camera.fov);
-      camera.position.z += nextZ - baseZ;
+      const nextZ = homeCameraZ(camera.aspect, w / h < 0.8 ? 52 : 50);
+      if (!horizon?.active) camera.position.z += nextZ - baseZ;
       baseZ = nextZ;
       camera.updateProjectionMatrix();
       // Preserve the foreground framing in portrait without clipping the wings.
@@ -821,7 +832,23 @@ export default function SpaceScene({
       workTime = 0,
       firstFrameAt = 0,
       slowWindows = 0;
+    horizon = createEventHorizon({
+      scene, camera, renderer, host: el, state: () => live.current,
+      onActive: (active) => singularityCallback.current?.(active),
+      releaseControls: blur,
+    });
     const animate = (now: number) => {
+      horizon?.observeEligibility();
+      // Freeze the actual flight clock and every simulation variable. The cinematic owns
+      // the same renderer and camera until it restores their captured state.
+      if (horizon?.active) {
+        last = now;
+        lastDrawn = now;
+        horizon.tick(now);
+        dirtyFrames = 4;
+        frame = requestAnimationFrame(animate);
+        return;
+      }
       // The software profile draws about fifteen frames a second; the time step follows, so the
       // flight keeps its speed.
       if (profile.frameInterval && now - lastDrawn < profile.frameInterval) {
@@ -1296,6 +1323,8 @@ export default function SpaceScene({
     };
     frame = requestAnimationFrame(animate);
     return () => {
+      horizon?.dispose();
+      horizon = null;
       spaceEventsRef.current?.stop();
       spaceEventsRef.current = null;
       stopTint();
