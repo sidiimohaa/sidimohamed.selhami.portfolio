@@ -872,10 +872,11 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
   const streaks = createStreaks(pixelRatio);
   const tunnel = createTunnel();
   let destination = SUPERCLUSTERS[0];
-  let cluster = createSupercluster(pixelRatio, destination);
+  // Built only when the code is typed: sixteen thousand galaxies would slow the cockpit's opening.
+  let cluster: ReturnType<typeof createSupercluster> | null = null;
   const alarmLight = new THREE.PointLight(0xff2a14, 0, 9, 1.6);
   alarmLight.position.set(0, 2.4, 0.6);
-  group.add(radar.mesh, stick.group, lamps.mesh, streaks.mesh, tunnel.mesh, cluster.group, alarmLight);
+  group.add(radar.mesh, stick.group, lamps.mesh, streaks.mesh, tunnel.mesh, alarmLight);
   const audio = createWarpAudio();
   let progress = 0,
     phase: WarpPhase = "idle",
@@ -907,8 +908,10 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
         if (progress === KONAMI.length) {
           // Where this jump comes out: a new supercluster, built now, before the flash.
           destination = nextSupercluster();
-          group.remove(cluster.group);
-          cluster.dispose();
+          if (cluster) {
+            group.remove(cluster.group);
+            cluster.dispose();
+          }
           cluster = createSupercluster(pixelRatio, destination);
           group.add(cluster.group);
           setPhase("alert");
@@ -1002,10 +1005,12 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
       tunnel.uniforms.time.value = age;
       tunnel.uniforms.opacity.value = tube;
       tunnel.mesh.visible = tube > 0.001;
-      cluster.uniforms.opacity.value = clusterLevel;
-      cluster.skyUniforms.opacity.value = clusterLevel;
-      cluster.uniforms.time.value = age;
-      cluster.group.visible = clusterLevel > 0.001;
+      if (cluster) {
+        cluster.uniforms.opacity.value = clusterLevel;
+        cluster.skyUniforms.opacity.value = clusterLevel;
+        cluster.uniforms.time.value = age;
+        cluster.group.visible = clusterLevel > 0.001;
+      }
       radar.uniforms.progress.value = phase === "idle" ? progress : KONAMI.length;
       radar.uniforms.alarm.value = frame.alert;
       lamps.tick(phase === "idle" ? progress : 0, frame.alert, age, reduced);
@@ -1017,7 +1022,7 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
     },
     dispose() {
       audio.dispose();
-      cluster.dispose();
+      cluster?.dispose();
       radar.uniforms.map.value.dispose();
     },
   };

@@ -327,6 +327,8 @@ export default function CockpitMap({
     const systems = createCockpitSystems();
     cockpit.add(systems.group);
     const projection = createCockpitProjection();
+    // Switched off until the lever strikes it: the projection's own power starts at 1.
+    projection.setPower(0);
     const stars = createStarfield(renderer.getPixelRatio());
     const pilotEye = new THREE.Vector3(0, 1.55, 2.9);
     const logConsole = createFlightLogConsole(pilotEye);
@@ -576,7 +578,9 @@ export default function CockpitMap({
       button.style.transform = `translate(${x - w / 2}px,${y - h / 2}px)`;
     };
     const animate = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
+      // The first frame's timestamp can come before the end of this setup: a negative step would
+      // run the hologram's switch-off backwards and flash the whole map on at entry.
+      const dt = THREE.MathUtils.clamp((now - last) / 1000, 0, 0.05);
       last = now;
       // The speeder race draws its own forest: the cockpit rests underneath.
       if (live.current.arcadeGame === "speeder-racing" || live.current.arcadeGame === "podracing") {
