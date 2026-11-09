@@ -69,6 +69,7 @@ function panelFor(id: string): { id: PanelId; focus?: string } | null {
   if (id === "projects") return { id: "projects" };
   if (id === "proj-orbital") return { id: "projects", focus: "orbital" };
   if (id === "proj-passions") return { id: "projects", focus: "passions" };
+  if (id === "proj-scryptorium") return { id: "projects", focus: "scryptorium" };
   if (id === "restreint") return { id: "code" };
   if (id === "maintenance") return { id: "transmission" };
   if (id === "vader") return { id: "vader" };

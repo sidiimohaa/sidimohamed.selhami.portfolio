@@ -1023,6 +1023,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
       { text: "POSTE DE COMMANDEMENT · PROJETS", size: 40, color: "#7fc8ff" },
       { text: "ORBITAL — portfolio 3D Star Wars", size: 64 },
       { text: "Mes passions — présentation interactive", size: 52 },
+      { text: "SCRYPTORIUM — bibliothèque vivante", size: 52 },
       { text: "Sélectionnez une console pour examiner un projet", size: 34, color: "#9fd6ff" },
     ],
     20,
@@ -1047,8 +1048,9 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     interact(id, label, "command", x, 1.3, -50, 3.2, screenMesh);
     block(x, -50.5, 1.4);
   };
-  projectConsole("proj-orbital", "Examiner le projet ORBITAL", "ORBITAL", 98);
-  projectConsole("proj-passions", "Examiner « Mes passions »", "MES PASSIONS", 106);
+  projectConsole("proj-orbital", "Examiner le projet ORBITAL", "ORBITAL", 96);
+  projectConsole("proj-passions", "Examiner « Mes passions »", "MES PASSIONS", 102);
+  projectConsole("proj-scryptorium", "Examiner le Scryptorium", "SCRYPTORIUM", 108);
   kit.cylinder(trim, 2.3, 2.5, 1.0, 102, 0.5, -42.5, 48);
   const galaxy = new THREE.Group();
   galaxy.position.set(102, 2.7, -42.5);

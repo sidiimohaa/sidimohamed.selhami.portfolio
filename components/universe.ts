@@ -259,7 +259,7 @@ export const landings: Partial<Record<string, Landing>> = {
       status: item.status === "En cours" ? ("progress" as const) : ("done" as const),
     })),
   },
-  // Tatooine présente les projets : ORBITAL et deux de ses modules, puis « Mes passions ».
+  // Tatooine présente les projets : ORBITAL et deux de ses modules, « Mes passions », puis le Scryptorium.
   Tatooine: {
     pad: "BAIE D’AMARRAGE 94 · MOS EISLEY",
     welcome:
@@ -294,6 +294,14 @@ export const landings: Partial<Record<string, Landing>> = {
         body: projects[1].solution,
         meta: "Création numérique · HTML, CSS, JavaScript",
         links: projects[1].link ? [projects[1].link] : undefined,
+      },
+      {
+        id: "scryptorium",
+        label: "Scryptorium",
+        heading: projects[2].title,
+        body: "Une bibliothèque vivante : on pousse les portes d’une salle de lecture, ou l’on parcourt le catalogue de mes lectures, classées par rayonnage et par statut, avec un livre du jour.",
+        meta: "Création numérique · Next.js, React, TypeScript · 2026",
+        links: projects[2].link ? [projects[2].link] : undefined,
       },
     ],
   },

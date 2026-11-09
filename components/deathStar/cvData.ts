@@ -312,6 +312,18 @@ export const projects: Project[] = [
     result: "Consultable dans le portfolio, sur Endor, et ici.",
     link: { label: "Ouvrir la présentation", href: "/passions/index.html" },
   },
+  {
+    id: "scryptorium",
+    title: "SCRYPTORIUM — bibliothèque vivante",
+    kind: "Projet numérique · prototypage assisté par IA",
+    goal: "Tenir le registre de mes lectures dans un lieu qui donne envie d’y revenir.",
+    problem: "Une liste de livres lus reste froide et ne dit rien du plaisir de lire.",
+    solution: "Une bibliothèque en ligne : on pousse les portes d’une salle de lecture, ou l’on consulte un catalogue filtrable par rayonnage et par statut de lecture, avec un livre du jour.",
+    stack: ["Next.js", "React", "TypeScript", "Assistants de code IA"],
+    contribution: "Concept, direction artistique, choix des ouvrages et rédaction des fiches, tests et validation.",
+    result: "Une bibliothèque en ligne de dix-huit ouvrages, consultable sur ordinateur et sur téléphone.",
+    link: { label: "Visiter le Scryptorium", href: "https://scryptorium-alpha.vercel.app" },
+  },
 ];
 
 export const languages = ["Français", "Anglais", "Arabe", "Espagnol"];

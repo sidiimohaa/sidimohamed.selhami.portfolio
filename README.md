@@ -96,7 +96,7 @@ La skyline s'inspire de la référence conservée dans `references/coruscant/sky
 
 - En orbite de Tatooine, « Atterrir » (ou E) pose le X-wing dans la baie d'amarrage 94 de Mos Eisley : un cercle de sable tassé entouré d'un mur d'adobe, avec un grand portail par lequel on voit les deux soleils se coucher sur les dunes.
 - Autour : village de dômes et de tours, évaporateurs d'humidité, dunes et mesas dans la brume. Le vent souffle des bouffées de sable sur le sol de la baie et l'ambiance sonore est celle du désert.
-- Chaque terminal présente un projet (titre, ligne « rôle · technos · année », description, liens). Les quatre projets sont réels : ORBITAL, ses modules Galactic Arcade et Étoile de la Mort, et la présentation « Mes passions » (`landings.Tatooine` de `components/universe.ts`).
+- Chaque terminal présente un projet (titre, ligne « rôle · technos · année », description, liens). Les cinq projets sont réels : ORBITAL, ses modules Galactic Arcade et Étoile de la Mort, la présentation « Mes passions » et la bibliothèque en ligne SCRYPTORIUM (https://scryptorium-alpha.vercel.app) (`landings.Tatooine` de `components/universe.ts`).
 - « Mos Eisley » mène dans la rue du quartier. À la sortie de la baie, un plan holographique montre le quartier et la position du visiteur en direct (`tatooineMap.ts`).
 - Scènes de rue (`tatooineStreetLife.ts`) : des Jawas marchandent un droïde avec un fermier, des sandtroopers contrôlent une voyageuse derrière une barrière et un scanner, un sandtrooper patrouille à dos de lézard au bout de la rue, et un troupeau traverse une dune au loin.
 - Les soldats impériaux (`stormtrooperModel.ts`) reprennent le casque classique : deux oculaires noirs, joues évasées, grille et aérateurs. Plastron galbé, plaques articulées, ceinture à cartouches, blaster E-11 et sacs de terrain détaillés remplacent les volumes simples ; l'officier conserve son épaulette orange. La marche, le contrôle au scanner, la pose du cavalier et le mouvement réduit utilisent le même modèle.
@@ -172,7 +172,7 @@ En orbite de l’Étoile de la Mort, la transmission propose **Accoster la stati
 - **Archives** : un terminal par expérience (Bricoman/Tecnomat, Aldi) et une synthèse du parcours.
 - **Centre de formation** : table holographique et frise des diplômes, du Bac STMG au Bachelor 3 INSEEC.
 - **Salle des compétences** : arbre holographique en six branches ; chaque nœud distingue compétence confirmée, en développement et domaine d’intérêt, avec son contexte et ses preuves.
-- **Salle de commandement** (par ascenseur) : grand écran, consoles par projet (ORBITAL, « Mes passions »).
+- **Salle de commandement** (par ascenseur) : grand écran, consoles par projet (ORBITAL, « Mes passions », SCRYPTORIUM).
 - **Archives confidentielles** (depuis le hangar) : le CV complet, téléchargement, LinkedIn, e-mail, retour à la galaxie.
 
 Quatre présences impériales se rencontrent dans la station (`imperialRoster.ts`) : le général Grievous au hangar, le comte Dooku aux archives, Dark Maul au centre de formation et Palpatine, entre deux gardes royaux, en salle de commandement. Le plan les liste sous « Présences impériales ». Chacun a son easter egg à l’interaction, avant sa fiche : Palpatine lance des éclairs de Force sur le visiteur, Grievous fait tournoyer ses quatre sabres puis tousse, Maul fait tourner son sabre double, Dooku adresse le salut des duellistes, et Dark Vador, devant la baie, se retourne et étrangle le visiteur par la Force (vue soulevée, vignette rouge, respiration). Les effets restent sobres avec le mouvement réduit.
