@@ -732,7 +732,8 @@
 .holo-fragments {
   position: absolute;
   left: 50%;
-  top: 92px;
+  /* Just under the overhead screen, which sits about 14% down the view whatever its height. */
+  top: max(92px, 15.5vh);
   margin: 0;
   color: #8fd6f4;
   font-size: 9px;
@@ -764,7 +765,7 @@
     letter-spacing: -0.2px;
   }
   .holo-fragments {
-    top: 112px;
+    top: max(112px, 19vh);
   }
   .holo-piece-note {
     top: 132px;

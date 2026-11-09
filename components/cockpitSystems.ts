@@ -247,8 +247,9 @@ export function createCockpitSystems() {
     box(brass, 0.19, 0.34, 0.022, sign * 2.19, 1.05, -0.65, 0, 0, -sign * 0.21);
     for (const dy of [-0.12, 0.12]) bolt(sign * 2.19, 1.05 + dy, -0.629);
   }
-  // A wide overhead diagnostic display, high enough not to obscure the window or the planets.
-  screen(1.5, 0.27, 0, 3.0, -1.13, 2, 0.05);
+  // A wide overhead diagnostic display, high enough not to obscure the window or the planets, and
+  // narrow enough to sit between the two shoulder bays (their inner faces are at x = ±0.70).
+  screen(1.2, 0.3, 0, 3.02, -1.13, 2, 0.05);
   // Small inspection lamps light their mounting recesses, not the entire cockpit.
   for (const sign of [-1, 1]) {
     box(black, 0.38, 0.11, 0.13, sign * 1.91, 1.22, -1.33);

@@ -110,7 +110,7 @@ function createRadarCode() {
 // The overhead diagnostic display (cockpitSystems): same size and placement. While the code is on
 // it, the screen becomes a blue tactical display: a star scope in the middle, navigation widgets on
 // the left, and on the right a framed access code in one line, keys lighting up as they are typed.
-const OVERHEAD = { w: 1.5, h: 0.27, x: 0, y: 3.0, z: -1.13 + 0.04, rx: 0.05 };
+const OVERHEAD = { w: 1.2, h: 0.3, x: 0, y: 3.02, z: -1.13 + 0.04, rx: 0.05 };
 
 function createOverheadCode() {
   const canvas = document.createElement("canvas");
@@ -146,12 +146,13 @@ function createOverheadCode() {
     g.globalCompositeOperation = "lighter";
     g.shadowColor = ink(0.9);
     g.lineCap = "round";
-    // The frame: a bright edge with cut corners and accent bars, as on the reference consoles.
-    const m = 8,
-      cut = 18;
-    g.shadowBlur = 10;
+    // The frame: a bright edge with cut corners and accent bars, as on the reference consoles. It
+    // stays well inside the canvas so that neither the line nor its glow is clipped.
+    const m = 22,
+      cut = 30;
+    g.shadowBlur = 12;
     g.strokeStyle = ink(0.85);
-    g.lineWidth = 3;
+    g.lineWidth = 4;
     g.beginPath();
     g.moveTo(m + cut, m);
     g.lineTo(W - m - cut, m);
@@ -164,13 +165,18 @@ function createOverheadCode() {
     g.closePath();
     g.stroke();
     g.fillStyle = ink(0.8);
-    g.fillRect(m + 40, m + 6, 150, 6);
-    g.fillRect(W - m - 190, H - m - 12, 150, 6);
+    g.fillRect(m + 50, m + 10, 170, 7);
+    g.fillRect(W - m - 220, H - m - 17, 170, 7);
+    // A second, fainter inner line, as a bevel.
+    g.shadowBlur = 0;
+    g.strokeStyle = ink(0.22);
+    g.lineWidth = 2;
+    g.strokeRect(m + 12, m + 12, W - 2 * m - 24, H - 2 * m - 24);
 
     // Centre: the star scope.
     const cx = W / 2,
       cy = H / 2,
-      R = H * 0.4;
+      R = H * 0.36;
     g.shadowBlur = 8;
     g.lineWidth = 2;
     for (const k of [1, 0.66, 0.33]) {
@@ -223,13 +229,13 @@ function createOverheadCode() {
     const lx = W * 0.05,
       lw = W * 0.33;
     g.shadowBlur = 6;
-    g.font = "600 15px ui-monospace, Menlo, monospace";
+    g.font = `600 ${Math.round(H * 0.06)}px ui-monospace, Menlo, monospace`;
     g.fillStyle = ink(0.75);
     g.fillText("NAVIGATION · T-65", lx, H * 0.27);
     // A half gauge with a wandering needle.
-    const gx = lx + 70,
-      gy = H * 0.82,
-      gr = H * 0.36;
+    const gr = H * 0.3,
+      gx = lx + gr + 12,
+      gy = H * 0.8;
     g.lineWidth = 7;
     g.strokeStyle = ink(0.25);
     g.beginPath();
@@ -241,8 +247,8 @@ function createOverheadCode() {
     g.arc(gx, gy, gr, Math.PI, Math.PI + Math.PI * level);
     g.stroke();
     // Bar rows.
-    const bx = lx + 170,
-      bw = lw - 190;
+    const bx = gx + gr + 34,
+      bw = lx + lw - bx - 10;
     rows.forEach((row, i) => {
       const y = H * (0.36 + i * 0.13);
       const v = Math.min(1, Math.max(0.1, row.base + 0.2 * Math.sin(t * row.speed + row.phase)));
@@ -258,8 +264,8 @@ function createOverheadCode() {
     });
 
     // Right: the access code, one line, in a frame.
-    const rx = W * 0.6,
-      rw = W * 0.35,
+    const rx = W * 0.62,
+      rw = W * 0.33,
       top = H * 0.36,
       bh = H * 0.42;
     g.fillStyle = ink(0.75);
@@ -277,7 +283,7 @@ function createOverheadCode() {
       g.shadowBlur = typed ? 14 : 4;
       g.fillStyle = typed && alarm === 0 ? `rgba(220,240,255,${a})` : ink(a);
       if (key === "a" || key === "b") {
-        g.font = "700 34px ui-monospace, Menlo, monospace";
+        g.font = `700 ${Math.round(H * 0.11)}px ui-monospace, Menlo, monospace`;
         g.textAlign = "center";
         g.textBaseline = "middle";
         g.fillText(key.toUpperCase(), x, y + 2);
@@ -286,7 +292,7 @@ function createOverheadCode() {
         return;
       }
       const angle = { ArrowUp: -Math.PI / 2, ArrowDown: Math.PI / 2, ArrowLeft: Math.PI, ArrowRight: 0 }[key] ?? 0;
-      const s = 13;
+      const s = H * 0.045;
       g.save();
       g.translate(x, y);
       g.rotate(angle);
@@ -298,7 +304,7 @@ function createOverheadCode() {
       g.fill();
       g.restore();
     });
-    g.font = "600 15px ui-monospace, Menlo, monospace";
+    g.font = `600 ${Math.round(H * 0.06)}px ui-monospace, Menlo, monospace`;
     // A segmented gauge of the progress under the code.
     for (let i = 0; i < KONAMI.length; i++) {
       g.shadowBlur = i < progress ? 8 : 0;
