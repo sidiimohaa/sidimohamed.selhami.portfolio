@@ -60,8 +60,6 @@ const ease = (t: number) => {
   const k = THREE.MathUtils.clamp(t, 0, 1);
   return k * k * (3 - 2 * k);
 };
-const easeOut = (t: number) =>
-  1 - Math.pow(1 - THREE.MathUtils.clamp(t, 0, 1), 3);
 const shortest = (angle: number) =>
   Math.atan2(Math.sin(angle), Math.cos(angle));
 

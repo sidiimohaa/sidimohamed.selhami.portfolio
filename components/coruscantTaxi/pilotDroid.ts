@@ -111,8 +111,8 @@ export function createPilotDroid(grip: THREE.Vector3) {
   // Status lamps set into the back.
   const lampOn = new THREE.MeshBasicMaterial({ color: 0x57ff9a, toneMapped: false });
   const lampAmber = new THREE.MeshBasicMaterial({ color: 0xffb35c, toneMapped: false });
-  const lampA = part(group, new THREE.SphereGeometry(0.009, 8, 6), lampOn, [-0.04, 0.42, -0.112]);
-  const lampB = part(group, new THREE.SphereGeometry(0.009, 8, 6), lampAmber, [0.04, 0.42, -0.112]);
+  part(group, new THREE.SphereGeometry(0.009, 8, 6), lampOn, [-0.04, 0.42, -0.112]);
+  part(group, new THREE.SphereGeometry(0.009, 8, 6), lampAmber, [0.04, 0.42, -0.112]);
 
   // A ribbed neck with cables that can twist as far as the head needs to turn.
   const neck = new THREE.Group();

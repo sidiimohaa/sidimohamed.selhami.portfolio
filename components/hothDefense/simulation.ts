@@ -10,7 +10,6 @@ const offsets: Record<WeakpointId, Vec3> = {
   weapons: [0, 15.1 * BOSS_SCALE, 13.2 * BOSS_SCALE], command: [0, 16.25 * BOSS_SCALE, 8.05 * BOSS_SCALE],
 };
 const copy = (p: Vec3): Vec3 => [p[0], p[1], p[2]];
-const distance = (a: Vec3, b: Vec3) => Math.hypot(a[0]-b[0], a[1]-b[1], a[2]-b[2]);
 /** Fraction of a swept segment entering a sphere. Tests the whole path, so fast bolts cannot tunnel. */
 function sweep(a: Vec3, b: Vec3, c: Vec3, r: number) {
   const x=b[0]-a[0],y=b[1]-a[1],z=b[2]-a[2],u=a[0]-c[0],v=a[1]-c[1],w=a[2]-c[2];

@@ -3,7 +3,7 @@ import { createATAT } from "../atatModel";
 import { createProbeDroid } from "../probeDroid";
 import { createSandtrooper } from "../stormtrooperModel";
 import { bakePart, part, rounded } from "../tatooineCharacters";
-import type { DefenseEnemy, DefenseEvent, DefenseState, EnemyKind } from "./types";
+import type { DefenseEvent, DefenseState, EnemyKind } from "./types";
 import { BOSS_SCALE } from "./simulation";
 import { ATAT_SCALE } from "../atatModel";
 

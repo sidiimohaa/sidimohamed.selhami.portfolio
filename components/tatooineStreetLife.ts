@@ -10,10 +10,6 @@ import { bakePart, createSandtrooper, part, rounded } from "./tatooineCharacters
 type Spot = { u: number; v: number; r: number };
 type Robed = { root: THREE.Group; head: THREE.Group; arms: THREE.Group[]; elbows: THREE.Group[]; rest: { shoulder: number; elbow: number } };
 
-const ease = (from: number, to: number, value: number) => {
-  const t = THREE.MathUtils.clamp((value - from) / (to - from), 0, 1);
-  return t * t * (3 - 2 * t);
-};
 const toward = (current: number, target: number, dt: number, rate = 6) =>
   current + (target - current) * (1 - Math.exp(-dt * rate));
 

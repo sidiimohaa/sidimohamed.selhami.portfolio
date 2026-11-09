@@ -119,7 +119,6 @@ export function createVaderChamber(glow: THREE.Texture) {
   const black = new THREE.MeshStandardMaterial({ color: 0x101114, roughness: 0.42, metalness: 0.72 });
   const darker = new THREE.MeshStandardMaterial({ color: 0x08090b, roughness: 0.55, metalness: 0.6 });
   const shell = new THREE.MeshStandardMaterial({ color: 0x0b0c0f, roughness: 0.16, metalness: 0.55, side: THREE.DoubleSide });
-  const inner = new THREE.MeshStandardMaterial({ color: 0x4d5157, roughness: 0.7, metalness: 0.3, side: THREE.BackSide });
   const add = <T extends THREE.Object3D>(item: T, parent: THREE.Object3D = group) => {
     parent.add(item);
     return item;

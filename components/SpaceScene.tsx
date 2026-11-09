@@ -10,7 +10,6 @@ import { createSpaceDust, createStarLayers, createSun } from "./deepSpace";
 import { qualityProfiles, type QualityId } from "./graphicsQuality";
 import { createSpaceTraffic, type HyperspacePhase, type TrafficKind } from "./spaceTraffic";
 import { livingOn } from "./galaxy/flags";
-import { livingProfile } from "./galaxy/quality";
 import { createSpaceEvents } from "./galaxy/spaceEvents";
 import { galaxy } from "./galaxy/store";
 import { createApproachFlight } from "./approachFlight";

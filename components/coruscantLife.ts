@@ -182,8 +182,6 @@ export function createPadLife(options: {
   const group = new THREE.Group();
   const orange = new THREE.MeshStandardMaterial({ color: 0xc8692d, roughness: 0.6, metalness: 0.25 }),
     dark = new THREE.MeshStandardMaterial({ color: 0x2c3135, roughness: 0.55, metalness: 0.6 }),
-    visor = new THREE.MeshStandardMaterial({ color: 0x0d1215, roughness: 0.18, metalness: 0.85 }),
-    paint = new THREE.MeshStandardMaterial({ color: 0xd39b3c, roughness: 0.38, metalness: 0.45 }),
     hover = new THREE.MeshBasicMaterial({
       color: 0x7fd8ff,
       transparent: true,

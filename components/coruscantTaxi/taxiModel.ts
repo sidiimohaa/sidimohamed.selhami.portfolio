@@ -71,7 +71,6 @@ export function createAirTaxi(options: { glow?: THREE.Texture; holo?: boolean } 
     leather = new THREE.MeshStandardMaterial({ color: 0xa88d6c, metalness: 0.05, roughness: 0.72 }),
     piping = new THREE.MeshStandardMaterial({ color: 0x3f6f9a, metalness: 0.1, roughness: 0.6 }),
     cabin = new THREE.MeshStandardMaterial({ color: 0x1b1f24, metalness: 0.35, roughness: 0.6 }),
-    bronze = new THREE.MeshStandardMaterial({ color: 0xb37d3c, metalness: 0.75, roughness: 0.32 }),
     glass = new THREE.MeshStandardMaterial({ color: 0xbfe0ff, metalness: 0.9, roughness: 0.05, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }),
     amber = new THREE.MeshBasicMaterial({ color: 0xffb35c, toneMapped: false }),
     red = new THREE.MeshBasicMaterial({ color: 0xff3a2e, toneMapped: false }),

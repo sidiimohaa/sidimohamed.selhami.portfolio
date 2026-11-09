@@ -10,7 +10,7 @@ import { setCityHour } from "./cityEnv";
 import { placeNames, eventById, type EventChoice, type EventPlace, type GalacticEvent } from "./catalog";
 import type { DirectorNotice } from "./director";
 import { registerSignalMarker } from "./signalMarker";
-import { enabledPlace, galaxy, galaxyBusy, projectFor, setMonitorOpen, useGalaxy, useMonitorOpen } from "./store";
+import { enabledPlace, galaxyBusy, projectFor, setMonitorOpen, useGalaxy, useMonitorOpen } from "./store";
 
 // The interface of the living universe: the copilot's short notifications, and the Galactic
 // Activity Monitor. Both are ordinary HTML above the scenes, and neither ever blocks anything.

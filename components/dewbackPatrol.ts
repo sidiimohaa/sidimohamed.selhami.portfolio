@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { bakePart, createSandtrooper, part, pipe, rounded } from "./tatooineCharacters";
-type XYZ = [number, number, number];
 
 function scaleTexture() {
   const canvas=document.createElement("canvas");canvas.width=canvas.height=512;const c=canvas.getContext("2d")!;

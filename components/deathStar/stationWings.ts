@@ -77,7 +77,7 @@ function gunner(x: number, z: number, yaw: number) {
 
 export function createStationWings(ctx: WingsContext) {
   const { root, decor, kit, materials, room, passage, holoPanel, sign, interact, block, lightSlots, owned, doors, addFree, addSolid } = ctx;
-  const { wall, dark, trim, floor, strip, red, doorMat } = materials;
+  const { dark, trim, floor, strip, red, doorMat } = materials;
   const owns = <T extends THREE.Material>(material: T) => (owned.push(material), material);
 
   // --- Detention block AA-23, behind a locked door of the confidential archive. ---
