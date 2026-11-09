@@ -23,16 +23,13 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
   overlay.setAttribute("aria-label", "Event Horizon — cinématique secrète");
-  // Full screen and wordless: the image and the sound tell it. Only a discreet way out, and one
-  // line at the very end.
+  // Full screen and wordless: the image and the sound tell it. Only a discreet way out.
   overlay.innerHTML = `<div class="${styles.shade}" data-shade></div><div class="${styles.flash}" data-flash></div>
-    <button type="button" class="${styles.skip}" data-skip>PASSER · ÉCHAP</button>
-    <div class="${styles.caption}"><h2 class="${styles.message}" data-message aria-live="polite" aria-atomic="true"></h2></div>`;
+    <button type="button" class="${styles.skip}" data-skip>PASSER · ÉCHAP</button>`;
   root.appendChild(overlay);
   const skip = overlay.querySelector<HTMLButtonElement>("[data-skip]")!;
   const shade = overlay.querySelector<HTMLElement>("[data-shade]")!;
   const flash = overlay.querySelector<HTMLElement>("[data-flash]")!;
-  const message = overlay.querySelector<HTMLElement>("[data-message]")!;
   const hole = createBlackHole(state().quality === "lite" || state().quality === "eco");
   scene.add(hole.group);
   const pass = createGravityPass();
@@ -43,7 +40,7 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
   // How far ahead the singularity opens: 95 units, or just in front of a planet on that line, so
   // that it is never born hidden behind a world. Its size follows, to keep the same look.
   let reach = 95;
-  let running = false, disposed = false, began = 0, lastDraw = -Infinity, lastMessage = "";
+  let running = false, disposed = false, began = 0, lastDraw = -Infinity;
   let reduced = false;
   let previousFocus: HTMLElement | null = null;
   let interfaceSnapshot: ReturnType<typeof captureInterface> | null = null;
@@ -86,7 +83,7 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
     // The clock starts on the first frame, with the timestamp the frame loop hands over: a frame
     // timestamp and performance.now() can drift seconds apart, which skipped whole phases or
     // ended the cinematic on its first frame.
-    began = -1; lastDraw = -Infinity; lastMessage = "";
+    began = -1; lastDraw = -Infinity;
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     cameraSnapshot = { position: camera.position.clone(), rotation: camera.quaternion.clone(), fov: camera.fov, zoom: camera.zoom };
     ahead.set(0, 1.5, -95).normalize().applyQuaternion(cameraSnapshot.rotation);
@@ -208,7 +205,6 @@ export function createEventHorizon({ scene, camera, renderer, host, state, onAct
         renderer.copyFramebufferToTexture(pass.frame(size.x, size.y));
         renderer.render(pass.scene, pass.camera);
         overlay.dataset.phase = frame.phase;
-        if (lastMessage !== frame.message) { message.textContent = frame.message; lastMessage = frame.message; }
         shade.style.opacity = String(frame.blackout);
         flash.style.opacity = String(frame.flash);
         audio?.update(frame);

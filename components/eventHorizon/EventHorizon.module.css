@@ -14,14 +14,6 @@
   font: inherit; font-size: 9px; letter-spacing: .14em; cursor: pointer;
 }
 .skip:hover, .skip:focus-visible { color: #fff; border-color: #fff; outline: 2px solid #d8a571; outline-offset: 4px; }
-.caption { position: absolute; left: 6vw; right: 6vw; bottom: 16vh; text-align: center; z-index: 5; text-shadow: 0 2px 20px #000; pointer-events: none; }
-.message { font-size: clamp(11px, 1.3vw, 17px); letter-spacing: .3em; line-height: 1.8; margin: 0; min-height: 2em; font-weight: 400; color: #e3f2ed; }
-.message:not(:empty) { animation: horizon-line 1.2s ease-out both; }
-@keyframes horizon-line { from { opacity: 0; letter-spacing: .5em; } to { opacity: 1; letter-spacing: .3em; } }
 @media (max-width: 600px) {
   .skip { bottom: 14px; left: 14px; font-size: 8px; padding: 8px 10px; }
-  .message { letter-spacing: .16em; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .message:not(:empty) { animation: none; }
 }

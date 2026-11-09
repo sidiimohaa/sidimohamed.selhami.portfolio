@@ -6,7 +6,7 @@ require.extensions[".ts"] = (module, file) => module._compile(ts.transpileModule
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, file);
 const { createKonami } = require("../components/eventHorizon/konami.ts");
-const { horizonFrame, HORIZON_END_LINE } = require("../components/eventHorizon/timeline.ts");
+const { horizonFrame } = require("../components/eventHorizon/timeline.ts");
 const { captureWorld } = require("../components/eventHorizon/worldGravity.ts");
 const code = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "B", "A"];
 const type = (detector, keys, eligible = true, start = 0) => keys.map((key, i) => detector.feed(key, start + i * 100, eligible));
@@ -30,9 +30,6 @@ for (const reduced of [false, true]) {
   assert.equal(horizonFrame(0, reduced).phase, "anomaly");
   assert.equal(horizonFrame(voidAt, reduced).phase, "void");
   assert.equal(horizonFrame(rebirthAt, reduced).phase, "rebirth");
-  // Wordless until the very end, then a single line.
-  for (let t = 0; t < end - 2.6; t += 0.05) assert.equal(horizonFrame(t, reduced).message, "", `silent caption at ${t}`);
-  assert.equal(horizonFrame(end - 0.5, reduced).message, HORIZON_END_LINE);
   assert.equal(horizonFrame(end, reduced).done, true);
   assert.equal(horizonFrame(end, reduced).collapse, 0);
   for (let t = 0; t <= end; t += 0.01) {
