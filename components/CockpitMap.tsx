@@ -30,6 +30,7 @@ import { MUSTAFAR } from "./cockpitProjection";
 import { createCockpitSystems } from "./cockpitSystems";
 import { createCockpitProjection } from "./cockpitProjection";
 import { createMissionConsole } from "./cockpitMissionConsole";
+import { createCockpitConsole } from "./cockpitConsole";
 import { createCockpitKonami, SUPERCLUSTERS, type Supercluster, type WarpPhase } from "./cockpitKonami";
 import { CockpitMissionTerminal } from "./jedi/JediArchives";
 import { holoMatrix } from "./jedi/holoProjection";
@@ -326,6 +327,8 @@ export default function CockpitMap({
     const cockpit = createCockpitModel();
     const systems = createCockpitSystems();
     cockpit.add(systems.group);
+    const deck = createCockpitConsole();
+    cockpit.add(deck.group);
     const projection = createCockpitProjection();
     // Switched off until the lever strikes it: the projection's own power starts at 1.
     projection.setPower(0);
@@ -668,6 +671,7 @@ export default function CockpitMap({
         }
         stars.points.visible = !warpFrame.away;
       }
+      deck.tick(age, warpFrame.alert, live.current.reduced);
       sky.intensity = 1.5 * (1 - 0.6 * warpFrame.alert);
       key.intensity = 2.6 * (1 - 0.65 * warpFrame.alert);
       if (warpAlert.current) warpAlert.current.style.opacity = String(warpFrame.alert);

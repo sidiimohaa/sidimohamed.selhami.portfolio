@@ -2,7 +2,8 @@ import * as THREE from "three";
 
 // The cockpit's hidden code: ↑ ↑ ↓ ↓ ← → ← → B A.
 // The radar shows it to whoever watches the sweep: ten faint contacts on its outer ring, which glow
-// for a moment each time the beam passes over them. Every right key lights a dashboard button and
+// for a moment each time the beam passes over them; the overhead screen, a blue tactical display,
+// frames it in one line, the keys lighting up as they are typed. Every right key lights a dashboard button and
 // moves the flight stick. The whole code sounds the red alert, then the X-wing makes an unplanned
 // jump to hyperspace and comes out in intergalactic space, facing a real supercluster (a different
 // one at each jump).
@@ -104,6 +105,232 @@ function createRadarCode() {
   mesh.translateZ(0.003);
   mesh.renderOrder = 2;
   return { mesh, uniforms };
+}
+
+// The overhead diagnostic display (cockpitSystems): same size and placement. While the code is on
+// it, the screen becomes a blue tactical display: a star scope in the middle, navigation widgets on
+// the left, and on the right a framed access code in one line, keys lighting up as they are typed.
+const OVERHEAD = { w: 1.5, h: 0.27, x: 0, y: 3.0, z: -1.13 + 0.04, rx: 0.05 };
+
+function createOverheadCode() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1536;
+  canvas.height = Math.round((1536 * OVERHEAD.h) / OVERHEAD.w);
+  const g = canvas.getContext("2d")!;
+  const W = canvas.width,
+    H = canvas.height;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const rand = seeded(77);
+  // Stars of the scope, in polar coordinates, and the rows of the side widgets.
+  const stars = Array.from({ length: 70 }, () => ({ a: rand() * Math.PI * 2, r: Math.sqrt(rand()) * 0.92, s: 0.6 + rand() * 1.4, p: rand() }));
+  const rows = Array.from({ length: 4 }, () => ({ base: 0.35 + rand() * 0.4, speed: 0.4 + rand() * 0.9, phase: rand() * 6 }));
+  const lines = Array.from({ length: 6 }, () => 0.35 + rand() * 0.6);
+
+  const draw = (t: number, progress: number, alarm: number) => {
+    const blink = Math.sin(t * 14) > 0;
+    const hue = alarm > 0 ? (blink ? "255,70,50" : "150,30,24") : "94,180,255";
+    const ink = (a: number) => `rgba(${hue},${a})`;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "source-over";
+    g.shadowBlur = 0;
+    const back = g.createLinearGradient(0, 0, 0, H);
+    back.addColorStop(0, "#03101f");
+    back.addColorStop(1, "#020812");
+    g.fillStyle = back;
+    g.fillRect(0, 0, W, H);
+    // Faint scanlines.
+    g.fillStyle = ink(0.035);
+    for (let y = 0; y < H; y += 4) g.fillRect(0, y, W, 1);
+    g.globalCompositeOperation = "lighter";
+    g.shadowColor = ink(0.9);
+    g.lineCap = "round";
+    // The frame: a bright edge with cut corners and accent bars, as on the reference consoles.
+    const m = 8,
+      cut = 18;
+    g.shadowBlur = 10;
+    g.strokeStyle = ink(0.85);
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(m + cut, m);
+    g.lineTo(W - m - cut, m);
+    g.lineTo(W - m, m + cut);
+    g.lineTo(W - m, H - m - cut);
+    g.lineTo(W - m - cut, H - m);
+    g.lineTo(m + cut, H - m);
+    g.lineTo(m, H - m - cut);
+    g.lineTo(m, m + cut);
+    g.closePath();
+    g.stroke();
+    g.fillStyle = ink(0.8);
+    g.fillRect(m + 40, m + 6, 150, 6);
+    g.fillRect(W - m - 190, H - m - 12, 150, 6);
+
+    // Centre: the star scope.
+    const cx = W / 2,
+      cy = H / 2,
+      R = H * 0.4;
+    g.shadowBlur = 8;
+    g.lineWidth = 2;
+    for (const k of [1, 0.66, 0.33]) {
+      g.strokeStyle = ink(k === 1 ? 0.9 : 0.4);
+      g.beginPath();
+      g.arc(cx, cy, R * k, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.strokeStyle = ink(0.25);
+    g.beginPath();
+    g.moveTo(cx - R, cy);
+    g.lineTo(cx + R, cy);
+    g.moveTo(cx, cy - R);
+    g.lineTo(cx, cy + R);
+    g.stroke();
+    g.strokeStyle = ink(0.7);
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * Math.PI * 2,
+        l = i % 4 === 0 ? 9 : 4;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+      g.lineTo(cx + Math.cos(a) * (R + l), cy + Math.sin(a) * (R + l));
+      g.stroke();
+    }
+    const sweep = t * 0.9;
+    const wedge = g.createRadialGradient(cx, cy, 0, cx, cy, R);
+    wedge.addColorStop(0, ink(0.0));
+    wedge.addColorStop(1, ink(0.28));
+    g.fillStyle = wedge;
+    g.beginPath();
+    g.moveTo(cx, cy);
+    g.arc(cx, cy, R, sweep - 0.7, sweep);
+    g.closePath();
+    g.fill();
+    g.shadowBlur = 6;
+    for (const star of stars) {
+      const behind = (((sweep - star.a) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const glow = 0.35 + 0.65 * Math.exp(-behind * 1.4);
+      g.fillStyle = ink(glow * (0.7 + 0.3 * Math.sin(t * 2 + star.p * 9)));
+      g.beginPath();
+      g.arc(cx + Math.cos(star.a) * star.r * R, cy + Math.sin(star.a) * star.r * R, star.s * 1.6, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = ink(1);
+    g.beginPath();
+    g.arc(cx, cy, 4, 0, Math.PI * 2);
+    g.fill();
+
+    // Left: navigation widgets.
+    const lx = W * 0.05,
+      lw = W * 0.33;
+    g.shadowBlur = 6;
+    g.font = "600 15px ui-monospace, Menlo, monospace";
+    g.fillStyle = ink(0.75);
+    g.fillText("NAVIGATION · T-65", lx, H * 0.27);
+    // A half gauge with a wandering needle.
+    const gx = lx + 70,
+      gy = H * 0.82,
+      gr = H * 0.36;
+    g.lineWidth = 7;
+    g.strokeStyle = ink(0.25);
+    g.beginPath();
+    g.arc(gx, gy, gr, Math.PI, Math.PI * 2);
+    g.stroke();
+    const level = 0.55 + 0.25 * Math.sin(t * 0.7);
+    g.strokeStyle = ink(0.85);
+    g.beginPath();
+    g.arc(gx, gy, gr, Math.PI, Math.PI + Math.PI * level);
+    g.stroke();
+    // Bar rows.
+    const bx = lx + 170,
+      bw = lw - 190;
+    rows.forEach((row, i) => {
+      const y = H * (0.36 + i * 0.13);
+      const v = Math.min(1, Math.max(0.1, row.base + 0.2 * Math.sin(t * row.speed + row.phase)));
+      g.fillStyle = ink(0.18);
+      g.fillRect(bx, y, bw, 8);
+      g.fillStyle = ink(0.8);
+      g.fillRect(bx, y, bw * v, 8);
+    });
+    // Text-like lines under the header, as data blocks.
+    lines.slice(0, 3).forEach((width, i) => {
+      g.fillStyle = ink(0.35);
+      g.fillRect(lx + lw * 0.62, H * (0.16 + i * 0.05), lw * 0.32 * width, 3);
+    });
+
+    // Right: the access code, one line, in a frame.
+    const rx = W * 0.6,
+      rw = W * 0.35,
+      top = H * 0.36,
+      bh = H * 0.42;
+    g.fillStyle = ink(0.75);
+    g.fillText("CODE D’ACCÈS · INCOM", rx, H * 0.27);
+    g.lineWidth = 2;
+    g.strokeStyle = ink(0.6);
+    g.strokeRect(rx, top, rw, bh);
+    const cell = rw / KONAMI.length;
+    KONAMI.forEach((key, i) => {
+      const x = rx + cell * (i + 0.5),
+        y = top + bh / 2;
+      const typed = i < progress;
+      const next = i === Math.floor(progress) && progress < KONAMI.length;
+      const a = typed ? 1 : next ? (Math.sin(t * 6) > 0 ? 0.95 : 0.3) : 0.32;
+      g.shadowBlur = typed ? 14 : 4;
+      g.fillStyle = typed && alarm === 0 ? `rgba(220,240,255,${a})` : ink(a);
+      if (key === "a" || key === "b") {
+        g.font = "700 34px ui-monospace, Menlo, monospace";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(key.toUpperCase(), x, y + 2);
+        g.textAlign = "start";
+        g.textBaseline = "alphabetic";
+        return;
+      }
+      const angle = { ArrowUp: -Math.PI / 2, ArrowDown: Math.PI / 2, ArrowLeft: Math.PI, ArrowRight: 0 }[key] ?? 0;
+      const s = 13;
+      g.save();
+      g.translate(x, y);
+      g.rotate(angle);
+      g.beginPath();
+      g.moveTo(s, 0);
+      g.lineTo(-s * 0.7, -s * 0.85);
+      g.lineTo(-s * 0.7, s * 0.85);
+      g.closePath();
+      g.fill();
+      g.restore();
+    });
+    g.font = "600 15px ui-monospace, Menlo, monospace";
+    // A segmented gauge of the progress under the code.
+    for (let i = 0; i < KONAMI.length; i++) {
+      g.shadowBlur = i < progress ? 8 : 0;
+      g.fillStyle = ink(i < progress ? 0.9 : 0.18);
+      g.fillRect(rx + cell * i + 3, top + bh + 8, cell - 6, 5);
+    }
+    texture.needsUpdate = true;
+  };
+
+  if (process.env.NODE_ENV !== "production") (window as unknown as { __overheadScreen?: HTMLCanvasElement }).__overheadScreen = canvas;
+  const material = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(OVERHEAD.w, OVERHEAD.h), material);
+  mesh.position.set(OVERHEAD.x, OVERHEAD.y, OVERHEAD.z);
+  mesh.rotation.set(OVERHEAD.rx, 0, 0);
+  mesh.translateZ(0.002);
+  let drawnAt = -1,
+    drawn = "";
+  return {
+    mesh,
+    texture,
+    /** Redrawn about thirty times a second while it moves, and only on a change when it does not. */
+    tick(age: number, progress: number, alarm: number, reduced: boolean) {
+      const state = `${progress}|${alarm > 0}`;
+      if (reduced) {
+        if (state !== drawn) draw(0, progress, alarm);
+      } else if (age - drawnAt >= 1 / 30 || state !== drawn) {
+        draw(age, progress, alarm);
+        drawnAt = age;
+      }
+      drawn = state;
+    },
+  };
 }
 
 /** A flight stick on the right side console, on its middle panel: it answers each key of the code. */
@@ -867,6 +1094,7 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
   const group = new THREE.Group();
   group.name = "cockpit-konami";
   const radar = createRadarCode();
+  const overhead = createOverheadCode();
   const stick = createStick();
   const lamps = createLamps();
   const streaks = createStreaks(pixelRatio);
@@ -876,7 +1104,7 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
   let cluster: ReturnType<typeof createSupercluster> | null = null;
   const alarmLight = new THREE.PointLight(0xff2a14, 0, 9, 1.6);
   alarmLight.position.set(0, 2.4, 0.6);
-  group.add(radar.mesh, stick.group, lamps.mesh, streaks.mesh, tunnel.mesh, alarmLight);
+  group.add(radar.mesh, overhead.mesh, stick.group, lamps.mesh, streaks.mesh, tunnel.mesh, alarmLight);
   const audio = createWarpAudio();
   let progress = 0,
     phase: WarpPhase = "idle",
@@ -1013,6 +1241,7 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
       }
       radar.uniforms.progress.value = phase === "idle" ? progress : KONAMI.length;
       radar.uniforms.alarm.value = frame.alert;
+      overhead.tick(age, phase === "idle" ? progress : KONAMI.length, frame.alert, reduced);
       lamps.tick(phase === "idle" ? progress : 0, frame.alert, age, reduced);
       const pulse = reduced ? 0.6 : 0.5 + 0.5 * Math.sin(age * 9);
       alarmLight.intensity = frame.alert * (3 + pulse * 11);
@@ -1024,6 +1253,7 @@ export function createCockpitKonami(pixelRatio: number, onPhase: (phase: WarpPha
       audio.dispose();
       cluster?.dispose();
       radar.uniforms.map.value.dispose();
+      overhead.texture.dispose();
     },
   };
 }
