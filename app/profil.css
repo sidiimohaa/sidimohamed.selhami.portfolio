@@ -1,0 +1,338 @@
+/* The record as a plain page: it scrolls on its own, whatever the full-screen experience does to
+   the body, and keeps the bridge's colours: cyan for structure, amber for the main action. */
+.profil {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background:
+    radial-gradient(ellipse at 80% -10%, rgba(54, 110, 150, 0.28), transparent 55%),
+    radial-gradient(ellipse at -10% 30%, rgba(120, 60, 130, 0.16), transparent 50%),
+    #05080d;
+  color: #e3edf5;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  scroll-behavior: smooth;
+}
+.profil-page {
+  box-sizing: border-box;
+  width: min(880px, 100%);
+  margin: 0 auto;
+  padding: 44px 20px 80px;
+}
+.profil a {
+  color: #8fe4ff;
+  overflow-wrap: anywhere;
+}
+.profil a:focus-visible {
+  outline: 2px solid #ffb35c;
+  outline-offset: 3px;
+}
+.profil-brand {
+  margin: 0 0 10px;
+  font-family: var(--hud);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: #8fe4ff;
+}
+.profil h1 {
+  margin: 0;
+  font-family: var(--hud);
+  font-size: clamp(32px, 7vw, 54px);
+  font-weight: 600;
+  line-height: 1.05;
+  color: #fff;
+}
+.profil-title {
+  margin: 10px 0 0;
+  font-size: 17px;
+  color: #b9cfdd;
+}
+.profil-pitch {
+  margin: 18px 0 0;
+  padding: 12px 16px;
+  border-left: 3px solid #ffb35c;
+  background: rgba(255, 179, 92, 0.08);
+  font-size: 18px;
+  color: #fff;
+}
+.profil-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.profil-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(143, 228, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(6, 12, 22, 0.6);
+  font-family: var(--hud);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  color: #dff3ff !important;
+}
+.profil-action:hover {
+  border-color: rgba(143, 228, 255, 0.7);
+  background: rgba(16, 36, 54, 0.8);
+}
+.profil-action.is-primary {
+  border-color: #ffb35c;
+  background: #ffb35c;
+  color: #1a0f02 !important;
+}
+.profil-action.is-primary:hover {
+  background: #ffc98a;
+}
+.profil-action.is-ghost {
+  border-style: dashed;
+}
+.profil-toc {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 4px 18px;
+  flex-wrap: wrap;
+  margin: 34px -20px 0;
+  padding: 12px 20px;
+  border-block: 1px solid rgba(143, 228, 255, 0.14);
+  background: rgba(5, 8, 13, 0.92);
+  backdrop-filter: blur(8px);
+  font-family: var(--hud);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+.profil-toc a {
+  padding: 4px 0;
+  text-decoration: none;
+  color: #b9cfdd;
+}
+.profil-toc a:hover {
+  color: #fff;
+}
+.profil section {
+  padding-top: 44px;
+  scroll-margin-top: 40px;
+}
+.profil h2 {
+  margin: 0 0 16px;
+  font-family: var(--hud);
+  font-size: 26px;
+  font-weight: 600;
+  color: #fff;
+}
+.profil h2::before {
+  content: "";
+  display: inline-block;
+  width: 22px;
+  height: 2px;
+  margin-right: 12px;
+  vertical-align: middle;
+  background: #8fe4ff;
+  box-shadow: 0 0 10px #8fe4ff;
+}
+.profil h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+  color: #fff;
+}
+.profil p {
+  margin: 0 0 12px;
+}
+.profil-lead {
+  font-size: 18px;
+  color: #fff;
+}
+.profil-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1px;
+  margin: 20px 0 0;
+  border: 1px solid rgba(143, 228, 255, 0.14);
+  background: rgba(143, 228, 255, 0.14);
+}
+.profil-facts div {
+  padding: 12px 14px;
+  background: #070c13;
+}
+.profil-facts dt,
+.profil-project dt {
+  font-family: var(--hud);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8fe4ff;
+}
+.profil-facts dd {
+  margin: 4px 0 0;
+}
+.profil-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.profil-card {
+  padding: 16px 18px;
+  border: 1px solid rgba(143, 228, 255, 0.14);
+  border-top: 2px solid var(--accent, #8fe4ff);
+  background: rgba(7, 12, 19, 0.8);
+}
+.profil-card h3 {
+  color: var(--accent, #fff);
+  font-size: 16px;
+}
+.profil-card ul,
+.profil-entry ul,
+.profil-list,
+.profil-contact {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.profil-card li {
+  padding: 10px 0;
+  border-top: 1px solid rgba(143, 228, 255, 0.1);
+}
+.profil-card li p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #b9cfdd;
+}
+.profil-status {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: #9db3c2;
+}
+.profil-status[data-status="confirmed"] {
+  color: #86e0a8;
+}
+.profil-status[data-status="growing"] {
+  color: #ffc56b;
+}
+.profil-sub {
+  margin-top: 28px !important;
+}
+.profil-list li {
+  padding: 6px 0;
+  border-top: 1px solid rgba(143, 228, 255, 0.1);
+}
+.profil-list span {
+  color: #9db3c2;
+}
+.profil-project,
+.profil-entry {
+  padding: 18px 0;
+  border-top: 1px solid rgba(143, 228, 255, 0.14);
+}
+.profil-kind {
+  margin: 4px 0 10px !important;
+  font-size: 14px;
+  color: #9db3c2;
+}
+.profil-project dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.profil-project dl div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+}
+.profil-project dd {
+  margin: 0;
+}
+.profil-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.profil-chips li {
+  padding: 2px 10px;
+  border: 1px solid rgba(143, 228, 255, 0.25);
+  border-radius: 999px;
+  font-size: 13px;
+  color: #cfe0ec;
+}
+.profil-link {
+  display: inline-block;
+  margin-top: 12px;
+  font-weight: 700;
+}
+.profil-entry li {
+  position: relative;
+  padding: 3px 0 3px 18px;
+}
+.profil-entry li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 13px;
+  width: 6px;
+  height: 1px;
+  background: #8fe4ff;
+}
+.profil-contact li {
+  padding: 6px 0;
+  font-size: 17px;
+}
+.profil-foot {
+  margin-top: 56px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(143, 228, 255, 0.14);
+  font-size: 14px;
+  color: #9db3c2;
+}
+.profil-foot p {
+  margin-top: 10px;
+}
+@media (max-width: 560px) {
+  .profil-project dl div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .profil-action {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profil {
+    scroll-behavior: auto;
+  }
+}
+@media print {
+  .profil {
+    position: static;
+    background: #fff;
+    color: #000;
+  }
+  .profil-toc,
+  .profil-actions {
+    display: none;
+  }
+  .profil h1,
+  .profil h2,
+  .profil h3,
+  .profil-lead,
+  .profil-pitch {
+    color: #000;
+  }
+}

@@ -65,7 +65,8 @@ export function createFlightAudio() {
   };
   const flight = ({ throttle, boost }: FlightMix) => {
     if (closed) return;
-    const value = Math.max(0, Math.min(1, throttle)),
+    // An audio parameter throws on a value that is not a number: never pass one through.
+    const value = Number.isFinite(throttle) ? Math.max(0, Math.min(1, throttle)) : 0,
       time = context.currentTime;
     engine.gain.setTargetAtTime(0.009 + value * 0.025, time, 0.08);
     engineFilter.frequency.setTargetAtTime(220 + value * 1050, time, 0.08);
@@ -782,8 +783,9 @@ export function createFlightAudio() {
     const time = context.currentTime;
     beacons.forEach((beacon, index) => {
       const body = bodies[index];
-      beacon.gain.gain.setTargetAtTime(body ? body.near * body.near * 0.028 : 0, time, 0.25);
-      if (body) beacon.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, body.pan)), time, 0.12);
+      const near = body && Number.isFinite(body.near) ? Math.max(0, Math.min(1, body.near)) : 0;
+      beacon.gain.gain.setTargetAtTime(near * near * 0.028, time, 0.25);
+      if (body && Number.isFinite(body.pan)) beacon.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, body.pan)), time, 0.12);
     });
   };
   const dispose = () => {

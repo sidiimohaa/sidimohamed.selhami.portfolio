@@ -14,6 +14,8 @@ import {
   Map,
   PlaneLanding,
   Briefcase,
+  Download,
+  Mail,
   Radar,
   Camera,
   SlidersHorizontal,
@@ -42,7 +44,8 @@ import type { SurfaceCue } from "./LandingScene";
 const SpaceScene = dynamic(() => import("./SpaceScene"), { ssr: false });
 const LandingScene = dynamic(() => import("./LandingScene"), { ssr: false });
 const CockpitMap = dynamic(() => import("./CockpitMap"), { ssr: false });
-import { destinationSlug, destinations, landings, planetReferenceStyle } from "./universe";
+import { briefings, destinationSlug, destinations, landings, planetReferenceStyle } from "./universe";
+import { CV_PDF, identity } from "./deathStar/cvData";
 import { addFlightTime, logDocking, logLanding, logOrbit } from "./flightLog";
 import type { EventPlace } from "./galaxy/catalog";
 import GalaxyLayer, { MonitorButton } from "./galaxy/GalaxyLayer";
@@ -711,6 +714,9 @@ export default function Experience() {
       data-side={progress.sith ? "sith" : "light"}
       className={`experience open-space ${travel ? "is-travelling" : ""} ${ground ? "on-surface" : ""} ${photo ? "photo-mode" : ""}`}
     >
+      <a className="skip-link" href="/profil">
+        Aller à la version texte : profil, projets, CV et contact
+      </a>
       <div className="space-haze" />
       <div className="star-backup" />
       {unsupported && <div className="fallback-planet" />}
@@ -818,6 +824,18 @@ export default function Experience() {
             {sound ? <Volume2 size={15} aria-hidden="true" /> : <VolumeX size={15} aria-hidden="true" />}
             <span>{sound ? "SON ACTIF" : "ACTIVER LE SON"}</span>
           </button>
+          <a className="bridge-pill bridge-link" href={CV_PDF} download aria-label="Télécharger le CV en PDF">
+            <Download size={15} aria-hidden="true" />
+            <span>CV</span>
+          </a>
+          <a
+            className="bridge-pill bridge-link"
+            href={`mailto:${identity.email}?subject=${encodeURIComponent("Votre profil – alternance marketing digital")}`}
+            aria-label={`Écrire à ${identity.name}`}
+          >
+            <Mail size={15} aria-hidden="true" />
+            <span>CONTACT</span>
+          </a>
           <button
             className="bridge-pill recruiter-trigger"
             onClick={() => enterStation("recruiter")}
@@ -835,6 +853,17 @@ export default function Experience() {
             <MonitorButton className="sound-button" />
             <button className="sound-button" data-tip="Revenir au départ" onClick={reset} aria-label="Revenir au point de départ">
               <RotateCcw size={15} aria-hidden="true" />
+            </button>
+            {/* On a phone the sound switch sits here; wider screens show the labelled pill instead. */}
+            <button
+              className={`sound-button sound-compact ${sound ? "on" : ""}`}
+              data-sound-toggle
+              data-tip={sound ? "Couper le son" : "Activer le son"}
+              aria-label={sound ? "Couper le son" : "Activer le son"}
+              aria-pressed={sound}
+              onClick={toggleSound}
+            >
+              {sound ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
             </button>
             <button
               className="sound-button"
@@ -955,7 +984,31 @@ export default function Experience() {
                 <h2 id="orbit-title">{current.name}</h2>
               </div>
             </div>
-            <p>{current.description}</p>
+            <p className="orbit-headline">{briefings[destination].headline}</p>
+            <dl className="orbit-brief">
+              {briefings[destination].points.map((point) => (
+                <div key={point.label}>
+                  <dt>{point.label}</dt>
+                  <dd>{point.text}</dd>
+                </div>
+              ))}
+            </dl>
+            {briefings[destination].tools && (
+              <ul className="orbit-tools" aria-label="Outils">
+                {briefings[destination].tools.map((tool) => (
+                  <li key={tool}>{tool}</li>
+                ))}
+              </ul>
+            )}
+            {briefings[destination].links && (
+              <p className="orbit-links">
+                {briefings[destination].links.map((link) => (
+                  <a key={link.label} href={link.href} {...(link.download ? { download: true } : link.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+                    {link.label}
+                  </a>
+                ))}
+              </p>
+            )}
             <span className="orbit-note mono">
               {landing
                 ? "ZONE D’ATTERRISSAGE DÉGAGÉE · E POUR ATTERRIR"
@@ -1024,7 +1077,7 @@ export default function Experience() {
               <h2 id="help-title">À votre rythme.</h2>
               <p>
                 Le vaisseau reste immobile au repos. Maintenez une commande pour
-                voyager ; relâchez pour vous arrêter.
+                voyager ; relâchez, il file sur son élan puis s’arrête.
               </p>
               <dl className="help-controls">
                 <div>
@@ -1036,8 +1089,16 @@ export default function Experience() {
                   <dd>Maintenez les flèches, ZQSD ou WASD</dd>
                 </div>
                 <div>
+                  <dt>Avancer droit</dt>
+                  <dd>Maintenez Espace</dd>
+                </div>
+                <div>
                   <dt>Accélérer</dt>
-                  <dd>Maintenez Maj ou deux doigts</dd>
+                  <dd>Maintenez Maj, le bouton BOOST ou deux doigts</dd>
+                </div>
+                <div>
+                  <dt>Manette</dt>
+                  <dd>Stick gauche pour diriger, gâchette droite pour avancer, gâchette gauche pour le boost, A pour approcher, B pour annuler</dd>
                 </div>
                 <div>
                   <dt>Approcher</dt>
@@ -1228,7 +1289,7 @@ export default function Experience() {
       </AnimatePresence>
       {unsupported && (
         <div className="webgl-note mono">
-          MODE VISUEL SIMPLIFIÉ — LA NAVIGATION RESTE DISPONIBLE
+          MODE VISUEL SIMPLIFIÉ — LA NAVIGATION RESTE DISPONIBLE · <a href="/profil">VERSION TEXTE DU PROFIL</a>
         </div>
       )}
     </main>

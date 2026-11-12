@@ -959,3 +959,207 @@
     transition: none;
   }
 }
+
+/* Keyboard users first: a way straight to the text version of the record. */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -80px;
+  z-index: 200;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #ffb35c;
+  font-family: var(--hud);
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a0f02;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 12px;
+}
+.noscript-card {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 32px;
+  background: #05080d;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #e3edf5;
+}
+.noscript-card h1 {
+  margin: 0;
+  font-size: 34px;
+}
+.noscript-card p {
+  margin: 0 0 8px;
+}
+.noscript-card a {
+  color: #8fe4ff;
+}
+.webgl-note a {
+  color: var(--holo);
+}
+
+/* CV and contact stay one click away in the header. */
+.header a.bridge-pill {
+  pointer-events: auto;
+  text-decoration: none;
+}
+.header a.bridge-pill:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 4px;
+}
+/* The labels give way before the header runs out of room: sound first, then CV and contact. */
+@media (max-width: 1320px) {
+  .header .bridge-pill.sound-pill span {
+    display: none;
+  }
+}
+@media (max-width: 1160px) {
+  .header .bridge-pill.bridge-link span {
+    display: none;
+  }
+  .header .bridge-pill.bridge-link,
+  .header .bridge-pill.sound-pill {
+    padding: 0 12px;
+  }
+}
+
+/* In orbit: what this world holds, in a recruiter's order, at a size that can be read. */
+.experience .orbit-card {
+  width: 350px;
+  /* Ends above the droid in the corner. */
+  max-height: calc(100% - 196px);
+  overflow-y: auto;
+}
+.experience .orbit-card .orbit-headline {
+  margin: 0 0 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: #fff;
+}
+.orbit-brief {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.orbit-brief div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.orbit-brief dt {
+  font-family: var(--hud);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--holo);
+}
+.orbit-brief dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #d6e4ee;
+}
+.orbit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.orbit-tools li {
+  padding: 1px 8px;
+  border: 1px solid var(--holo-soft);
+  border-radius: 999px;
+  font-family: var(--hud);
+  font-size: 11px;
+  color: #cfe0ec;
+}
+.experience .orbit-card .orbit-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.orbit-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 179, 92, 0.55);
+  border-radius: 999px;
+  background: rgba(60, 32, 8, 0.5);
+  font-family: var(--hud);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  color: var(--amber);
+}
+.orbit-links a:hover,
+.orbit-links a:focus-visible {
+  border-color: var(--amber);
+  color: #ffd9a8;
+}
+/* The card's small print, raised to a legible size. */
+.experience .orbit-card .orbit-card-top,
+.experience .orbit-card .orbit-note,
+.experience .orbit-card .transmission-channel {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.experience .orbit-card .land-button {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.experience .orbit-card .orbit-actions .text-button {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.experience .course-badge {
+  font-size: 10px;
+}
+.experience .webgl-note {
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .experience .orbit-card {
+    width: calc(100% - 24px);
+    max-width: 380px;
+    right: 12px;
+    max-height: calc(100% - 250px);
+  }
+}
+/* On a phone the header keeps to essentials: CV and contact are one tap away in recruiter mode,
+   on the welcome panel and in every orbit card. */
+.header .bridge-capsule .sound-compact {
+  display: none;
+}
+@media (max-width: 700px) {
+  .header .bridge-pill.bridge-link,
+  .header .bridge-pill.sound-pill {
+    display: none;
+  }
+  .header .bridge-capsule .sound-compact {
+    display: inline-grid;
+    place-items: center;
+  }
+}
+@media (max-width: 420px) {
+  /* Photo mode gives its place to a margin on the narrowest screens. */
+  .header .bridge-capsule button[aria-label="Mode photo"] {
+    display: none;
+  }
+}

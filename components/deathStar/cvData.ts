@@ -73,6 +73,8 @@ export const experiences: Experience[] = [
     ],
     skills: ["Réception de marchandises", "Mise en rayon", "Respect des règles d’hygiène et de sécurité", "Suivi des stocks", "Inventaires", "Merchandising", "Étiquetage", "Rotation des produits"],
   },
+  // TODO(contenu): missions et compétences à compléter pour Leader Price, Narguil’House,
+  // Easy Chauffage et la mairie de Bobigny (laissées vides : rien n'est inventé).
   {
     id: "leaderprice",
     company: "Leader Price",
@@ -288,6 +290,10 @@ export type Project = {
   link?: { label: string; href: string };
 };
 
+// TODO(contenu): pour chaque projet, un résultat chiffré dès qu'une mesure existe (visites,
+// durée moyenne de visite, retours de recruteurs, entretiens obtenus), et un visuel de couverture.
+// TODO(contenu): ajouter les projets marketing digital à venir (campagnes, contenus, analyses)
+// réalisés pendant le Bachelor ou l'alternance : ce sont eux que le recruteur cherchera.
 export const projects: Project[] = [
   {
     id: "orbital",

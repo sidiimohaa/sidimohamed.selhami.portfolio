@@ -1,4 +1,4 @@
-import { education, identity, projects } from "./deathStar/cvData";
+import { CV_PDF, education, identity, projects } from "./deathStar/cvData";
 
 export type PlanetReference = {
   width: number;
@@ -99,6 +99,60 @@ export const destinations = [
     summary: "Un monde de glace où des plans holographiques retracent ma formation.",
     description:
       "Des plaines gelées, des tempêtes et une base taillée dans la glace. Sur la table de briefing, des plans holographiques retracent ma formation, du brevet au Bachelor en cours.",
+  },
+];
+
+// What each destination holds, told the way a recruiter reads it: one line, then context, action
+// and result, then the tools. Every word comes from the CV data (components/deathStar/cvData.ts).
+// TODO(contenu): les résultats ne sont pas chiffrés. Dès que des mesures existent (visites du
+// portfolio, durée moyenne, retours de recruteurs, nombre de lecteurs du Scryptorium), les ajouter
+// au champ `result` de chaque projet dans cvData.ts : elles apparaîtront ici d'elles-mêmes.
+export type Briefing = {
+  headline: string;
+  points: { label: string; text: string }[];
+  tools?: string[];
+  links?: { label: string; href: string; download?: boolean }[];
+};
+const byId = (id: string) => projects.find((project) => project.id === id)!;
+const passions = byId("passions");
+const recent = [...education].reverse();
+export const briefings: Briefing[] = [
+  {
+    headline: `${projects.length} projets menés du brief à la mise en ligne.`,
+    points: projects.map((project) => ({ label: project.title.split(" — ")[0], text: project.result })),
+    tools: [...new Set(projects.flatMap((project) => project.stack))].slice(0, 6),
+  },
+  {
+    headline: passions.goal,
+    points: [
+      { label: "Contexte", text: passions.problem },
+      { label: "Action", text: passions.solution },
+      { label: "Résultat", text: passions.result },
+    ],
+    tools: passions.stack,
+  },
+  {
+    headline: identity.search,
+    points: [
+      { label: "Lieu", text: `${identity.location} · ${identity.mobility}` },
+      { label: "Rythme", text: identity.rhythm },
+    ],
+    links: [
+      { label: "M’écrire", href: `mailto:${identity.email}?subject=${encodeURIComponent("Votre profil – alternance marketing digital")}` },
+      { label: "LinkedIn", href: identity.linkedin },
+    ],
+  },
+  {
+    headline: `${identity.title} · ${identity.program}, ${identity.school}.`,
+    points: [
+      { label: "Profil", text: identity.ambition },
+      { label: "Période", text: identity.schoolYear },
+    ],
+    links: [{ label: "Télécharger le CV", href: CV_PDF, download: true }],
+  },
+  {
+    headline: `${recent[0].title}, ${recent[0].school} ${recent[0].place ?? ""} : ${(recent[0].status ?? "").toLowerCase()}.`,
+    points: recent.slice(0, 3).map((step) => ({ label: step.year, text: `${step.title}${step.status ? ` · ${step.status}` : ""}` })),
   },
 ];
 
