@@ -15,6 +15,8 @@ import { galaxy } from "./galaxy/store";
 import { createApproachFlight } from "./approachFlight";
 import { createEventHorizon } from "./eventHorizon/createEventHorizon";
 import { isTextEntry } from "./eventHorizon/konami";
+import { createShake, readPad, resetSpring, spring, stepSpring, stepVelocity, type ShakeOffset } from "./flight/flightFeel";
+import FlightHud, { hudFrame, type FlightHudHandle } from "./hud/FlightHud";
 import { ORBITAL_BODIES, SYSTEM_CENTER, DEBRIS_ORBIT, HOME_CAMERA_Z, FLIGHT_SPEED, orbitalPoint, homeCameraZ } from "./orbitalSystem";
 export type FlightState = {
   flying: boolean;
@@ -342,6 +344,8 @@ export default function SpaceScene({
     joystick = useRef<HTMLDivElement>(null),
     joystickThumb = useRef<HTMLElement>(null),
     droidButton = useRef<HTMLButtonElement>(null);
+  const hud = useRef<FlightHudHandle>(null),
+    touchBoost = useRef(false);
   const hovered = useRef<number | null>(null),
     flightCallback = useRef(onFlight),
     approachCallback = useRef(onApproachComplete),
@@ -681,6 +685,36 @@ export default function SpaceScene({
       stick = { x: 0, y: 0 };
     let bank = 0,
       steered = false;
+    // The weight of the craft: its roll and its place in the frame ride on springs, the view
+    // takes jolts, and the instruments read all of it.
+    const bankSpring = spring(),
+      lagX = spring(),
+      lagY = spring(),
+      lagZ = spring();
+    const shake = createShake(),
+      jolt: ShakeOffset = { x: 0, y: 0, z: 0 };
+    const padHeld: boolean[] = [];
+    let wasFast = false,
+      forwardSpeed = 0,
+      surge = 0;
+    const streak = new THREE.Vector3(),
+      cameraVelocity = new THREE.Vector3(),
+      lastCameraPosition = new THREE.Vector3(),
+      rigForward = new THREE.Vector3(),
+      toBody = new THREE.Vector3(),
+      inView = new THREE.Vector3();
+    let cameraTracked = false;
+    const frameHud = hudFrame(),
+      edgeOrder = frameHud.bodies.map((_, index) => index);
+    const settleFeel = () => {
+      bank = 0;
+      [bankSpring, lagX, lagY, lagZ].forEach((s) => resetSpring(s));
+      shake.reset();
+      jolt.x = jolt.y = jolt.z = 0;
+      forwardSpeed = surge = 0;
+      wasFast = false;
+    };
+    const press = (key: string) => window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
     const flightRotation = new THREE.Euler(0, 0, 0, "YXZ"),
       flightQuaternion = new THREE.Quaternion();
     const bodyBase = new THREE.Quaternion().setFromEuler(new THREE.Euler(-1.04, 0, 0));
@@ -698,6 +732,11 @@ export default function SpaceScene({
         e.composedPath().some(isTextEntry)) return;
       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key))
         e.preventDefault();
+      if (e.key === " ") {
+        // Space thrusts straight ahead, unless it is pressing a focused control.
+        if ((e.target as HTMLElement | null)?.closest?.("button,a,input,select,textarea,[role='dialog']")) return;
+        e.preventDefault();
+      }
       keys.add(e.key.toLowerCase());
     };
     const keyup = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
@@ -715,6 +754,7 @@ export default function SpaceScene({
     };
     const blur = () => {
       keys.clear();
+      touchBoost.current = false;
       release();
     };
     const pointerMove = (e: PointerEvent) => {
@@ -830,6 +870,10 @@ export default function SpaceScene({
       // Freeze the actual flight clock and every simulation variable. The cinematic owns
       // the same renderer and camera until it restores their captured state.
       if (horizon?.active) {
+        if (frameHud.visible) {
+          frameHud.visible = false;
+          hud.current?.update(frameHud);
+        }
         last = now;
         lastDrawn = now;
         horizon.tick(now);
@@ -867,11 +911,17 @@ export default function SpaceScene({
       }
       lastDrawn = now;
       const raw = now - last,
-        dt = Math.min(raw / 1000, profile.frameInterval ? 0.1 : 0.05);
+        // The first frame's timestamp can predate the loop's own clock: never step backwards.
+        dt = Math.max(0, Math.min(raw / 1000, profile.frameInterval ? 0.1 : 0.05));
       last = now;
       const s = live.current;
       // While the visitor is on a planet's surface, space keeps its state but stops drawing.
       if (s.hidden) {
+        if (frameHud.visible) {
+          frameHud.visible = false;
+          hud.current?.update(frameHud);
+        }
+        cameraTracked = false;
         keys.clear();
         release();
         velocity.set(0, 0, 0);
@@ -902,7 +952,9 @@ export default function SpaceScene({
         camera.position.set(0, 0, baseZ);
         heading.yaw = view.yaw = 0;
         heading.pitch = view.pitch = 0;
-        stick.x = stick.y = bank = 0;
+        stick.x = stick.y = 0;
+        settleFeel();
+        cameraTracked = false;
         camera.quaternion.identity();
         flightQuaternion.identity();
         ship.position.set(0, -shipHeight, baseZ - shipDistance);
@@ -921,7 +973,18 @@ export default function SpaceScene({
         traffic.reset();
         shootingStars.reset();
       }
-      const fast = s.boost || keys.has("shift") || touches.size > 1;
+      let pads: readonly (Gamepad | null)[] = [];
+      try {
+        pads = navigator.getGamepads?.() ?? [];
+      } catch {
+        // Gamepads can be denied by a permissions policy: the keyboard and pointer still fly.
+      }
+      const pad = readPad(pads, padHeld);
+      // A lands, docks or sets course like E; B backs out like Escape; Y sweeps like R.
+      if (pad.pressed.includes(0)) press("e");
+      if (pad.pressed.includes(1)) press("Escape");
+      if (pad.pressed.includes(3)) press("r");
+      const fast = s.boost || keys.has("shift") || touches.size > 1 || touchBoost.current || pad.boost;
       let dx = 0,
         dy = 0,
         thrusting = false;
@@ -965,7 +1028,8 @@ export default function SpaceScene({
         cameraAttitude.setFromQuaternion(camera.quaternion, "YXZ");
         heading.yaw = view.yaw = cameraAttitude.y;
         heading.pitch = view.pitch = cameraAttitude.x;
-        stick.x = stick.y = bank = 0;
+        stick.x = stick.y = 0;
+        settleFeel();
         flightRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
         flightQuaternion.setFromEuler(flightRotation);
         velocity.set(0, 0, 0);
@@ -973,6 +1037,7 @@ export default function SpaceScene({
       } else if (s.flying && !s.paused) {
         dx = THREE.MathUtils.clamp(
           steer.x +
+            pad.x +
             (keys.has("arrowright") || keys.has("d") ? 1 : 0) -
             (keys.has("arrowleft") || keys.has("a") || keys.has("q") ? 1 : 0),
           -1,
@@ -980,42 +1045,56 @@ export default function SpaceScene({
         );
         dy = THREE.MathUtils.clamp(
           steer.y +
+            pad.y +
             (keys.has("arrowup") || keys.has("w") || keys.has("z") ? 1 : 0) -
             (keys.has("arrowdown") || keys.has("s") ? 1 : 0),
           -1,
           1,
         );
-        const active = Math.abs(dx) + Math.abs(dy) > 0.05 || fast;
+        const active = Math.abs(dx) + Math.abs(dy) > 0.05 || fast || keys.has(" ") || pad.thrust;
         steered = true;
-        // Turns build up and settle rather than starting and stopping dead.
-        const ease = 1 - Math.exp(-dt * (s.reduced ? 12 : 5));
-        stick.x += (dx - stick.x) * ease;
-        stick.y += (dy - stick.y) * ease;
-        heading.yaw -= stick.x * dt * 0.5;
+        const afterburn = THREE.MathUtils.clamp(
+          (velocity.length() - FLIGHT_SPEED.cruise) / (FLIGHT_SPEED.boost - FLIGHT_SPEED.cruise),
+          0,
+          1,
+        );
+        // Turns build up and settle rather than starting and stopping dead: the controls come in
+        // a little slower than they let go, and a craft at full burn answers more heavily.
+        const easeX = 1 - Math.exp(-dt * (s.reduced ? 12 : Math.abs(dx) > Math.abs(stick.x) ? 4.2 : 6)),
+          easeY = 1 - Math.exp(-dt * (s.reduced ? 12 : Math.abs(dy) > Math.abs(stick.y) ? 4.2 : 6));
+        stick.x += (dx - stick.x) * easeX;
+        stick.y += (dy - stick.y) * easeY;
+        const agility = 1 - afterburn * 0.28;
+        heading.yaw -= stick.x * dt * 0.56 * agility;
         heading.yaw = Math.atan2(Math.sin(heading.yaw), Math.cos(heading.yaw));
         heading.pitch = THREE.MathUtils.clamp(
-          heading.pitch + stick.y * dt * 0.36,
+          heading.pitch + stick.y * dt * 0.4 * agility,
           -0.85,
           0.85,
         );
-        // The craft banks into the turn and swings out across the frame; the view catches up.
-        bank = THREE.MathUtils.damp(bank, s.reduced ? 0 : -stick.x * 0.42, 6, dt);
+        // The craft rolls into the turn on a spring: it leans, overshoots a touch and levels off.
+        bank = s.reduced ? 0 : stepSpring(bankSpring, -stick.x * (0.5 + afterburn * 0.16), 30, 7.6, dt);
+        // The boost kicks when it lights, then keeps a faint tremor in the frame.
+        const burning = fast && active;
+        if (!s.reduced) {
+          if (burning && !wasFast) shake.add(0.55);
+          if (burning) shake.hold(0.2 + afterburn * 0.22);
+        }
+        wasFast = burning;
+        shake.step(dt, elapsed, jolt);
         const follow = s.reduced ? 1 : 1 - Math.exp(-dt * 4);
         view.yaw +=
           Math.atan2(Math.sin(heading.yaw - view.yaw), Math.cos(heading.yaw - view.yaw)) * follow;
         view.pitch += (heading.pitch - view.pitch) * follow;
-        viewRotation.set(view.pitch, view.yaw, bank * 0.08, "YXZ");
+        viewRotation.set(view.pitch + jolt.x, view.yaw + jolt.y, bank * 0.16 + jolt.z, "YXZ");
         camera.quaternion.setFromEuler(viewRotation);
         flightRotation.set(heading.pitch, heading.yaw, 0, "YXZ");
         flightQuaternion.setFromEuler(flightRotation);
         forward.set(0, 0, -1).applyQuaternion(flightQuaternion);
-        const speed = active ? (fast ? FLIGHT_SPEED.boost : FLIGHT_SPEED.cruise) : 0;
         thrusting = active;
-        targetVelocity.copy(forward).multiplyScalar(speed);
-        // Thrust builds up; releasing the controls brakes to a stop in about a second, with no
-        // automatic cruise.
-        velocity.lerp(targetVelocity, 1 - Math.exp(-dt * (active ? 2.4 : 3.5)));
-        if (!active && velocity.lengthSq() < 0.0004) velocity.set(0, 0, 0);
+        // Thrust builds up; released, the craft coasts on its inertia and brakes to a true stop
+        // in a couple of seconds. There is still no automatic cruise.
+        stepVelocity(velocity, forward, fast ? FLIGHT_SPEED.boost : FLIGHT_SPEED.cruise, active, fast, dt);
         camera.position.addScaledVector(velocity, dt);
         // Test the ship's actual forward position, rather than the camera behind it.
         shipOffset
@@ -1032,10 +1111,9 @@ export default function SpaceScene({
               collisionNormal,
               minimum - distance,
             );
-            velocity.addScaledVector(
-              collisionNormal,
-              Math.max(0, -velocity.dot(collisionNormal)),
-            );
+            const impact = -velocity.dot(collisionNormal);
+            if (impact > 2 && !s.reduced) shake.add(Math.min(0.7, impact * 0.05));
+            velocity.addScaledVector(collisionNormal, Math.max(0, impact));
           }
         });
       }
@@ -1043,8 +1121,35 @@ export default function SpaceScene({
       // The autopilot owns its craft pose.
       if (!s.travel) {
         if (!s.flying) flightQuaternion.copy(camera.quaternion);
+        // The craft's place in the frame rides on springs: it surges ahead under thrust, drops
+        // back toward the lens on the brakes and swings wide in a turn.
+        rigForward.set(0, 0, -1).applyQuaternion(flightQuaternion);
+        const forwardNow = velocity.dot(rigForward),
+          speedNow = velocity.length();
+        const pace = Math.min(1, speedNow / FLIGHT_SPEED.cruise),
+          burn = THREE.MathUtils.clamp(
+            (speedNow - FLIGHT_SPEED.cruise) / (FLIGHT_SPEED.boost - FLIGHT_SPEED.cruise),
+            0,
+            1,
+          );
+        surge = THREE.MathUtils.damp(
+          surge,
+          dt > 0 ? THREE.MathUtils.clamp((forwardNow - forwardSpeed) / dt, -14, 22) : 0,
+          8,
+          dt,
+        );
+        forwardSpeed = forwardNow;
+        if (s.reduced) {
+          resetSpring(lagX, stick.x * 0.12);
+          resetSpring(lagY, stick.y * 0.08);
+          resetSpring(lagZ);
+        } else {
+          stepSpring(lagX, stick.x * (0.3 + 0.3 * pace), 20, 6.6, dt);
+          stepSpring(lagY, stick.y * (0.18 + 0.16 * pace), 20, 6.6, dt);
+          stepSpring(lagZ, -(surge * 0.07 + burn * 0.8), 16, 6, dt);
+        }
         shipOffset
-          .set(stick.x * 0.12, -shipHeight + stick.y * 0.08, -shipDistance)
+          .set(lagX.value, -shipHeight + lagY.value, -shipDistance + lagZ.value)
           .applyQuaternion(flightQuaternion);
         shipPosition.copy(camera.position).add(shipOffset);
         if (settling) ship.position.lerp(shipPosition, 1 - Math.exp(-dt * 9));
@@ -1053,8 +1158,8 @@ export default function SpaceScene({
         // At rest the craft rides a slow swell, unless the visitor switched it off.
         const swell = s.sway && !s.reduced && !s.paused ? 1 : 0;
         modelRotation.set(
-          stick.y * 0.1 + Math.sin(elapsed * 0.45) * 0.012 * swell,
-          -stick.x * 0.12,
+          stick.y * 0.15 + Math.sin(elapsed * 0.45) * 0.012 * swell,
+          -stick.x * 0.18,
           bank + Math.sin(elapsed * 0.32 + 1.1) * 0.022 * swell,
           "YXZ",
         );
@@ -1073,9 +1178,10 @@ export default function SpaceScene({
           s.photo && s.fov
             ? s.fov
             : (camera.aspect < 0.8 ? 52 : 50) +
-              (s.reduced ? 0 : Math.min(1, velocity.length() / 16) * 3);
+              (s.reduced ? 0 : pace * 3.5 + burn * 11.5);
         if (camera.fov !== baseFov) {
-          camera.fov = THREE.MathUtils.damp(camera.fov, baseFov, settling ? 9 : 3, dt);
+          // The view opens fast when the burn lights and closes more slowly as it dies.
+          camera.fov = THREE.MathUtils.damp(camera.fov, baseFov, settling ? 9 : baseFov > camera.fov ? 3.4 : 2.2, dt);
           if (Math.abs(camera.fov - baseFov) < 0.001) camera.fov = baseFov;
           camera.updateProjectionMatrix();
         }
@@ -1123,7 +1229,29 @@ export default function SpaceScene({
       placeDebris(lively);
       placePatrols(lively);
       starLayers.update(camera, elapsed, s.reduced);
-      dust.update(camera, s.reduced ? profile.dust * 0.5 : profile.dust);
+      // How the view itself is travelling, on manual and on autopilot alike: the dust stretches
+      // into streaks along it, longer under boost.
+      if (cameraTracked && dt > 0) {
+        cameraVelocity.copy(camera.position).sub(lastCameraPosition).divideScalar(dt);
+        // A jump of the view (a reset, a skipped trip) is not a speed.
+        if (cameraVelocity.lengthSq() > 3600) cameraVelocity.set(0, 0, 0);
+      } else cameraVelocity.set(0, 0, 0);
+      lastCameraPosition.copy(camera.position);
+      cameraTracked = true;
+      const rush = THREE.MathUtils.clamp(
+        (cameraVelocity.length() - FLIGHT_SPEED.cruise) / (FLIGHT_SPEED.boost - FLIGHT_SPEED.cruise),
+        0,
+        1,
+      );
+      streak.copy(cameraVelocity).multiplyScalar(s.reduced ? 0 : 0.012 * (1 + rush * 2.4));
+      dust.update(
+        camera,
+        s.reduced ? profile.dust * 0.5 : profile.dust,
+        streak,
+        renderer.domElement.width,
+        renderer.domElement.height,
+        1 + rush * 0.9,
+      );
       sunBody.update(camera, profile.flare);
       nebula.dome.position.copy(camera.position);
       shootingStars.tick(
@@ -1261,6 +1389,86 @@ export default function SpaceScene({
           if (label.textContent !== text) label.textContent = text;
         }
       });
+      // The instruments: speed, heading, the radar and the markers for worlds out of view.
+      frameHud.visible = s.flying && !s.paused && !s.photo;
+      if (frameHud.visible) {
+        const shown = s.travel ? cameraVelocity.length() : velocity.length();
+        frameHud.speed = shown;
+        frameHud.throttle = Math.min(1, shown / FLIGHT_SPEED.boost);
+        frameHud.mode = s.travel
+          ? "auto"
+          : thrusting
+            ? fast
+              ? "boost"
+              : "cruise"
+            : shown > 0.08
+              ? "coast"
+              : s.arrived
+                ? "orbit"
+                : "idle";
+        frameHud.heading = (((-heading.yaw * 180) / Math.PI) % 360 + 360) % 360;
+        frameHud.pitch = (heading.pitch * 180) / Math.PI;
+        frameHud.aimed = aimed;
+        frameHud.course = s.travel || s.arrived ? s.destination : null;
+        const cosYaw = Math.cos(heading.yaw),
+          sinYaw = Math.sin(heading.yaw);
+        const width = el.clientWidth,
+          height = el.clientHeight,
+          compact = width < 700;
+        const left = compact ? 22 : 34,
+          top = compact ? 136 : 152,
+          bottom = height - (compact ? 150 : 64);
+        const halfX = (width - left * 2) / 2,
+          halfY = Math.max(20, (bottom - top) / 2),
+          centerY = (top + bottom) / 2;
+        planets.forEach((planet, index) => {
+          const body = frameHud.bodies[index];
+          toBody.copy(planet.position).sub(ship.position);
+          const ahead = -toBody.x * sinYaw - toBody.z * cosYaw,
+            side = toBody.x * cosYaw - toBody.z * sinYaw,
+            flat = Math.hypot(ahead, side) || 1;
+          body.bearing = (Math.atan2(side, ahead) * 180) / Math.PI;
+          // A logarithmic range keeps near and far worlds apart on a small dial.
+          const reach = Math.min(1, Math.log1p(flat / 14) / Math.log1p(260 / 14));
+          body.radarX = (side / flat) * reach;
+          body.radarY = (-ahead / flat) * reach;
+          body.elevation = toBody.y > flat * 0.3 + 4 ? 1 : toBody.y < -flat * 0.3 - 4 ? -1 : 0;
+          body.distance = distances[index];
+          inView.copy(planet.position).applyMatrix4(camera.matrixWorldInverse);
+          projected.copy(planet.position).project(camera);
+          body.edge = !(inView.z < 0 && Math.abs(projected.x) < 0.94 && Math.abs(projected.y) < 0.9);
+          if (body.edge) {
+            let edgeX = inView.x,
+              edgeY = -inView.y;
+            const length = Math.hypot(edgeX, edgeY);
+            if (length < 0.0001) {
+              edgeX = 0;
+              edgeY = 1;
+            } else {
+              edgeX /= length;
+              edgeY /= length;
+            }
+            const scale = Math.min(halfX / Math.max(0.0001, Math.abs(edgeX)), halfY / Math.max(0.0001, Math.abs(edgeY)));
+            body.edgeX = width / 2 + edgeX * scale;
+            body.edgeY = centerY + edgeY * scale;
+            // Keep clear of the radar and speed readout in the lower left corner.
+            if (!compact && body.edgeX < 340 && body.edgeY > height - 190) body.edgeY = height - 190;
+            body.edgeAngle = Math.atan2(edgeY, edgeX);
+          }
+        });
+        // Markers bound for the same stretch of edge are stacked rather than overprinted.
+        edgeOrder.sort((a, b) => frameHud.bodies[a].edgeY - frameHud.bodies[b].edgeY);
+        for (let i = 1; i < edgeOrder.length; i++) {
+          const body = frameHud.bodies[edgeOrder[i]];
+          if (!body.edge) continue;
+          for (let j = 0; j < i; j++) {
+            const other = frameHud.bodies[edgeOrder[j]];
+            if (other.edge && Math.abs(other.edgeX - body.edgeX) < 150 && body.edgeY - other.edgeY < 34)
+              body.edgeY = other.edgeY + 34;
+          }
+        }
+      }
+      hud.current?.update(frameHud);
       if (
         now - lastTelemetry > 100 ||
         lastManual !== thrusting ||
@@ -1403,6 +1611,32 @@ export default function SpaceScene({
         onClick={onDroid}
       >
         <span>ASTROMÉCANO</span>
+      </button>
+      <FlightHud ref={hud} />
+      <button
+        className="touch-boost"
+        data-on={String(state.flying && !state.paused && !state.travel && !state.hidden)}
+        aria-label="Postcombustion : maintenir pour accélérer"
+        onPointerDown={(event) => {
+          touchBoost.current = true;
+          event.currentTarget.dataset.held = "true";
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerUp={(event) => {
+          touchBoost.current = false;
+          event.currentTarget.dataset.held = "false";
+        }}
+        onPointerCancel={(event) => {
+          touchBoost.current = false;
+          event.currentTarget.dataset.held = "false";
+        }}
+        onLostPointerCapture={(event) => {
+          touchBoost.current = false;
+          event.currentTarget.dataset.held = "false";
+        }}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        BOOST
       </button>
       <div ref={joystick} className="touch-joystick" aria-hidden="true">
         <i ref={joystickThumb} />

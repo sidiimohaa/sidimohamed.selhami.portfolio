@@ -156,53 +156,80 @@ export function createStarLayers(pixelRatio: number, share: number) {
 }
 
 // Fine dust in a box that tiles around the camera: motes stream past when the ship moves and
-// hang still when it stops, which is what tells the eye that the ship is travelling.
+// hang still when it stops, which is what tells the eye that the ship is travelling. Each mote is
+// a small quad stretched on screen along the ship's velocity, so speed draws streaks.
 export function createSpaceDust(capacity: number, pixelRatio: number) {
   const rand = random(4242);
   const span = 46;
   const count = Math.max(1, capacity);
-  const positions = new Float32Array(count * 3),
+  const seeds = new Float32Array(count * 3),
     sizes = new Float32Array(count),
     tones = new Float32Array(count);
   for (let i = 0; i < count; i++) {
-    positions[i * 3] = (rand() - 0.5) * span;
-    positions[i * 3 + 1] = (rand() - 0.5) * span;
-    positions[i * 3 + 2] = (rand() - 0.5) * span;
+    seeds[i * 3] = (rand() - 0.5) * span;
+    seeds[i * 3 + 1] = (rand() - 0.5) * span;
+    seeds[i * 3 + 2] = (rand() - 0.5) * span;
     sizes[i] = 0.5 + Math.pow(rand(), 3) * 1.6;
     tones[i] = rand();
   }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
-  geometry.setAttribute("tone", new THREE.BufferAttribute(tones, 1));
+  const geometry = new THREE.InstancedBufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3));
+  geometry.setIndex([0, 1, 2, 0, 2, 3]);
+  geometry.setAttribute("seed", new THREE.InstancedBufferAttribute(seeds, 3));
+  geometry.setAttribute("size", new THREE.InstancedBufferAttribute(sizes, 1));
+  geometry.setAttribute("tone", new THREE.InstancedBufferAttribute(tones, 1));
   const uniforms = {
     origin: { value: new THREE.Vector3() },
     span: { value: span },
     pixelRatio: { value: pixelRatio },
     opacity: { value: 1 },
+    // Where each mote was, relative to the ship, a moment ago: velocity times exposure.
+    streak: { value: new THREE.Vector3() },
+    viewport: { value: new THREE.Vector2(1, 1) },
   };
-  const points = new THREE.Points(
+  const points = new THREE.Mesh(
     geometry,
     new THREE.ShaderMaterial({
       uniforms,
-      vertexShader: `attribute float size;attribute float tone;
-       uniform vec3 origin;uniform float span;uniform float pixelRatio;
-       varying float vFade;varying float vTone;
+      vertexShader: `attribute vec3 seed;attribute float size;attribute float tone;
+       uniform vec3 origin;uniform float span;uniform float pixelRatio;uniform vec3 streak;uniform vec2 viewport;
+       varying float vFade;varying float vTone;varying vec2 vLocal;varying float vLength;varying float vHalf;
        void main(){
-        vec3 offset=mod(position-origin+span*.5,span)-span*.5;
+        vec3 offset=mod(seed-origin+span*.5,span)-span*.5;
         float reach=length(offset);
         vFade=smoothstep(span*.5,span*.28,reach)*smoothstep(.8,3.0,reach);
         vTone=tone;
-        vec4 view=viewMatrix*vec4(origin+offset,1.0);
-        gl_PointSize=clamp(size*pixelRatio*(16.0/max(.5,-view.z)),0.0,6.0*pixelRatio);
-        gl_Position=projectionMatrix*view;
+        vec4 head=viewMatrix*vec4(origin+offset,1.0);
+        vec4 tail=viewMatrix*vec4(origin+offset+streak,1.0);
+        // Nothing is drawn for a mote that reaches behind the lens.
+        vFade*=step(head.z,-.4)*step(tail.z,-.4);
+        vec4 clipHead=projectionMatrix*head;
+        vec4 clipTail=projectionMatrix*tail;
+        float diameter=clamp(size*pixelRatio*(16.0/max(.5,-head.z)),1.0,6.0*pixelRatio);
+        vec2 ndcHead=clipHead.xy/max(.0001,clipHead.w);
+        vec2 delta=(clipTail.xy/max(.0001,clipTail.w)-ndcHead)*viewport*.5;
+        float len=length(delta);
+        vec2 dir=len>.001?delta/len:vec2(1.0,0.0);
+        len=min(len,150.0*pixelRatio);
+        float halfWidth=diameter*.5;
+        float along=mix(-halfWidth,len+halfWidth,position.x*.5+.5);
+        vec2 local=dir*along+vec2(-dir.y,dir.x)*position.y*halfWidth;
+        vLocal=vec2(along,position.y*halfWidth);
+        vLength=len;
+        vHalf=halfWidth;
+        gl_Position=vec4((ndcHead+local/(viewport*.5))*clipHead.w,clipHead.z,clipHead.w);
        }`,
-      fragmentShader: `uniform float opacity;varying float vFade;varying float vTone;
+      fragmentShader: `uniform float opacity;
+       varying float vFade;varying float vTone;varying vec2 vLocal;varying float vLength;varying float vHalf;
        void main(){
-        float d=length(gl_PointCoord*2.0-1.0);
+        // A capsule: round at rest, a tapering streak under way.
+        float nearest=clamp(vLocal.x,0.0,vLength);
+        float d=length(vec2(vLocal.x-nearest,vLocal.y))/vHalf;
         if(d>1.0)discard;
+        float along=vLength>.5?nearest/vLength:0.0;
         vec3 color=mix(vec3(.62,.72,.82),vec3(.86,.78,.66),vTone);
-        gl_FragColor=vec4(color,smoothstep(1.0,.1,d)*vFade*.32*opacity);
+        float trail=(1.0-along*.8)*mix(1.0,.6,clamp(vLength/(vHalf*14.0),0.0,1.0));
+        gl_FragColor=vec4(color,smoothstep(1.0,.1,d)*vFade*.32*opacity*trail);
        }`,
       transparent: true,
       depthWrite: false,
@@ -213,9 +240,14 @@ export function createSpaceDust(capacity: number, pixelRatio: number) {
   points.frustumCulled = false;
   return {
     points,
-    update: (camera: THREE.Camera, visible: number) => {
+    // `streak` is in world units (velocity times exposure); the viewport is in device pixels.
+    update: (camera: THREE.Camera, visible: number, streak?: THREE.Vector3, width = 1, height = 1, opacity = 1) => {
       uniforms.origin.value.copy(camera.position);
-      geometry.setDrawRange(0, Math.min(count, Math.max(0, Math.round(visible))));
+      if (streak) uniforms.streak.value.copy(streak);
+      else uniforms.streak.value.set(0, 0, 0);
+      uniforms.viewport.value.set(Math.max(1, width), Math.max(1, height));
+      uniforms.opacity.value = opacity;
+      geometry.instanceCount = Math.min(count, Math.max(0, Math.round(visible)));
       points.visible = visible > 0;
     },
     setPixelRatio: (ratio: number) => (uniforms.pixelRatio.value = ratio),

@@ -9,6 +9,7 @@
 @import "./lostsector.css";
 @import "./bridge.css";
 @import "./droid.css";
+@import "./hud.css";
 :root {
   --cream: #e9e9de;
   --muted: #858b82;

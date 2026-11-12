@@ -24,6 +24,7 @@ import BridgeWelcome from "./bridge/BridgeWelcome";
 import BridgeSettings from "./bridge/BridgeSettings";
 import GalacticScanner from "./bridge/GalacticScanner";
 import { CopilotComm, PhotoBar } from "./bridge/BridgeHud";
+import FlightTutorial, { type TutorialStep } from "./hud/FlightTutorial";
 import { copilotInOrbit, copilotOnCourse, type CopilotMessage } from "./bridge/copilot";
 import {
   getBridgeSettings,
@@ -116,12 +117,36 @@ export default function Experience() {
     [skipKey, setSkipKey] = useState(0),
     // The flight primer fades once the visitor has flown for a moment.
     [flown, setFlown] = useState(false),
+    // The playable primer, shown once: fly, boost, set a course.
+    [tutorial, setTutorial] = useState<TutorialStep | null>(null),
     // The automatic profile starts from the hardware and steps down if frames run slow.
     [autoQuality, setAutoQuality] = useState<QualityId>(() => (typeof window === "undefined" ? "high" : guessQuality()));
   const bridge = useBridgeSettings();
   const reduced = systemReduced || bridge.reduceMotion,
     quality = bridge.quality === "auto" ? autoQuality : bridge.quality;
   const flownTimer = useRef<number | null>(null);
+  const tutorialRef = useRef<TutorialStep | null>(null),
+    tutorialClock = useRef({ fly: 0, boost: 0, last: 0 });
+  const stepTutorial = useCallback((step: TutorialStep | null) => {
+    tutorialRef.current = step;
+    setTutorial(step);
+    if (step === null || step === 3) {
+      try {
+        window.localStorage.setItem("orbital-tutorial-v1", "1");
+      } catch {
+        // Without storage the primer simply shows again on the next visit.
+      }
+    }
+    // The last tick stays on screen for a moment, then the primer leaves.
+    if (step === 3) window.setTimeout(() => tutorialRef.current === 3 && stepTutorial(null), 2200);
+  }, []);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("orbital-tutorial-v1") !== "1") stepTutorial(0);
+    } catch {
+      stepTutorial(0);
+    }
+  }, [stepTutorial]);
   const singularityRef = useRef(singularity);
   singularityRef.current = singularity;
   // A course set from a link (?cap=hoth): flown as soon as the ship is out of hyperspace.
@@ -148,6 +173,16 @@ export default function Experience() {
     guidance.current = flight.target;
     distances.current = flight.distances;
     if (flight.manual && flownTimer.current === null) flownTimer.current = window.setTimeout(() => setFlown(true), 1500);
+    // The primer's first two steps are earned by flying, then by holding the boost.
+    const step = tutorialRef.current;
+    if (step === 0 || step === 1) {
+      const clock = tutorialClock.current,
+        now = performance.now(),
+        gap = Math.min(250, now - (clock.last || now));
+      clock.last = now;
+      if (step === 0 && flight.manual && (clock.fly += gap) > 1400) stepTutorial(1);
+      else if (step === 1 && flight.boost && (clock.boost += gap) > 900) stepTutorial(2);
+    }
     if (flight.boost && flight.manual) {
       const now = performance.now();
       boostSince.current ??= now;
@@ -292,11 +327,13 @@ export default function Experience() {
       setArrived(false);
       setTravel(true);
       setScan(null);
+      // Setting any course completes the primer.
+      if (tutorialRef.current !== null) stepTutorial(null);
       if (getBridgeSettings().copilot) setComm(copilotOnCourse(index));
       // The flight animation signals arrival after braking, rather than a wall-clock timer.
       if (unsupported) timers.current.push(setTimeout(completeApproach, 650));
     },
-    [unsupported, completeApproach],
+    [unsupported, completeApproach, stepTutorial],
   );
   // Fetch the next scene's code ahead of time, so that pressing the button only has to build it.
   useEffect(() => {
@@ -1000,8 +1037,12 @@ export default function Experience() {
       </AnimatePresence>
       {/* A flight primer until the visitor first takes the controls. */}
       <AnimatePresence>
-        {cruising && !welcome && !flown && !arrived && !travel && (
+        {cruising && !welcome && tutorial !== null && !arrived && !travel && !scan && !settingsOpen && !helpOpen && (
+          <FlightTutorial key="tutorial" step={tutorial} reduced={reduced} onSkip={() => stepTutorial(null)} />
+        )}
+        {cruising && !welcome && tutorial === null && !flown && !arrived && !travel && (
           <motion.p
+            key="hint"
             className="flight-hint mono"
             initial={{ opacity: 0, y: reduced ? 0 : 6 }}
             animate={{ opacity: 1, y: 0, transition: { delay: reduced ? 0 : 0.6 } }}
