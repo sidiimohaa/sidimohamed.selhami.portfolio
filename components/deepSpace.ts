@@ -41,11 +41,11 @@ type Shell = {
 
 const shells: Shell[] = [
   // The far field: dense, faint and almost fixed.
-  { count: 7200, near: 255, far: 300, band: 0.55, size: [0.85, 1.5], brightness: [0.16, 0.5], flareEvery: 0, follow: 0.985, twinkle: 0.05 },
+  { count: 7200, near: 255, far: 300, band: 0.55, size: [0.9, 1.7], brightness: [0.2, 0.62], flareEvery: 0, follow: 0.985, twinkle: 0.05 },
   // The middle field, which carries most of the visible stars.
-  { count: 3300, near: 185, far: 235, band: 0.35, size: [1.05, 2.4], brightness: [0.3, 0.92], flareEvery: 230, follow: 0.94, twinkle: 0.08 },
+  { count: 3300, near: 185, far: 235, band: 0.35, size: [1.1, 2.7], brightness: [0.36, 1], flareEvery: 150, follow: 0.94, twinkle: 0.08 },
   // A few close, bright stars that drift visibly against the rest.
-  { count: 280, near: 120, far: 150, band: 0.15, size: [1.8, 3.4], brightness: [0.62, 1], flareEvery: 38, follow: 0.86, twinkle: 0.04 },
+  { count: 280, near: 120, far: 150, band: 0.15, size: [1.9, 3.6], brightness: [0.66, 1], flareEvery: 30, follow: 0.86, twinkle: 0.04 },
 ];
 
 function buildShell(shell: Shell, share: number, pixelRatio: number, seed: number) {
@@ -318,5 +318,52 @@ export function createSun(direction: THREE.Vector3, fixedPosition?: THREE.Vector
       ghost.dispose();
       flare.dispose();
     },
+  };
+}
+
+// The system's star, seen from inside the system: a white-hot disc, a breathing corona and
+// faint diffraction spikes, on a quad that always faces the eye. The glow, shafts and lens
+// reflections around it are added by the grade.
+export function createSystemStar(position: THREE.Vector3, size = 30) {
+  const uniforms = { time: { value: 0 }, size: { value: size }, tint: { value: new THREE.Color(1, 0.8, 0.56) } };
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, 2),
+    new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader: `uniform float size;varying vec2 vUv;
+       void main(){
+        vUv=position.xy;
+        vec4 centre=modelViewMatrix*vec4(0.0,0.0,0.0,1.0);
+        centre.xy+=position.xy*size;
+        gl_Position=projectionMatrix*centre;
+       }`,
+      fragmentShader: `uniform float time;uniform vec3 tint;varying vec2 vUv;
+       void main(){
+        float d=length(vUv);
+        if(d>1.0)discard;
+        float angle=atan(vUv.y,vUv.x);
+        float disc=smoothstep(.07,.052,d);
+        float limb=exp(-pow(d/.085,2.0));
+        // Streamers of unequal length that turn slowly: the corona is never a perfect circle.
+        float streamers=.62+.38*(sin(angle*5.0+time*.11)*.45+sin(angle*11.0-time*.07)*.3+sin(angle*17.0+time*.19)*.25);
+        float corona=exp(-d*(8.5-streamers*3.0))*.9;
+        float halo=exp(-d*3.4)*.16;
+        float spikes=(exp(-abs(vUv.y)*120.0)+exp(-abs(vUv.x)*120.0))*exp(-d*5.0)*.45;
+        float edge=smoothstep(1.0,.7,d);
+        vec3 color=vec3(1.0,.98,.93)*disc+tint*(limb*1.3+corona+halo)+vec3(.85,.9,1.0)*spikes;
+        gl_FragColor=vec4(color*edge,1.0);
+       }`,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+      fog: false,
+    }),
+  );
+  mesh.position.copy(position);
+  mesh.frustumCulled = false;
+  return {
+    mesh,
+    update: (elapsed: number, reduced: boolean) => (uniforms.time.value = reduced ? 0 : elapsed),
   };
 }

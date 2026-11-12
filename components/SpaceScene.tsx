@@ -5,8 +5,9 @@ import { destinations } from "./universe";
 import { createPlanetLayers } from "./planetMaterial";
 import { createShipModel } from "./shipModel";
 import { equippedValue, getArcade, onArcadeChange } from "./arcade/arcadeStore";
-import { createNebula, createShootingStars } from "./spaceAmbience";
-import { createSpaceDust, createStarLayers, createSun } from "./deepSpace";
+import { createNebula, createNebulaVeils, createShootingStars } from "./spaceAmbience";
+import { createSpaceDust, createStarLayers, createSun, createSystemStar } from "./deepSpace";
+import { createEngineFx } from "./flight/engineFx";
 import { qualityProfiles, type QualityId } from "./graphicsQuality";
 import { createSpaceTraffic, type HyperspacePhase, type TrafficKind } from "./spaceTraffic";
 import { livingOn } from "./galaxy/flags";
@@ -17,6 +18,14 @@ import { createEventHorizon } from "./eventHorizon/createEventHorizon";
 import { isTextEntry } from "./eventHorizon/konami";
 import { createShake, readPad, resetSpring, spring, stepSpring, stepVelocity, type ShakeOffset } from "./flight/flightFeel";
 import FlightHud, { hudFrame, type FlightHudHandle } from "./hud/FlightHud";
+import { createPipeline, tierOf, type SpaceFx, type Tier } from "./render/pipeline";
+import { spaceGrade } from "./render/looks";
+// Open space is graded on Medium and glows on High and Ultra; ambient occlusion has nothing to
+// shade out here. ?fx=off draws straight to the screen, to compare.
+const spaceTier = (quality: QualityId): Tier => {
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("fx") === "off") return 0;
+  return Math.min(2, tierOf(quality)) as Tier;
+};
 import { ORBITAL_BODIES, SYSTEM_CENTER, DEBRIS_ORBIT, HOME_CAMERA_Z, FLIGHT_SPEED, orbitalPoint, homeCameraZ } from "./orbitalSystem";
 export type FlightState = {
   flying: boolean;
@@ -367,11 +376,17 @@ export default function SpaceScene({
     let quality = state.quality,
       profile = qualityProfiles[quality] ?? qualityProfiles.high;
     let renderer: THREE.WebGLRenderer;
+    // With the grade on, the canvas only ever receives one full-screen quad: smoothing happens
+    // in the off-screen target, and multisampling the canvas as well would be paid for nothing.
+    const offscreen = spaceTier(quality) > 0;
+    // Without canvas multisampling the plain path would be jagged, so a renderer that started
+    // graded keeps at least the graded tier when the profile later steps down.
+    const tierFor = (level: QualityId): Tier => (offscreen ? (Math.max(1, spaceTier(level)) as Tier) : spaceTier(level));
     try {
       // Opaque: the sky dome covers every pixel, so a transparent canvas only cost compositing.
       renderer = new THREE.WebGLRenderer({
         alpha: false,
-        antialias: profile.antialias,
+        antialias: profile.antialias && !offscreen,
         powerPreference: "high-performance",
       });
     } catch {
@@ -390,6 +405,8 @@ export default function SpaceScene({
     scene.fog = new THREE.FogExp2(0x080d0d, 0.0025);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 650);
     camera.position.set(0, 0, HOME_CAMERA_Z);
+    const pipeline = createPipeline(renderer, scene, camera, spaceGrade, tierFor(quality), { space: true });
+    const fx: SpaceFx = { time: 0, grain: 0, aberration: 0, speed: 0, sunX: 0.5, sunY: 0.5, sun: 0, rays: 0, flare: 0 };
     scene.add(new THREE.AmbientLight(0x9bafa8, 0.19));
     const sun = new THREE.DirectionalLight(0xffe2bf, 2.8);
     sun.position.set(-24, 24, 30);
@@ -400,6 +417,9 @@ export default function SpaceScene({
     const rand = random(74);
     const nebula = createNebula(renderer, profile.sky);
     scene.add(nebula.dome);
+    // Nearer veils of gas that slide against the far sky: Medium and above.
+    const veils = profile.sky >= 384 ? createNebulaVeils(renderer, profile.sky >= 512 ? 256 : 128) : null;
+    if (veils) scene.add(veils.group);
     // Three star shells at different depths, dust around the hull and the sun along the key light.
     const starLayers = createStarLayers(renderer.getPixelRatio(), profile.stars);
     scene.add(starLayers.group);
@@ -407,6 +427,10 @@ export default function SpaceScene({
     scene.add(dust.points);
     const sunBody = createSun(sun.position, new THREE.Vector3(...SYSTEM_CENTER));
     scene.add(sunBody.group);
+    // The star itself, where the old glow sprite was only a point of light.
+    const star = createSystemStar(new THREE.Vector3(...SYSTEM_CENTER));
+    scene.add(star.mesh);
+    sunBody.group.visible = false;
     const shootingStars = createShootingStars();
     scene.add(shootingStars.group);
     const planets: THREE.Group[] = [];
@@ -651,8 +675,65 @@ export default function SpaceScene({
       const trail = equippedValue(getArcade(), "engine");
       exhausts.forEach((engine) => engine.material.color.set(trail.startsWith("#") ? trail : 0xff8fc2));
     };
+    const engineFx = createEngineFx(exhausts, 0xff8fc2);
+    scene.add(engineFx.group);
+    const tintPlumes = () => {
+      const trail = equippedValue(getArcade(), "engine");
+      engineFx.setColor(trail.startsWith("#") ? trail : 0xff8fc2);
+    };
     tintEngines();
-    const stopTint = onArcadeChange(tintEngines);
+    tintPlumes();
+    const stopTint = onArcadeChange(() => {
+      tintEngines();
+      tintPlumes();
+    });
+    // What the hull reflects: the nebula sky, the star as a small hot source and a cool fill
+    // opposite it, filtered once for rough metal. Only the craft carries it, so the worlds and
+    // the station keep their own light.
+    const reflections = (() => {
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      const studio = new THREE.Scene();
+      const sky = new THREE.Mesh(
+        new THREE.SphereGeometry(50, 32, 16),
+        new THREE.ShaderMaterial({
+          uniforms: { sky: { value: nebula.texture } },
+          vertexShader: "varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+          fragmentShader: "uniform samplerCube sky;varying vec3 direction;void main(){gl_FragColor=vec4(textureCube(sky,direction).rgb*2.2+vec3(.012,.016,.022),1.0);}",
+          side: THREE.BackSide,
+        }),
+      );
+      studio.add(sky);
+      const lamp = (direction: THREE.Vector3, radius: number, color: THREE.Color) => {
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 8), new THREE.MeshBasicMaterial({ color }));
+        mesh.position.copy(direction).normalize().multiplyScalar(40);
+        studio.add(mesh);
+      };
+      lamp(sun.position, 5, new THREE.Color(46, 38, 28));
+      lamp(rim.position, 11, new THREE.Color(0.9, 1.5, 2.1));
+      const target = pmrem.fromScene(studio, 0.02, 0.1, 100);
+      pmrem.dispose();
+      studio.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose();
+          (object.material as THREE.Material).dispose();
+        }
+      });
+      return target;
+    })();
+    ship.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const material = object.material;
+      if (material instanceof THREE.MeshStandardMaterial && material.name !== "reactor-core") {
+        material.envMap = reflections.texture;
+        material.envMapIntensity = 0.9;
+        material.needsUpdate = true;
+      }
+    });
+    // Light thrown back by the nearest world: the hull takes its colour on the way in.
+    const bounce = new THREE.PointLight(0xffffff, 0, 16, 1.2);
+    scene.add(bounce);
+    const bounceTints = [0xf0c48a, 0x8fd9b0, 0xff9d6e, 0xcfd8dc, 0xb6e2ff].map((tone) => new THREE.Color(tone));
+    const toWorld = new THREE.Vector3();
     ship.position.set(0, -1.55, 25);
     ship.rotation.set(-1.04, 0, 0);
     ship.scale.setScalar(0.585);
@@ -803,6 +884,7 @@ export default function SpaceScene({
       const w = el.clientWidth,
         h = el.clientHeight;
       renderer.setSize(w, h);
+      pipeline.setSize(w, h);
       // Resizing clears the canvas: draw again even when nothing moves.
       dirtyFrames = Math.max(dirtyFrames, 2);
       camera.aspect = w / h;
@@ -934,6 +1016,7 @@ export default function SpaceScene({
         quality = s.quality;
         profile = qualityProfiles[quality] ?? qualityProfiles.high;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, profile.pixelRatio));
+        pipeline.setTier(tierFor(quality));
         starLayers.setPixelRatio(renderer.getPixelRatio());
         dust.setPixelRatio(renderer.getPixelRatio());
         resize();
@@ -972,6 +1055,7 @@ export default function SpaceScene({
         camera.updateProjectionMatrix();
         traffic.reset();
         shootingStars.reset();
+        engineFx.clear();
       }
       let pads: readonly (Gamepad | null)[] = [];
       try {
@@ -1252,8 +1336,11 @@ export default function SpaceScene({
         renderer.domElement.height,
         1 + rush * 0.9,
       );
-      sunBody.update(camera, profile.flare);
+      // The lens reflections are drawn by the grade, from what the sun really shows of itself.
+      sunBody.update(camera, false);
       nebula.dome.position.copy(camera.position);
+      veils?.update(camera, elapsed, s.reduced);
+      star.update(elapsed, s.reduced);
       shootingStars.tick(
         lively,
         camera,
@@ -1291,6 +1378,32 @@ export default function SpaceScene({
         material.emissiveIntensity = droidActive ? 1.1 : 0.22;
       });
       ship.updateMatrixWorld(true);
+      // Plumes at the nozzles and ribbons of light along the path just flown.
+      engineFx.update(
+        s.paused ? 0 : dt,
+        camera,
+        enginePower,
+        rush,
+        cameraVelocity.length(),
+        s.reduced || s.paused,
+      );
+      // The nearest world throws its own colour back onto the hull.
+      let nearest = -1,
+        gap = Infinity;
+      planets.forEach((planet, index) => {
+        const clear = ship.position.distanceTo(planet.position) - radii[index];
+        if (clear < gap) {
+          gap = clear;
+          nearest = index;
+        }
+      });
+      if (nearest >= 0) {
+        const share = 1 - THREE.MathUtils.smoothstep(gap, 2, radii[nearest] * 2.4);
+        bounce.intensity = THREE.MathUtils.damp(bounce.intensity, share * 22, 3, dt);
+        bounce.color.lerp(bounceTints[nearest], 1 - Math.exp(-dt * 3));
+        toWorld.copy(planets[nearest].position).sub(ship.position).normalize();
+        bounce.position.copy(ship.position).addScaledVector(toWorld, 5);
+      }
       // The ship's screen footprint, so planet labels can step around it.
       shipRect.left = shipRect.top = Infinity;
       shipRect.right = shipRect.bottom = -Infinity;
@@ -1492,7 +1605,21 @@ export default function SpaceScene({
         lastTarget = aimed;
         lastBoost = fast;
       }
-      renderer.render(scene, camera);
+      // The grade's extras: grain, fringing, the smear of speed, and the sun's place on screen
+      // for its shafts and lens reflections.
+      projected.copy(sunBody.group.position).project(camera);
+      const sunOff = Math.max(Math.abs(projected.x), Math.abs(projected.y));
+      fx.time = s.reduced ? 0 : elapsed;
+      fx.grain = 0.035;
+      fx.aberration = s.reduced ? 0.003 : 0.004 + rush * 0.014;
+      fx.speed = s.reduced ? 0 : rush * 0.1;
+      fx.sunX = projected.x * 0.5 + 0.5;
+      fx.sunY = projected.y * 0.5 + 0.5;
+      fx.sun = projected.z < 1 ? 1 - THREE.MathUtils.smoothstep(sunOff, 1, 1.35) : 0;
+      fx.rays = 1;
+      fx.flare = profile.flare ? 1 : 0;
+      pipeline.setFx(fx);
+      pipeline.render();
       // The first second and a half (shader compilation, texture uploads) is not counted, and two
       // slow windows in a row are needed, so a real graphics card is never mistaken for software.
       firstFrameAt ||= now;
@@ -1527,7 +1654,11 @@ export default function SpaceScene({
       disposed = true;
       referenceTextures.forEach((texture) => texture.dispose());
       nebula.dispose();
+      veils?.dispose();
+      engineFx.dispose();
+      reflections.dispose();
       sunBody.dispose();
+      pipeline.dispose();
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("pointermove", pointerMove);

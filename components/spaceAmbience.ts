@@ -171,13 +171,17 @@ export function createNebula(renderer: THREE.WebGLRenderer, size = 768) {
         gasClouds+=cloud(n,vec3(-.74,-.12,-.66),.14,vec3(.05,.13,.32),vec3(.18,.46,.62),4.0);
         gasClouds+=cloud(n,vec3(.24,-.58,.78),.12,vec3(.3,.05,.05),vec3(.7,.24,.18),8.0);
         gasClouds+=cloud(n,vec3(-.35,.82,.42),.2,vec3(.04,.16,.17),vec3(.14,.36,.36),12.0)*.8;
+        // The backdrop of the system itself: a wide teal drift low behind the worlds, and an
+        // ember cloud high to the left, so the first view has depth behind every planet.
+        gasClouds+=cloud(n,vec3(.1,-.3,-.95),.24,vec3(.03,.12,.2),vec3(.1,.34,.44),17.0)*.75;
+        gasClouds+=cloud(n,vec3(-.38,.5,-.78),.1,vec3(.28,.1,.05),vec3(.62,.3,.14),23.0)*.7;
         sky+=gasClouds*1.9;
         float far=galaxy(n,vec3(-.42,.36,-.83),vec3(.3,1.0,.1),.011,.0038)
           +galaxy(n,vec3(.81,.1,-.58),vec3(1.0,.4,.2),.007,.0045)
           +galaxy(n,vec3(-.1,-.86,-.5),vec3(.6,.2,1.0),.009,.003)
           +galaxy(n,vec3(.5,.62,.6),vec3(.1,.3,1.0),.006,.0022);
         sky+=vec3(.95,.85,.72)*far*.5;
-        gl_FragColor=vec4(sky*.5,1.0);
+        gl_FragColor=vec4(sky*.6,1.0);
        }`,
       side: THREE.BackSide,
       depthWrite: false,
@@ -206,7 +210,94 @@ export function createNebula(renderer: THREE.WebGLRenderer, size = 768) {
   );
   dome.renderOrder = -2;
   dome.frustumCulled = false;
-  return { dome, dispose: () => target.dispose() };
+  return { dome, texture: target.texture, dispose: () => target.dispose() };
+}
+
+// Nearer veils of gas, between the far sky and the worlds. Each is a shell that only partly
+// follows the ship, so the veils slide against the stars and the sky as it travels: that slide is
+// what gives the nebula a volume. The noise is baked once into a small cube map.
+export function createNebulaVeils(renderer: THREE.WebGLRenderer, size = 256) {
+  const bake = new THREE.Scene();
+  const source = new THREE.Mesh(
+    new THREE.SphereGeometry(10, 48, 24),
+    new THREE.ShaderMaterial({
+      vertexShader: skyVertex,
+      fragmentShader: `${skyNoise}
+       varying vec3 direction;
+       float fbm5(vec3 p){float v=0.0,a=.5;for(int i=0;i<5;i++){v+=noise3(p)*a;p=p*2.11+vec3(4.1,2.7,8.3);a*=.5;}return v;}
+       void main(){
+        vec3 n=normalize(direction);
+        vec3 warp=vec3(fbm(n*1.7+2.0),fbm(n*1.7+7.3),fbm(n*1.7+13.1));
+        float shape=fbm5(n*2.3+warp*1.9);
+        // Wisps with holes between them, thinner where a second, slower field is low.
+        float density=smoothstep(.46,.82,shape)*smoothstep(.3,.62,fbm(n*1.1+21.0));
+        float filaments=smoothstep(.52,.7,fbm5(n*9.0+warp*2.4));
+        gl_FragColor=vec4(density*(1.0-filaments*.55),fbm(n*2.6+31.0),pow(smoothstep(.6,.92,shape),2.0),1.0);
+       }`,
+      side: THREE.BackSide,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  bake.add(source);
+  const target = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType });
+  new THREE.CubeCamera(1, 100, target).update(renderer, bake);
+  source.geometry.dispose();
+  source.material.dispose();
+  const group = new THREE.Group();
+  const layers = [
+    // Teal and blue, the nearer and stronger of the two.
+    { radius: 298, follow: 0.55, tilt: [0.3, 1.1, 0.2], low: [0.02, 0.1, 0.16], high: [0.1, 0.3, 0.42], core: [0.3, 0.55, 0.6], strength: 0.55, drift: 0.0021 },
+    // Magenta turning to ember, further out.
+    { radius: 308, follow: 0.78, tilt: [1.9, 0.4, 2.6], low: [0.14, 0.03, 0.14], high: [0.36, 0.12, 0.2], core: [0.6, 0.34, 0.24], strength: 0.42, drift: -0.0014 },
+  ].map((layer) => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(layer.radius, 32, 16),
+      new THREE.ShaderMaterial({
+        uniforms: {
+          veil: { value: target.texture },
+          low: { value: new THREE.Vector3(...layer.low) },
+          high: { value: new THREE.Vector3(...layer.high) },
+          core: { value: new THREE.Vector3(...layer.core) },
+          strength: { value: layer.strength },
+        },
+        vertexShader: skyVertex,
+        fragmentShader: `uniform samplerCube veil;uniform vec3 low;uniform vec3 high;uniform vec3 core;uniform float strength;varying vec3 direction;
+         void main(){
+          vec3 v=textureCube(veil,direction).rgb;
+          gl_FragColor=vec4((mix(low,high,v.g)*v.r+core*v.b*.35)*strength,1.0);
+         }`,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+        fog: false,
+      }),
+    );
+    mesh.rotation.set(layer.tilt[0], layer.tilt[1], layer.tilt[2]);
+    mesh.renderOrder = -1.5;
+    mesh.frustumCulled = false;
+    group.add(mesh);
+    return { mesh, follow: layer.follow, drift: layer.drift, spin: layer.tilt[1] };
+  });
+  return {
+    group,
+    update: (camera: THREE.Camera, elapsed: number, reduced: boolean) => {
+      layers.forEach((layer) => {
+        layer.mesh.position.copy(camera.position).multiplyScalar(layer.follow);
+        // The gas turns very slowly on itself.
+        if (!reduced) layer.mesh.rotation.y = layer.spin + elapsed * layer.drift;
+      });
+    },
+    dispose: () => {
+      target.dispose();
+      layers.forEach((layer) => {
+        layer.mesh.geometry.dispose();
+        layer.mesh.material.dispose();
+      });
+    },
+  };
 }
 
 type Streak = {

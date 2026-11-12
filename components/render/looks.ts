@@ -64,6 +64,25 @@ const neutral: Grade = {
   aoStrength: 0.8,
 };
 
+// Open space: deep teal shadows against warm highlights, strong contrast, and a generous glow on
+// what truly shines (the sun, the engines, city lights on a night side).
+export const spaceGrade: Grade = {
+  ...neutral,
+  lift: [-0.012, -0.004, 0.008],
+  gamma: [0.98, 1.0, 1.03],
+  gain: [1.03, 1.0, 0.99],
+  shadowTint: [-0.006, 0.004, 0.014],
+  highlightTint: [0.018, 0.006, -0.012],
+  contrast: 1.07,
+  saturation: 1.08,
+  vignette: 0.2,
+  bloomStrength: 0.42,
+  bloomRadius: 0.55,
+  bloomThreshold: 0.78,
+  aoRadius: 0,
+  aoStrength: 0,
+};
+
 const worldLooks: Record<Exclude<LookId, "podDay" | "podSunset" | "podNight">, Look> = {
   // Cold, clean light: blue shadows, a slightly lifted white, little saturation. The cold reads
   // in the shadows more than in the highlights.

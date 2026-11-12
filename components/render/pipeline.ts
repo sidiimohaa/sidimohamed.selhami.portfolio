@@ -59,6 +59,41 @@ const blurShader = /* glsl */ `
     gl_FragColor=vec4(c,1.0);
   }`;
 
+// Open space only: shafts of light from the sun. The blurred bright pass is smeared along the
+// line to the sun's place on screen, so a world crossing the sun cuts its own shadow in the light.
+const raysShader = /* glsl */ `
+  uniform sampler2D tDiffuse; uniform vec2 sun; uniform float aspect; varying vec2 vUv;
+  void main(){
+    vec2 stride = (vUv - sun) / 22.0;
+    vec2 uv = vUv; float decay = 1.0; vec3 sum = vec3(0.0);
+    for (int i = 0; i < 22; i++) {
+      vec2 q = uv - sun; q.x *= aspect;
+      // Only light from around the sun itself is carried: engines and city lights cast no shafts.
+      float mask = smoothstep(0.3, 0.03, length(q)) * step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+      sum += texture2D(tDiffuse, uv).rgb * mask * decay;
+      decay *= 0.94;
+      uv -= stride;
+    }
+    gl_FragColor = vec4(sum / 22.0, 1.0);
+  }`;
+
+/** What open space adds to the grade, frame by frame. Every strength is 0 for "off". */
+export type SpaceFx = {
+  time: number;
+  // Film grain amplitude, in display units.
+  grain: number;
+  // Lateral colour fringing toward the corners.
+  aberration: number;
+  // Radial smear from the centre of the frame under boost, 0..1.
+  speed: number;
+  // The sun's place on screen (0..1) and how much of it counts (0 when behind or far off frame).
+  sunX: number;
+  sunY: number;
+  sun: number;
+  rays: number;
+  flare: number;
+};
+
 const gradeShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
@@ -75,6 +110,15 @@ const gradeShader = {
     saturation: { value: 1 },
     vignette: { value: 0 },
     aspect: { value: 1 },
+    time: { value: 0 },
+    grain: { value: 0 },
+    aberration: { value: 0 },
+    speed: { value: 0 },
+    sun: { value: new THREE.Vector2(0.5, 0.5) },
+    sunOn: { value: 0 },
+    tRays: { value: null as THREE.Texture | null },
+    rays: { value: 0 },
+    flare: { value: 0 },
   },
   vertexShader,
   fragmentShader: /* glsl */ `
@@ -83,13 +127,56 @@ const gradeShader = {
     uniform vec3 lift, gamma, gain, shadowTint, highlightTint;
     uniform float contrast, saturation, vignette, aspect;
     varying vec2 vUv;
+    #ifdef SPACE
+      uniform sampler2D tRays;
+      uniform float time, grain, aberration, speed, sunOn, rays, flare;
+      uniform vec2 sun;
+      // One reflection inside the lens: a soft disc or a thin ring on the line through the centre.
+      float ghost(vec2 at, float radius, float ring){
+        vec2 q = vUv - at; q.x *= aspect;
+        float d = length(q) / radius;
+        return mix(smoothstep(1.0, 0.55, d), smoothstep(1.0, 0.86, d) * smoothstep(0.62, 0.86, d), ring);
+      }
+    #endif
     const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
     void main(){
-      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      #ifdef SPACE
+        // Colour fringing grows toward the corners; under boost the frame smears outward.
+        vec2 fromCentre = vUv - 0.5;
+        float reach = dot(fromCentre, fromCentre);
+        vec2 fringe = fromCentre * reach * aberration;
+        vec3 c = vec3(texture2D(tDiffuse, vUv + fringe).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - fringe).b);
+        if (speed > 0.002) {
+          // Four more taps toward the centre: seven fetches in all at full burn.
+          vec2 pull = fromCentre * (speed * reach * 0.25);
+          c = (c + texture2D(tDiffuse, vUv - pull).rgb + texture2D(tDiffuse, vUv - pull * 2.0).rgb
+            + texture2D(tDiffuse, vUv - pull * 3.0).rgb + texture2D(tDiffuse, vUv - pull * 4.0).rgb) * 0.2;
+        }
+      #else
+        vec3 c = texture2D(tDiffuse, vUv).rgb;
+      #endif
       #ifdef BLOOM
         vec3 glow = mix(texture2D(bloomNear, vUv).rgb, texture2D(bloomFar, vUv).rgb, bloomRadius);
         // Screen blend: the glow brightens without ever clipping what is already white.
         c = 1.0 - (1.0 - c) * (1.0 - glow * bloomStrength * 2.0);
+        #ifdef SPACE
+          if (sunOn > 0.001) {
+            // How much of the sun actually shows, read from the wide glow at its own position:
+            // a world passing in front dims the shafts and the lens reflections together.
+            float seen = sunOn * smoothstep(0.015, 0.16, dot(texture2D(bloomFar, clamp(sun, 0.0, 1.0)).rgb, vec3(0.3333)));
+            vec3 light = texture2D(tRays, vUv).rgb * rays * sunOn;
+            vec2 axis = vec2(0.5) - sun;
+            vec3 lens = vec3(0.45, 0.72, 1.0) * ghost(sun + axis * 0.62, 0.03, 0.0) * 0.1
+              + vec3(0.72, 0.52, 1.0) * ghost(sun + axis * 1.32, 0.05, 1.0) * 0.13
+              + vec3(0.4, 0.9, 1.0) * ghost(sun + axis * 1.72, 0.02, 0.0) * 0.1
+              + vec3(1.0, 0.74, 0.5) * ghost(sun + axis * 2.2, 0.085, 1.0) * 0.1;
+            // The anamorphic streak across the sun.
+            vec2 q = vUv - sun;
+            lens += vec3(0.5, 0.7, 1.0) * exp(-q.y * q.y * 30000.0) * exp(-abs(q.x) * 6.5) * 0.36;
+            light += lens * flare * seen;
+            c = 1.0 - (1.0 - c) * (1.0 - min(light, 1.0));
+          }
+        #endif
       #endif
       float l = dot(c, LUMA);
       // Split toning: one colour into the shadows, another into the highlights.
@@ -103,6 +190,11 @@ const gradeShader = {
       vec2 d = vUv - 0.5;
       d.x *= aspect;
       c *= 1.0 - vignette * smoothstep(0.35, 1.0, length(d));
+      #ifdef SPACE
+        // Film grain: alive in the shadows, almost gone in the highlights.
+        float g = fract(sin(dot(gl_FragCoord.xy + fract(time * 0.37) * vec2(311.0, 173.0), vec2(12.9898, 78.233))) * 43758.5453);
+        c += (g - 0.5) * grain * (1.0 - 0.7 * dot(c, LUMA));
+      #endif
       // Dithering hides banding in fog and sky gradients.
       float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
       c += (n - 0.5) / 255.0;
@@ -115,11 +207,14 @@ export type Pipeline = {
   setTier: (tier: Tier) => void;
   setSize: (width: number, height: number) => void;
   setGrade: (grade: Grade) => void;
+  /** Open space only (the `space` option): the per-frame extras. Ignored elsewhere. */
+  setFx: (fx: SpaceFx) => void;
   render: () => void;
   dispose: () => void;
 };
 
-export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, grade: Grade, initial: Tier): Pipeline {
+export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, grade: Grade, initial: Tier, options: { space?: boolean } = {}): Pipeline {
+  const space = !!options.space;
   let tier: Tier = initial,
     width = 1,
     height = 1;
@@ -135,13 +230,28 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
     return target;
   };
   const capable = renderer.capabilities.isWebGL2;
-  const sceneTarget = makeTarget(capable ? 4 : 0);
+  // Open space is mostly sky: two samples smooth the limb of a world as well as four, for half
+  // the bandwidth on a full-resolution target.
+  const sceneTarget = makeTarget(capable ? (space ? 2 : 4) : 0);
   const spare = makeTarget(0);
   // Small buffers for the bloom: a quarter and an eighth of the frame, two of each for the blur.
   const glowTarget = () => new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
   const near = [glowTarget(), glowTarget()],
     far = [glowTarget(), glowTarget()];
   const material = new THREE.ShaderMaterial({ ...gradeShader, uniforms: THREE.UniformsUtils.clone(gradeShader.uniforms), depthTest: false, depthWrite: false });
+  if (space) material.defines.SPACE = "";
+  // The sun's shafts, at a quarter of the frame like the glow they are drawn from.
+  const raysTarget = space ? glowTarget() : null;
+  const raysMaterial = space
+    ? new THREE.ShaderMaterial({
+        uniforms: { tDiffuse: { value: null }, sun: { value: new THREE.Vector2(0.5, 0.5) }, aspect: { value: 1 } },
+        vertexShader,
+        fragmentShader: raysShader,
+        depthTest: false,
+        depthWrite: false,
+      })
+    : null;
+  let fx: SpaceFx | null = null;
   const prefilter = new THREE.ShaderMaterial({
     uniforms: { tDiffuse: { value: null }, texel: { value: new THREE.Vector2() }, threshold: { value: 0.9 } },
     vertexShader,
@@ -228,6 +338,8 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
     spare.setSize(w, h);
     near.forEach((target) => target.setSize(Math.max(1, Math.ceil(w / 4)), Math.max(1, Math.ceil(h / 4))));
     far.forEach((target) => target.setSize(Math.max(1, Math.ceil(w / 8)), Math.max(1, Math.ceil(h / 8))));
+    raysTarget?.setSize(Math.max(1, Math.ceil(w / 4)), Math.max(1, Math.ceil(h / 4)));
+    if (raysMaterial) raysMaterial.uniforms.aspect.value = w / Math.max(h, 1);
     ao?.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
     material.uniforms.aspect.value = w / Math.max(h, 1);
   };
@@ -260,6 +372,19 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
       resize();
     },
     setGrade,
+    setFx: (next) => {
+      if (!space) return;
+      fx = next;
+      const u = material.uniforms;
+      u.time.value = next.time;
+      u.grain.value = next.grain;
+      u.aberration.value = next.aberration;
+      u.speed.value = next.speed;
+      u.sun.value.set(next.sunX, next.sunY);
+      u.sunOn.value = next.sun;
+      u.rays.value = next.rays;
+      u.flare.value = next.flare;
+    },
     render: () => {
       if (tier === 0) {
         renderer.setRenderTarget(null);
@@ -285,6 +410,14 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
         blurInto(far, near[0].texture);
         material.uniforms.bloomNear.value = near[0].texture;
         material.uniforms.bloomFar.value = far[0].texture;
+        if (raysTarget && raysMaterial) {
+          material.uniforms.tRays.value = raysTarget.texture;
+          if (fx && fx.sun > 0.001 && fx.rays > 0) {
+            raysMaterial.uniforms.tDiffuse.value = near[0].texture;
+            raysMaterial.uniforms.sun.value.set(fx.sunX, fx.sunY);
+            pass(raysMaterial, raysTarget);
+          }
+        }
       }
       material.uniforms.tDiffuse.value = read.texture;
       pass(material, null);
@@ -293,6 +426,8 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
       sceneTarget.dispose();
       spare.dispose();
       [...near, ...far].forEach((target) => target.dispose());
+      raysTarget?.dispose();
+      raysMaterial?.dispose();
       ao?.dispose();
       material.dispose();
       prefilter.dispose();
