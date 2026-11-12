@@ -819,3 +819,143 @@
 .cine-bars[data-on="true"] ~ .flight-hud .hud-edge {
   transition: none;
 }
+
+/* Sound: a labelled pill in the header, so the switch is found at a glance. */
+.header .bridge-pill.sound-pill.on {
+  border-color: var(--holo-soft);
+  color: var(--holo);
+}
+.header .bridge-pill.sound-pill:not(.on) svg {
+  color: #b9cfdd;
+}
+
+/* The loading screen: who this is, how far along, and three ways on. */
+.loader-card {
+  position: absolute;
+  left: 50%;
+  bottom: max(6vh, 28px);
+  z-index: 4;
+  width: min(560px, calc(100% - 32px));
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--holo-faint);
+  border-radius: 16px;
+  background: rgba(4, 9, 16, 0.6);
+  backdrop-filter: blur(8px);
+  font-family: var(--hud);
+  text-align: center;
+}
+.loader-card p {
+  margin: 0;
+}
+.loader-brand {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  color: var(--holo);
+}
+.loader-name {
+  font-size: clamp(24px, 4.4vw, 34px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  color: #fff;
+}
+.loader-pitch {
+  max-width: 44ch;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cfe0ec;
+}
+.loader-progress {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  margin-top: 10px;
+  background: rgba(143, 228, 255, 0.14);
+  overflow: hidden;
+}
+.loader-progress i {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--holo), #fff);
+  box-shadow: 0 0 12px var(--holo);
+  transition: transform 0.35s ease-out;
+}
+.loader-stage {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--hud-dim);
+}
+.loader-stage b {
+  font-weight: 600;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.loader-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.loader-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 15px;
+  border: 1px solid var(--holo-faint);
+  border-radius: 999px;
+  background: rgba(6, 12, 22, 0.6);
+  font-family: var(--hud);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #dff3ff;
+}
+.loader-button:hover,
+.loader-button:focus-visible {
+  border-color: var(--holo-soft);
+  background: rgba(16, 36, 54, 0.7);
+}
+.loader-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.loader-button.is-primary {
+  border-color: rgba(255, 179, 92, 0.55);
+  background: rgba(60, 32, 8, 0.55);
+  color: var(--amber);
+}
+.loader-button.is-primary:hover,
+.loader-button.is-primary:focus-visible {
+  border-color: rgba(255, 179, 92, 0.9);
+  background: rgba(96, 52, 14, 0.7);
+  color: #ffd9a8;
+}
+@media (max-width: 520px) {
+  .loader-card {
+    padding: 18px 16px 16px;
+  }
+  .loader-pitch {
+    font-size: 13px;
+  }
+  .loader-button {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader-progress i {
+    transition: none;
+  }
+}

@@ -71,6 +71,7 @@ export function createFlightAudio() {
     engineFilter.frequency.setTargetAtTime(220 + value * 1050, time, 0.08);
     noiseGain.gain.setTargetAtTime(0.002 + value * 0.026, time, 0.08);
     noiseFilter.frequency.setTargetAtTime(160 + value * 650, time, 0.08);
+    scoreFilter.frequency.setTargetAtTime(760 + value * 1300, time, 0.6);
     oscillators.forEach((oscillator, index) =>
       oscillator.frequency.setTargetAtTime(
         [44, 66, 88][index] * (1 + value * (boost ? 1.2 : 0.7)),
@@ -619,8 +620,175 @@ export function createFlightAudio() {
     cantinaGain.gain.setTargetAtTime(level * 0.06, context.currentTime, 0.3);
     cantinaWalls.frequency.setTargetAtTime(inside ? 16000 : 500 + level * 1400, context.currentTime, 0.25);
   };
+  // ---- Open space: a generative score, the boost, interface ticks and spatial beacons. ----
+  // All of it is synthesised here: no recording, no sample, nothing borrowed.
+  const tone = (frequency: number, at: number, length: number, level: number, type: OscillatorType = "sine", glide?: number, into: AudioNode = master) => {
+    const oscillator = context.createOscillator(),
+      gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, at);
+    if (glide) oscillator.frequency.exponentialRampToValueAtTime(glide, at + length);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(level, at + Math.min(0.012, length * 0.3));
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    oscillator.connect(gain);
+    gain.connect(into);
+    track(oscillator);
+    oscillator.start(at);
+    oscillator.stop(at + length + 0.03);
+    oscillator.onended = () => {
+      voices.delete(oscillator);
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+  };
+  // A soft tick under the pointer, and a two-note blip on a press.
+  const tick = () => {
+    if (!enabled || closed) return;
+    tone(1760, context.currentTime, 0.035, 0.008);
+  };
+  const click = () => {
+    if (!enabled || closed) return;
+    tone(660, context.currentTime, 0.06, 0.02, "triangle");
+    tone(990, context.currentTime + 0.045, 0.09, 0.016, "triangle");
+  };
+  // The afterburner lighting: a whine that climbs with a rush of air behind it.
+  const ignite = () => {
+    if (!enabled || closed) return;
+    const time = context.currentTime;
+    tone(85, time, 0.85, 0.05, "sawtooth", 360);
+    tone(170, time + 0.04, 0.7, 0.018, "square", 900);
+    hiss({ duration: 0.9, frequency: [260, 2600], level: 0.06, pan: [0, 0] });
+  };
+  // The craft tearing past the camera on the autopilot's cut-away, from one ear to the other.
+  const whoosh = () => {
+    if (!enabled || closed) return;
+    hiss({ duration: 1.25, frequency: [380, 2100], level: 0.11, pan: [-0.85, 0.85] });
+    tone(120, context.currentTime + 0.35, 0.7, 0.05, "sine", 46);
+  };
+  // The score: slow chords that drift from one to the next under a few high bell notes, all
+  // through a long echo. It opens up a little as the craft gathers speed.
+  const scoreBus = context.createGain();
+  scoreBus.gain.value = 0;
+  const scoreFilter = context.createBiquadFilter();
+  scoreFilter.type = "lowpass";
+  scoreFilter.frequency.value = 760;
+  scoreFilter.Q.value = 0.4;
+  const echo = context.createDelay(1.5);
+  echo.delayTime.value = 0.64;
+  const echoTone = context.createBiquadFilter();
+  echoTone.type = "lowpass";
+  echoTone.frequency.value = 1700;
+  const echoBack = context.createGain();
+  echoBack.gain.value = 0.44;
+  scoreFilter.connect(scoreBus);
+  scoreFilter.connect(echo);
+  echo.connect(echoTone);
+  echoTone.connect(echoBack);
+  echoBack.connect(echo);
+  echoTone.connect(scoreBus);
+  scoreBus.connect(master);
+  // D dorian, voiced wide: each chord shares notes with the next, so the changes melt.
+  const chords = [
+    [73.42, 110, 174.61, 261.63, 329.63],
+    [58.27, 116.54, 146.83, 220, 329.63],
+    [87.31, 130.81, 220, 329.63, 392],
+    [65.41, 98, 164.81, 220, 293.66],
+  ];
+  const bells = [587.33, 659.25, 783.99, 880, 1046.5, 1174.66];
+  const CHORD = 17;
+  let scoreTimer: ReturnType<typeof setInterval> | null = null,
+    nextChord = 0,
+    nextBell = 0,
+    chordIndex = 0,
+    scoreSeed = 2026;
+  const scoreRandom = () => {
+    scoreSeed = (scoreSeed * 1664525 + 1013904223) >>> 0;
+    return scoreSeed / 4294967296;
+  };
+  const playChord = (at: number) => {
+    chords[chordIndex++ % chords.length].forEach((frequency, note) => {
+      const gain = context.createGain();
+      // A long swell and a longer fade: two chords always overlap.
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(note === 0 ? 0.05 : 0.02, at + 5.5);
+      gain.gain.setValueAtTime(note === 0 ? 0.05 : 0.02, at + CHORD - 2);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + CHORD + 7);
+      gain.connect(scoreFilter);
+      [-5, 6].forEach((cents, layer) => {
+        const oscillator = context.createOscillator();
+        oscillator.type = note === 0 ? "sine" : layer ? "sawtooth" : "triangle";
+        oscillator.frequency.value = frequency;
+        oscillator.detune.value = cents;
+        oscillator.connect(gain);
+        track(oscillator);
+        oscillator.start(at);
+        oscillator.stop(at + CHORD + 7.2);
+        oscillator.onended = () => {
+          voices.delete(oscillator);
+          oscillator.disconnect();
+          if (layer) gain.disconnect();
+        };
+      });
+    });
+  };
+  const scheduleScore = () => {
+    if (closed) return;
+    const horizon = context.currentTime + 1.5;
+    while (nextChord < horizon) {
+      playChord(Math.max(nextChord, context.currentTime + 0.05));
+      nextChord = Math.max(nextChord, context.currentTime) + CHORD;
+    }
+    while (nextBell < horizon) {
+      const at = Math.max(nextBell, context.currentTime + 0.05);
+      tone(bells[Math.floor(scoreRandom() * bells.length)], at, 2.6, 0.012 + scoreRandom() * 0.01, "sine", undefined, scoreFilter);
+      nextBell = at + 2.8 + scoreRandom() * 5.5;
+    }
+  };
+  const music = (on: boolean) => {
+    if (closed) return;
+    scoreBus.gain.setTargetAtTime(on ? 0.8 : 0, context.currentTime, on ? 1.2 : 0.35);
+    if (on && !scoreTimer) {
+      nextChord = nextBell = 0;
+      scheduleScore();
+      scoreTimer = setInterval(scheduleScore, 500);
+    } else if (!on && scoreTimer) {
+      clearInterval(scoreTimer);
+      scoreTimer = null;
+    }
+  };
+  // Each destination hums on its own note, heard from its side of the craft as it draws near.
+  const beaconNotes = [98, 130.81, 146.83, 82.41, 196];
+  let beacons: { gain: GainNode; pan: StereoPannerNode }[] | null = null;
+  const spatial = (bodies: { pan: number; near: number }[]) => {
+    if (closed || (!enabled && !beacons)) return;
+    beacons ??= beaconNotes.map((frequency) => {
+      const gain = context.createGain(),
+        pan = context.createStereoPanner();
+      gain.gain.value = 0;
+      [1, 1.5].forEach((ratio, layer) => {
+        const oscillator = context.createOscillator();
+        oscillator.type = layer ? "sine" : "triangle";
+        oscillator.frequency.value = frequency * ratio;
+        oscillator.detune.value = layer ? 4 : -3;
+        oscillator.connect(gain);
+        oscillator.start();
+        track(oscillator);
+      });
+      gain.connect(pan);
+      pan.connect(master);
+      return { gain, pan };
+    });
+    const time = context.currentTime;
+    beacons.forEach((beacon, index) => {
+      const body = bodies[index];
+      beacon.gain.gain.setTargetAtTime(body ? body.near * body.near * 0.028 : 0, time, 0.25);
+      if (body) beacon.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, body.pan)), time, 0.12);
+    });
+  };
   const dispose = () => {
     if (closed) return;
+    if (scoreTimer) clearInterval(scoreTimer);
     city?.stop();
     city = null;
     closed = true;
@@ -646,6 +814,12 @@ export function createFlightAudio() {
     speeder,
     ambience,
     cantina,
+    music,
+    spatial,
+    ignite,
+    whoosh,
+    tick,
+    click,
     dispose,
   };
 }

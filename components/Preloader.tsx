@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue } from "motion/react";
-import { Volume2, VolumeX } from "lucide-react";
+import { Briefcase, FastForward, Volume2, VolumeX } from "lucide-react";
+import { identity } from "./deathStar/cvData";
 
 function smoothstep(from: number, to: number, value: number) {
   const t = Math.min(1, Math.max(0, (value - from) / (to - from)));
@@ -9,13 +10,18 @@ function smoothstep(from: number, to: number, value: number) {
 }
 export default function Preloader({
   ready,
+  progress,
   reduced,
   onComplete,
+  onRecruiter,
   sound,
   onToggleSound,
   onExit,
 }: {
   ready: boolean;
+  // Share of the scene that is loaded, 0..1.
+  progress: number;
+  onRecruiter: () => void;
   reduced: boolean;
   onComplete: () => void;
   sound: boolean;
@@ -28,6 +34,9 @@ export default function Preloader({
     completeRef = useRef(onComplete),
     exitRef = useRef(onExit);
   const [exiting, setExiting] = useState(false);
+  // "Passer l'intro": the drop out of hyperspace is cut short as soon as the scene is ready.
+  const skip = useRef(false),
+    [skipped, setSkipped] = useState(false);
   const opacity = useMotionValue(1);
   readyRef.current = ready;
   completeRef.current = onComplete;
@@ -81,7 +90,7 @@ export default function Preloader({
       if (
         exitAt === null &&
         readyRef.current &&
-        now - start > (reduced ? 400 : 950)
+        (skip.current || now - start > (reduced ? 400 : 950))
       ) {
         exitAt = now;
         setExiting(true);
@@ -90,7 +99,7 @@ export default function Preloader({
       const phase =
         exitAt === null
           ? 0
-          : Math.min(1, (now - exitAt) / (reduced ? 450 : 1850));
+          : Math.min(1, (now - exitAt) / (skip.current ? 260 : reduced ? 450 : 1850));
       const speed = reduced
         ? 0
         : 1350 * Math.pow(1 - smoothstep(0, 0.7, phase), 2);
@@ -174,6 +183,16 @@ export default function Preloader({
       if (!finished) opacity.set(1);
     };
   }, [reduced, opacity]);
+  // The bar never runs backwards, and reads full once the scene is ready.
+  const shown = ready ? 1 : Math.min(0.97, Math.max(0.04, progress));
+  const percent = Math.round(shown * 100);
+  const stage = exiting
+    ? "RETOUR EN ESPACE RÉEL"
+    : ready
+      ? "SORTIE D’HYPERESPACE"
+      : progress < 0.85
+        ? "CHARGEMENT DES MONDES"
+        : "CALIBRAGE DES INSTRUMENTS";
   return (
     <motion.div
       ref={root}
@@ -185,19 +204,48 @@ export default function Preloader({
     >
       <canvas ref={canvas} className="hyperspace-canvas" aria-hidden="true" />
       {exiting && !reduced && <div className="hyperspace-bloom" aria-hidden="true" />}
-      <button
-        className="hyperspace-sound sound-button"
-        aria-label={
-          sound ? "Couper l’ambiance sonore" : "Activer l’ambiance sonore"
-        }
-        aria-pressed={sound}
-        onClick={onToggleSound}
-      >
-        {sound ? <Volume2 size={16} /> : <VolumeX size={16} />}
-      </button>
-      <div className="hyperspace-caption mono">
-        <i aria-hidden="true" />
-        {exiting ? "RETOUR EN ESPACE RÉEL" : "SORTIE D’HYPERESPACE"}
+      <div className="loader-card">
+        <p className="loader-brand">ORBITAL · PORTFOLIO 3D</p>
+        <p className="loader-name">{identity.name}</p>
+        <p className="loader-pitch">{identity.search}</p>
+        <div
+          className="loader-progress"
+          role="progressbar"
+          aria-label="Chargement de la galaxie"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+        >
+          <i style={{ transform: `scaleX(${shown})` }} />
+        </div>
+        <p className="loader-stage">
+          <span>{stage}</span>
+          <b>{percent} %</b>
+        </p>
+        <div className="loader-actions">
+          <button className="loader-button is-primary" onClick={onRecruiter}>
+            <Briefcase size={15} aria-hidden="true" /> MODE RECRUTEUR
+          </button>
+          <button
+            className="loader-button"
+            data-sound-toggle
+            aria-pressed={sound}
+            onClick={onToggleSound}
+          >
+            {sound ? <Volume2 size={15} aria-hidden="true" /> : <VolumeX size={15} aria-hidden="true" />}
+            {sound ? "SON ACTIF" : "ACTIVER LE SON"}
+          </button>
+          <button
+            className="loader-button"
+            disabled={skipped}
+            onClick={() => {
+              skip.current = true;
+              setSkipped(true);
+            }}
+          >
+            <FastForward size={15} aria-hidden="true" /> {skipped ? "UN INSTANT…" : "PASSER L’INTRO"}
+          </button>
+        </div>
       </div>
     </motion.div>
   );

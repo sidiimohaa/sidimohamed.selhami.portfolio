@@ -79,6 +79,7 @@ const CoruscantTaxi = dynamic(() => import("./coruscantTaxi/CoruscantTaxi"), { s
 export default function Experience() {
   const systemReduced = !!useReducedMotion(),
     [ready, setReady] = useState(false),
+    [loadShare, setLoadShare] = useState(0),
     [loading, setLoading] = useState(true),
     [boost, setBoost] = useState(false),
     [destination, setDestination] = useState(0),
@@ -169,6 +170,7 @@ export default function Experience() {
   arrivedRef.current = arrived;
   // Holding the boost for four seconds of thrust breaks into hyperspace (mission 02).
   const boostSince = useRef<number | null>(null);
+  const flightEdges = useRef({ boost: false, cut: false });
   const onFlight = useCallback((flight: FlightTelemetry) => {
     guidance.current = flight.target;
     distances.current = flight.distances;
@@ -193,6 +195,13 @@ export default function Experience() {
       }
     } else boostSince.current = null;
     audio.current?.flight(flight);
+    audio.current?.spatial(flight.spatial);
+    // The afterburner lights with a whine; the cut-away is heard as the craft tears past.
+    const edges = flightEdges.current;
+    if (flight.boost && flight.manual && !edges.boost) audio.current?.ignite();
+    if (flight.cut && !edges.cut) window.setTimeout(() => audio.current?.whoosh(), 550);
+    edges.boost = flight.boost && flight.manual;
+    edges.cut = flight.cut;
     if (approachProgress.current)
       approachProgress.current.style.transform = `scaleX(${flight.approachProgress})`;
     if (flight.manual && arrivedRef.current) setArrived(false);
@@ -247,6 +256,7 @@ export default function Experience() {
     if (phase === "arrive") audio.current?.exit(0.5);
     else audio.current?.jump();
   }, []);
+  const onLoadProgress = useCallback((share: number) => setLoadShare((current) => Math.max(current, share)), []);
   const onReady = useCallback(() => setReady(true), []),
     onUnsupported = useCallback(() => setUnsupported(true), []);
   // After the drop out of hyperspace, the bridge welcome plays once per visit.
@@ -377,7 +387,9 @@ export default function Experience() {
   useEffect(() => {
     audio.current?.setEnabled(sound && !combat && !singularity);
     audio.current?.ambience(sound && !combat && !singularity ? soundscape : null);
-  }, [soundscape, sound, combat, singularity]);
+    // The score belongs to open space: surfaces, the station and the games have their own sound.
+    audio.current?.music(sound && !combat && !singularity && surface === null && station === null && !mapOpen);
+  }, [soundscape, sound, combat, singularity, surface, station, mapOpen]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.composedPath().some(isTextEntry)) return;
@@ -482,7 +494,58 @@ export default function Experience() {
     const enabled = !sound;
     audio.current.setEnabled(enabled && !combat);
     setSound(enabled);
+    // The choice holds across visits. Sound still starts silent on every load: a browser only
+    // lets audio begin on a gesture, so a saved "on" is switched back on at the first one.
+    try {
+      window.localStorage.setItem("orbital-sound-v1", enabled ? "on" : "off");
+    } catch {
+      // The choice simply lasts for this visit.
+    }
   };
+  const toggleSoundRef = useRef(toggleSound);
+  toggleSoundRef.current = toggleSound;
+  useEffect(() => {
+    let saved = false;
+    try {
+      saved = window.localStorage.getItem("orbital-sound-v1") === "on";
+    } catch {
+      saved = false;
+    }
+    if (!saved) return;
+    const wake = (event: Event) => {
+      window.removeEventListener("pointerdown", wake, true);
+      window.removeEventListener("keydown", wake, true);
+      // Pressing the sound button itself already says what the visitor wants.
+      if ((event.target as HTMLElement | null)?.closest?.("[data-sound-toggle]")) return;
+      toggleSoundRef.current();
+    };
+    window.addEventListener("pointerdown", wake, true);
+    window.addEventListener("keydown", wake, true);
+    return () => {
+      window.removeEventListener("pointerdown", wake, true);
+      window.removeEventListener("keydown", wake, true);
+    };
+  }, []);
+  // Interface sounds: a tick as the pointer reaches a control, a blip as it is pressed.
+  useEffect(() => {
+    if (!sound) return;
+    let last: Element | null = null;
+    const over = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      const control = (event.target as HTMLElement | null)?.closest?.("button,a,[role='button']") ?? null;
+      if (control && control !== last) audio.current?.tick();
+      last = control;
+    };
+    const press = (event: MouseEvent) => {
+      if ((event.target as HTMLElement | null)?.closest?.("button,a,[role='button']")) audio.current?.click();
+    };
+    window.addEventListener("pointerover", over, true);
+    window.addEventListener("click", press, true);
+    return () => {
+      window.removeEventListener("pointerover", over, true);
+      window.removeEventListener("click", press, true);
+    };
+  }, [sound]);
   const openMap = (journal = false) => {
     setJournalFirst(journal);
     timers.current.forEach(clearTimeout);
@@ -576,6 +639,8 @@ export default function Experience() {
       } catch {
         // Nothing to remember without storage.
       }
+      // A recruiter's link opens the record at once: no hyperspace arrival in front of it.
+      setLoading(false);
       enterStation("recruiter");
     }
     // Runs once, on arrival.
@@ -679,6 +744,7 @@ export default function Experience() {
         onDroid={onDroid}
         onHyperspace={onHyperspace}
         onReady={onReady}
+        onProgress={onLoadProgress}
         onUnsupported={onUnsupported}
       />
       {ground && groundLanding && (
@@ -701,6 +767,12 @@ export default function Experience() {
         {loading && (
           <Preloader
             ready={ready}
+            progress={loadShare}
+            onRecruiter={() => {
+              // The record is plain HTML: it opens at once, without waiting for the 3D arrival.
+              setLoading(false);
+              enterStation("recruiter");
+            }}
             reduced={reduced}
             onComplete={completeArrival}
             sound={sound}
@@ -737,6 +809,16 @@ export default function Experience() {
         </nav>
         <div className="bridge-actions">
           <button
+            className={`bridge-pill sound-pill ${sound ? "on" : ""}`}
+            data-sound-toggle
+            aria-label={sound ? "Couper le son" : "Activer le son : musique, moteurs et ambiance"}
+            aria-pressed={sound}
+            onClick={toggleSound}
+          >
+            {sound ? <Volume2 size={15} aria-hidden="true" /> : <VolumeX size={15} aria-hidden="true" />}
+            <span>{sound ? "SON ACTIF" : "ACTIVER LE SON"}</span>
+          </button>
+          <button
             className="bridge-pill recruiter-trigger"
             onClick={() => enterStation("recruiter")}
             aria-label="Mode recruteur : CV, projets, compétences et contact"
@@ -753,15 +835,6 @@ export default function Experience() {
             <MonitorButton className="sound-button" />
             <button className="sound-button" data-tip="Revenir au départ" onClick={reset} aria-label="Revenir au point de départ">
               <RotateCcw size={15} aria-hidden="true" />
-            </button>
-            <button
-              className={`sound-button ${sound ? "on" : ""}`}
-              data-tip={sound ? "Couper le son" : "Activer le son"}
-              aria-label={sound ? "Couper l’ambiance sonore" : "Activer l’ambiance sonore"}
-              aria-pressed={sound}
-              onClick={toggleSound}
-            >
-              {sound ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
             </button>
             <button
               className="sound-button"

@@ -60,6 +60,12 @@ export type FlightTelemetry = {
   approachProgress: number;
   // Distance from the ship to each world's surface, in scene units.
   distances: number[];
+  // Speed in scene units per second, on manual and on autopilot alike.
+  speed: number;
+  // The autopilot's cut-away is on screen.
+  cut: boolean;
+  // Where each world is heard from: left to right (-1..1) and how close (0..1).
+  spatial: { pan: number; near: number }[];
 };
 type Props = {
   onFlight: (telemetry: FlightTelemetry) => void;
@@ -69,6 +75,8 @@ type Props = {
   state: FlightState;
   onSelect: (index: number) => void;
   onReady: () => void;
+  // Share of the scene that is loaded, 0..1, for the loading screen.
+  onProgress?: (share: number) => void;
   onUnsupported: () => void;
   // Average frame rate over the last few seconds of drawing, for the automatic graphics profile.
   onPerformance?: (fps: number) => void;
@@ -340,6 +348,7 @@ export default function SpaceScene({
   onDroid,
   onHyperspace,
   onReady,
+  onProgress,
   onUnsupported,
   onPerformance,
   onCapture,
@@ -363,6 +372,8 @@ export default function SpaceScene({
     hyperspaceCallback = useRef(onHyperspace),
     performanceCallback = useRef(onPerformance),
     captureCallback = useRef(onCapture);
+  const progressCallback = useRef(onProgress);
+  progressCallback.current = onProgress;
   const singularityCallback = useRef(onSingularity);
   singularityCallback.current = onSingularity;
   performanceCallback.current = onPerformance;
@@ -498,6 +509,8 @@ export default function SpaceScene({
     scene.add(lanes.points);
     const planetLayers: ReturnType<typeof createPlanetLayers>[] = [];
     const loadingManager = new THREE.LoadingManager();
+    // The worlds' images are most of the wait; compiling the shaders is the last stretch.
+    loadingManager.onProgress = (_, loaded, total) => progressCallback.current?.((loaded / Math.max(1, total)) * 0.85);
     // Compile every shader before revealing the scene, without blocking the loading screen.
     loadingManager.onLoad = () => {
       if (disposed) return;
@@ -506,6 +519,7 @@ export default function SpaceScene({
         .catch(() => undefined)
         .then(() => {
           if (disposed) return;
+          progressCallback.current?.(1);
           onReady();
           horizon?.prepare();
           // The ships of the galactic events, while nothing else is going on.
@@ -941,6 +955,7 @@ export default function SpaceScene({
       lastTarget: number | null = null,
       lastBoost = false;
     const distances = destinations.map(() => 0);
+    const spatial = destinations.map(() => ({ pan: 0, near: 0 }));
     let lastCapture = state.captureKey,
       lastSkip = state.skipKey;
     // Frame-rate sampling for the automatic profile: only while space is actually being flown.
@@ -1572,6 +1587,8 @@ export default function SpaceScene({
           body.radarY = (-ahead / flat) * reach;
           body.elevation = toBody.y > flat * 0.3 + 4 ? 1 : toBody.y < -flat * 0.3 - 4 ? -1 : 0;
           body.distance = distances[index];
+          spatial[index].pan = Math.sin((body.bearing * Math.PI) / 180);
+          spatial[index].near = 1 - THREE.MathUtils.smoothstep(distances[index], radii[index] * 0.4, radii[index] * 3.6);
           inView.copy(planet.position).applyMatrix4(camera.matrixWorldInverse);
           projected.copy(planet.position).project(camera);
           body.edge = !(inView.z < 0 && Math.abs(projected.x) < 0.94 && Math.abs(projected.y) < 0.9);
@@ -1624,6 +1641,9 @@ export default function SpaceScene({
           target: aimed,
           approachProgress: approach?.progress ?? 0,
           distances,
+          speed: cameraVelocity.length(),
+          cut,
+          spatial,
         });
         lastTelemetry = now;
         lastManual = thrusting;
