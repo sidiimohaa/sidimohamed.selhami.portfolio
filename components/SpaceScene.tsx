@@ -6,7 +6,7 @@ import { createPlanetLayers } from "./planetMaterial";
 import { createShipModel } from "./shipModel";
 import { equippedValue, getArcade, onArcadeChange } from "./arcade/arcadeStore";
 import { createNebula, createNebulaVeils, createShootingStars } from "./spaceAmbience";
-import { createSpaceDust, createStarLayers, createSun, createSystemStar } from "./deepSpace";
+import { createSpaceDust, createStarLayers, createSystemStar } from "./deepSpace";
 import { createEngineFx } from "./flight/engineFx";
 import { createIceRing, createOrbitalTraffic } from "./destinationIdentity";
 import { qualityProfiles, type QualityId } from "./graphicsQuality";
@@ -438,12 +438,10 @@ export default function SpaceScene({
     scene.add(starLayers.group);
     const dust = createSpaceDust(qualityProfiles.ultra.dust, renderer.getPixelRatio());
     scene.add(dust.points);
-    const sunBody = createSun(sun.position, new THREE.Vector3(...SYSTEM_CENTER));
-    scene.add(sunBody.group);
-    // The star itself, where the old glow sprite was only a point of light.
+    // The system's star: a shader disc with its corona. Its glow, shafts and lens reflections
+    // are drawn by the grade, from what the star really shows of itself.
     const star = createSystemStar(new THREE.Vector3(...SYSTEM_CENTER));
     scene.add(star.mesh);
-    sunBody.group.visible = false;
     const shootingStars = createShootingStars();
     scene.add(shootingStars.group);
     const planets: THREE.Group[] = [];
@@ -863,7 +861,7 @@ export default function SpaceScene({
     };
     const pointerMove = (e: PointerEvent) => {
       if (dragging) {
-        const reach = Math.min(el.clientWidth, el.clientHeight) * 0.21;
+        const reach = Math.max(1, Math.min(el.clientWidth, el.clientHeight) * 0.21);
         steer.x = THREE.MathUtils.clamp((e.clientX - anchor.x) / reach, -1, 1);
         steer.y = THREE.MathUtils.clamp((anchor.y - e.clientY) / reach, -1, 1);
         if (joystickThumb.current)
@@ -906,6 +904,9 @@ export default function SpaceScene({
     const resize = () => {
       const w = el.clientWidth,
         h = el.clientHeight;
+      // A container with no size (a hidden pane, a minimised window) has no aspect ratio:
+      // framing from it would put NaN into the camera for good. Keep the last real size.
+      if (!w || !h) return;
       renderer.setSize(w, h);
       pipeline.setSize(w, h);
       // Resizing clears the canvas: draw again even when nothing moves.
@@ -1120,6 +1121,8 @@ export default function SpaceScene({
       }
       if (s.travel) {
         if (!approach || approachDestination !== s.destination) {
+          // A new course set during the cut-away starts from behind the craft, not from the stand.
+          if (approach && !approach.completed) approach.release();
           keys.clear();
           release();
           approachDestination = s.destination;
@@ -1371,8 +1374,6 @@ export default function SpaceScene({
         renderer.domElement.height,
         1 + rush * 0.9,
       );
-      // The lens reflections are drawn by the grade, from what the sun really shows of itself.
-      sunBody.update(camera, false);
       nebula.dome.position.copy(camera.position);
       veils?.update(camera, elapsed, s.reduced);
       star.update(elapsed, s.reduced);
@@ -1652,7 +1653,7 @@ export default function SpaceScene({
       }
       // The grade's extras: grain, fringing, the smear of speed, and the sun's place on screen
       // for its shafts and lens reflections.
-      projected.copy(sunBody.group.position).project(camera);
+      projected.copy(star.mesh.position).project(camera);
       const sunOff = Math.max(Math.abs(projected.x), Math.abs(projected.y));
       fx.time = s.reduced ? 0 : elapsed;
       fx.grain = 0.035;
@@ -1711,7 +1712,6 @@ export default function SpaceScene({
       veils?.dispose();
       engineFx.dispose();
       reflections.dispose();
-      sunBody.dispose();
       pipeline.dispose();
       cancelAnimationFrame(frame);
       observer.disconnect();

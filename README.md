@@ -17,13 +17,15 @@ Next.js App Router, React, TypeScript, Tailwind CSS 4, Motion, Three.js et Lucid
 
 ## Commandes
 
-- Le vaisseau reste immobile au repos. Aucun vol automatique ni inertie après relâchement des commandes.
-- Flèches, ZQSD ou WASD : traverser l’espace avec une caméra de poursuite derrière le vaisseau. Maintenir les commandes oriente le vol et fait avancer le vaisseau dans la direction visée. Les relâcher arrête immédiatement le déplacement.
-- Maintenir et glisser dans l’espace : diriger à la souris ou au doigt. Relâcher pour s’arrêter.
-- Maj ou deux doigts pendant le glissement : accélérer. E : rejoindre la dernière destination sélectionnée.
+- Le vaisseau reste immobile au repos : aucun vol automatique. Sous la poussée il prend sa vitesse progressivement ; commandes relâchées, il file sur son élan puis s’arrête de lui-même en deux à trois secondes.
+- Flèches, ZQSD ou WASD : traverser l’espace avec une caméra de poursuite derrière le vaisseau. Maintenir les commandes oriente le vol et fait avancer le vaisseau dans la direction visée. Espace : avancer tout droit.
+- Maintenir et glisser dans l’espace : diriger à la souris ou au doigt.
+- Maj, bouton BOOST (écrans tactiles) ou deux doigts pendant le glissement : postcombustion. E : rejoindre la planète visée.
+- Manette (Gamepad API, disposition standard) : stick gauche ou croix pour diriger, gâchette droite pour avancer, gâchette gauche, gâchettes hautes ou X pour le boost, A comme E, B comme Échap, Y pour le scanner.
+- À la première visite, une prise en main jouable en trois étapes (piloter, postcombustion, mettre le cap) remplace l’aide de vol ; elle se passe d’un clic et ne revient pas.
 - Survoler une planète pour afficher son nom ; cliquer pour l’approcher. La carte reste accessible en haut à droite.
 - Échap : fermer une interface. Le logo ORBITAL ou le bouton de retour réinitialise le voyage. Le bouton ? affiche les commandes.
-- Audio désactivé au départ ; le bouton sonore active une ambiance synthétisée localement.
+- Audio désactivé au départ ; le bouton « Activer le son » de l’en-tête lance une ambiance synthétisée localement. Le choix est mémorisé : s’il était actif, le son reprend au premier geste de la visite suivante (un navigateur n’autorise pas l’audio avant).
 
 Les quatre visuels fournis par l’utilisateur sont conservés dans public/planets/, avec celui de Hoth (`hoth.jpg`), généré dans le même style, en JPEG qualité 88 (600 Ko pour les cinq, contre 3,2 Mo en PNG), et projetés sur des sphères 3D sans étirement de leurs globes déjà éclairés. Ils servent aussi à la carte et aux aperçus de destination. Le filtrage anisotrope, les mipmaps et une résolution de rendu adaptée aux écrans Retina préservent les détails. La géométrie et les textures procédurales précédentes servent de repli si un visuel ne se charge pas. Le préloader attend la fin du chargement des images. La géométrie du vaisseau et la lueur de sortie d’hyperespace (en CSS) sont générées localement. Les textures procédurales de repli ne sont calculées que si une image échoue, et les shaders sont compilés avant la fin du chargement, pour que l’écran de chargement reste fluide. Aucun asset distant requis. Le mode mouvement réduit est respecté. Une vue simplifiée permet de naviguer sans WebGL.
 
@@ -204,12 +206,38 @@ Le lien `/?cap=<destination>` (`tatooine`, `endor`, `coruscant`, `etoile-de-la-m
 - **Instruments** : scanner galactique (touche R) avec distances, mondes explorés, accès et un signal mystérieux tiré des missions secrètes ; transmissions du copilote à l'approche et en orbite, construites à partir des données des destinations ; bouton « Passer » pendant les trajets ; mode photo (interface masquée, focale réglable, capture PNG).
 - **Réglages** (`components/graphicsQuality.ts`, `components/bridge/BridgeSettings.tsx`) : profils Ultra, Élevé, Moyen et Économie, ou automatique (estimation matérielle puis baisse d'un cran si la cadence mesurée passe sous 38 images/s) ; réduction des animations en plus de la préférence système ; roulis du vaisseau ; transmissions du copilote ; son.
 
+## Vol, instruments et rendu de l’espace
+
+- **Sensation de vol** (`components/flight/flightFeel.ts`) : poussée et inertie, réponse plus lourde à pleine vitesse, roulis sur ressort, vaisseau qui prend de l’avance sous la poussée et recule au freinage, champ de vision élargi avec la vitesse, secousses légères à l’allumage du boost et aux collisions. La poussière spatiale s’étire en traînées selon la vitesse.
+- **Instruments** (`components/hud/FlightHud.tsx`, `app/hud.css`) : ruban de cap avec les cinq destinations, radar orienté vers le nez, vitesse et poussée, flèches de bord d’écran avec nom et distance pour les mondes hors champ, crochets de ciblage. Écrits image par image sans re-rendu React. Police Oxanium, hébergée avec le site par `next/font` (aucune requête vers un service de polices).
+- **Rendu** (`components/render/pipeline.ts`, option `space`) : l’espace passe par le même pipeline que les surfaces, étendu pour lui : bloom, étalonnage, rayons du soleil occultés par les mondes, reflets d’objectif, aberration chromatique, grain animé, flou radial au boost et profondeur de champ (disque de netteté autour du vaisseau) pendant le plan de coupe et quand une interface suspend le vol. Niveau Moyen : étalonnage seul. Économie : rendu direct. `?fx=off` coupe tout pour comparer.
+- **Ciel** (`components/spaceAmbience.ts`, `components/deepSpace.ts`) : étoile du système en shader, deux voiles de gaz en parallaxe entre le ciel et les mondes, ciel précalculé enrichi derrière le système.
+- **Vaisseau** (`components/flight/engineFx.ts`) : plumes aux tuyères, rubans lumineux le long de la trajectoire, reflets de coque filtrés depuis le ciel, lumière renvoyée par le monde le plus proche.
+- **Destinations** (`components/planetMaterial.ts`, `components/destinationIdentity.ts`) : halo atmosphérique au-delà du limbe, anneau de glace autour de Hoth avec l’ombre de la planète, couloirs de trafic lumineux autour de Coruscant.
+- **Autopilot cinématique** (`components/approachFlight.ts`) : sur les longs trajets, un plan de coupe filme le passage du vaisseau depuis le bord de la route (zoom de suivi, bandes cinéma, instruments coupés), puis la poursuite reprend pour l’arrivée. Annulable à tout moment.
+- **Son** (`components/flightAudio.ts`) : musique d’ambiance générative, sifflement d’allumage du boost, passage du vaisseau pendant le plan de coupe, tics d’interface, et une note par destination entendue de son côté à l’approche. Tout est synthétisé, sans échantillon.
+- En mouvement réduit : ni roulis, ni secousses, ni traînées, ni plan de coupe, ni flou de vitesse ; le grain est figé.
+
+## Chargement, profil et référencement
+
+- **Écran de chargement** (`components/Preloader.tsx`) : nom, recherche d’alternance, barre de progression réelle (images des mondes puis compilation des shaders), accès direct au mode recruteur, activation du son et « Passer l’intro ».
+- **En orbite**, la fiche de chaque monde présente son contenu dans l’ordre d’un recruteur : une phrase, puis contexte, action, résultat et outils (`briefings` dans `components/universe.ts`, alimenté par `cvData.ts`).
+- **`/profil`** (`app/profil/page.tsx`) : tout le dossier en une page HTML statique, lisible sans WebGL ni JavaScript, imprimable. Le lien d’évitement au clavier, la carte `<noscript>` et le mode visuel simplifié y renvoient.
+- **En-tête** : CV (PDF) et contact à un clic, en plus du mode recruteur.
+- **Référencement** : JSON-LD `Person`, `sitemap.xml`, `robots.txt`, URL canoniques, image de partage.
+- Les contenus manquants sont signalés par `TODO(contenu)` dans `components/deathStar/cvData.ts` et `components/universe.ts`.
+
+## Tests
+
+`npm run test:flight` (physique du vol, manette, 300 approches automatiques avec le plan de coupe), `npm run test:content` (fiches de destination tirées des données du CV, liens réels), puis `test:podracing`, `test:galaxy`, `test:event-horizon`, `test:droid` et `test:hoth`.
+
 ## Performances
 
-- **Premier chargement** : three.js n'est plus dans le JavaScript initial. La scène « Ordre 66 » et la scène 3D de la page 404 (`components/notFound/lostScene.ts`) se chargent à la demande ; l'interface de la 404 s'affiche avant elles. JavaScript initial : 0,83 Mo (264 Ko compressés), contre 1,44 Mo auparavant.
+- **Premier chargement** : three.js n'est plus dans le JavaScript initial. La scène « Ordre 66 » et la scène 3D de la page 404 (`components/notFound/lostScene.ts`) se chargent à la demande ; l'interface de la 404 s'affiche avant elles. JavaScript initial : 1,19 Mo (368 Ko compressés), inchangé par les instruments de vol et le nouveau rendu, qui se chargent avec la scène 3D.
 - **Images** : les cinq planètes passent en JPEG (0,6 Mo au lieu de 3,2 Mo), et le préchargeur attend moins longtemps sur une connexion lente.
 - **Rendu** : canvas spatial opaque (moins de composition), ciel précalculé en 512 px sur le profil Élevé, reflets d'objectif réservés aux profils Élevé et Ultra.
-- **Mesure locale** (build statique, Mac, écran Retina, profil Élevé) : 1,0 Mo transféré à l'arrivée, 60 images/s au repos comme en vol, pire image 18 ms, 23 Mo de mémoire JavaScript.
+- **Post-traitement de l’espace** : cible hors écran à deux échantillons, sans multi-échantillonnage doublonné sur le canvas ; flou de vitesse en sept lectures ; rayons, reflets et flou de profondeur calculés au quart ou au huitième de la résolution.
+- **Mesure locale** (build de production, puce Apple A18 Pro, écran Retina, profil Élevé, post-traitement actif) : 60 images/s au repos comme en postcombustion, pire image 18 ms, 29 Mo de mémoire JavaScript.
 
 ## Event Horizon · Easter Egg spatial
 

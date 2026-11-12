@@ -253,6 +253,10 @@
   box-shadow: 0 0 8px var(--world);
   will-change: transform;
 }
+/* On a small dial the numbers overprint each other: only the aimed world and the course carry theirs. */
+.hud-blip[data-state="idle"] em {
+  display: none;
+}
 .hud-blip em {
   position: absolute;
   left: 11px;
