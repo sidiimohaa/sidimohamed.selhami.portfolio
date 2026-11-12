@@ -10,7 +10,11 @@ type Options = {
   shipHeight: number;
   reduced: boolean;
   obstacles: Obstacle[];
+  // The cut-away on long hauls; on unless switched off.
+  cinematic?: boolean;
 };
+
+export type ApproachShot = "chase" | "flyby";
 
 // The craft flies a route; the chase camera follows it rather than carrying it.
 export function createApproachFlight(options: Options) {
@@ -101,6 +105,33 @@ export function createApproachFlight(options: Options) {
       (Math.floor(attempt / 2) + 1) *
       Math.max(5, distance * 0.16);
   }
+  // On a long haul the view cuts away once: a camera standing beside the route watches the
+  // craft come in, pass and leave, then the chase view takes over again for the arrival.
+  const flyby = { from: 0.37, to: 0.57, position: new THREE.Vector3(), drift: new THREE.Vector3(), enabled: false };
+  if (!reduced && options.cinematic !== false && distance > 60) {
+    const mid = THREE.MathUtils.smootherstep(0.46, 0, 1);
+    pointAt(mid, point);
+    pointAt(mid + 0.01, routeAhead);
+    pointAt(mid - 0.01, routeBehind);
+    routeDirection.copy(routeAhead).sub(routeBehind).normalize();
+    const across = new THREE.Vector3().crossVectors(routeDirection, new THREE.Vector3(0, 1, 0));
+    if (across.lengthSq() < 0.0001) across.set(1, 0, 0);
+    across.normalize();
+    // The first stand that is clear of every world, trying both sides of the route.
+    search: for (const reach of [5.5, 7.5, 4.2])
+      for (const sign of [1, -1]) {
+        routeCamera.copy(point).addScaledVector(across, sign * reach);
+        routeCamera.y += 1.2 + reach * 0.16;
+        if (options.obstacles.every((obstacle) => routeCamera.distanceTo(obstacle.position) > obstacle.radius + 4)) {
+          flyby.position.copy(routeCamera);
+          flyby.drift.copy(routeDirection).multiplyScalar(2.2);
+          flyby.enabled = true;
+          break search;
+        }
+      }
+  }
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  let wasCut = false;
   const ahead = new THREE.Vector3(),
     behind = new THREE.Vector3();
   const tangent = new THREE.Vector3(),
@@ -128,6 +159,16 @@ export function createApproachFlight(options: Options) {
     progress: 0,
     power: 0,
     completed: false,
+    shot: "chase" as ApproachShot,
+    /** Cancelled during the cut-away: the view goes back behind the craft before the pilot takes over. */
+    release() {
+      if (flight.shot !== "flyby") return;
+      camera.position.copy(chasePosition);
+      camera.quaternion.copy(cameraFacing);
+      camera.fov = baseFov;
+      camera.updateProjectionMatrix();
+      flight.shot = "chase";
+    },
     update(dt: number) {
       if (flight.completed) return;
       age = Math.min(duration, age + dt);
@@ -179,7 +220,31 @@ export function createApproachFlight(options: Options) {
           .set(0, shipHeight, shipDistance)
           .applyQuaternion(cameraFacing);
         chasePosition.copy(ship.position).add(chaseOffset);
-        camera.position.lerp(chasePosition, 1 - Math.exp(-dt * 7));
+        const cut = flyby.enabled && t >= flyby.from && t < flyby.to;
+        flight.shot = cut ? "flyby" : "chase";
+        if (cut) {
+          // A slow dolly along the route while the long lens pans with the craft.
+          camera.position
+            .copy(flyby.position)
+            .addScaledVector(flyby.drift, (t - flyby.from) / (flyby.to - flyby.from) - 0.5);
+          lookMatrix.lookAt(camera.position, ship.position, worldUp);
+          camera.quaternion.setFromRotationMatrix(lookMatrix);
+          // The lens zooms with the distance, so the craft holds its size in the frame as it
+          // comes in, and the view opens wide as it tears past.
+          const lensFov = THREE.MathUtils.clamp(
+            THREE.MathUtils.radToDeg(2 * Math.atan(5.6 / Math.max(1, camera.position.distanceTo(ship.position)))),
+            15,
+            44,
+          );
+          camera.fov = wasCut ? THREE.MathUtils.damp(camera.fov, lensFov, 9, dt) : lensFov;
+          camera.updateProjectionMatrix();
+          wasCut = true;
+          return;
+        }
+        // Cutting back, the chase view starts in place rather than swooping in from the stand.
+        if (wasCut) camera.position.copy(chasePosition);
+        else camera.position.lerp(chasePosition, 1 - Math.exp(-dt * 7));
+        wasCut = false;
         const settle = THREE.MathUtils.smoothstep(t, 0.84, 1);
         camera.position.lerp(goalCamera, settle * settle);
         clearanceOffset.copy(camera.position).sub(ship.position);

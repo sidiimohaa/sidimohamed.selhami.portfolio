@@ -10,7 +10,7 @@
     "test:galaxy": "node tests/galaxy-director.cjs",
     "test:event-horizon": "node tests/event-horizon.cjs",
     "test:droid": "node tests/droid.cjs",
-    "test:flight": "node tests/flight-feel.cjs",
+    "test:flight": "node tests/flight-feel.cjs && node tests/orbital-system.cjs",
     "test:hoth": "node tests/hoth-defense.cjs && node tests/hoth-world.cjs"
   },
   "dependencies": {

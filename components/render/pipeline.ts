@@ -38,10 +38,11 @@ const vertexShader = /* glsl */ `varying vec2 vUv;void main(){vUv=uv;gl_Position
 // Bloom, in three small passes: keep only what is brighter than the threshold while shrinking the
 // frame to a quarter, blur it there, then once more at an eighth for a wider halo.
 const prefilterShader = /* glsl */ `
-  uniform sampler2D tDiffuse; uniform vec2 texel; uniform float threshold; varying vec2 vUv;
+  uniform sampler2D tDiffuse; uniform vec2 texel; uniform float threshold; uniform float keep; varying vec2 vUv;
   // Values are display-referred (0 to 1), so "bright" means close to white: a smooth ramp from the
   // threshold up to full brightness, weighted by the brightest channel so coloured lamps count.
-  vec3 bright(vec3 c){float l=max(c.r,max(c.g,c.b));return c*smoothstep(threshold,1.0,l);}
+  // With keep at 1 the whole frame passes: the same shrink then feeds the out-of-focus copy.
+  vec3 bright(vec3 c){float l=max(c.r,max(c.g,c.b));return c*mix(smoothstep(threshold,1.0,l),1.0,keep);}
   void main(){
     vec3 c=bright(texture2D(tDiffuse,vUv+texel*vec2(-1.0,-1.0)).rgb)+bright(texture2D(tDiffuse,vUv+texel*vec2(1.0,-1.0)).rgb)
           +bright(texture2D(tDiffuse,vUv+texel*vec2(-1.0,1.0)).rgb)+bright(texture2D(tDiffuse,vUv+texel*vec2(1.0,1.0)).rgb);
@@ -92,6 +93,13 @@ export type SpaceFx = {
   sun: number;
   rays: number;
   flare: number;
+  // Depth of field for the strong moments: everything away from the focus point (0..1 on
+  // screen) goes soft, by `dof` (0..1). In space the craft is the only near subject, so a focus
+  // disc around it reads as a shallow lens.
+  dof: number;
+  focusX: number;
+  focusY: number;
+  focusRadius: number;
 };
 
 const gradeShader = {
@@ -119,6 +127,9 @@ const gradeShader = {
     tRays: { value: null as THREE.Texture | null },
     rays: { value: 0 },
     flare: { value: 0 },
+    tSoft: { value: null as THREE.Texture | null },
+    dof: { value: 0 },
+    focus: { value: new THREE.Vector3(0.5, 0.5, 0.2) },
   },
   vertexShader,
   fragmentShader: /* glsl */ `
@@ -128,9 +139,10 @@ const gradeShader = {
     uniform float contrast, saturation, vignette, aspect;
     varying vec2 vUv;
     #ifdef SPACE
-      uniform sampler2D tRays;
-      uniform float time, grain, aberration, speed, sunOn, rays, flare;
+      uniform sampler2D tRays, tSoft;
+      uniform float time, grain, aberration, speed, sunOn, rays, flare, dof;
       uniform vec2 sun;
+      uniform vec3 focus;
       // One reflection inside the lens: a soft disc or a thin ring on the line through the centre.
       float ghost(vec2 at, float radius, float ring){
         vec2 q = vUv - at; q.x *= aspect;
@@ -151,6 +163,10 @@ const gradeShader = {
           vec2 pull = fromCentre * (speed * reach * 0.25);
           c = (c + texture2D(tDiffuse, vUv - pull).rgb + texture2D(tDiffuse, vUv - pull * 2.0).rgb
             + texture2D(tDiffuse, vUv - pull * 3.0).rgb + texture2D(tDiffuse, vUv - pull * 4.0).rgb) * 0.2;
+        }
+        if (dof > 0.003) {
+          vec2 away = vUv - focus.xy; away.x *= aspect;
+          c = mix(c, texture2D(tSoft, vUv).rgb, smoothstep(focus.z, focus.z * 2.6, length(away)) * dof);
         }
       #else
         vec3 c = texture2D(tDiffuse, vUv).rgb;
@@ -251,9 +267,12 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
         depthWrite: false,
       })
     : null;
+  // The out-of-focus copy of the frame: shrunk to a quarter, blurred at an eighth.
+  const softQuarter = space ? glowTarget() : null,
+    softFar = space ? [glowTarget(), glowTarget()] : null;
   let fx: SpaceFx | null = null;
   const prefilter = new THREE.ShaderMaterial({
-    uniforms: { tDiffuse: { value: null }, texel: { value: new THREE.Vector2() }, threshold: { value: 0.9 } },
+    uniforms: { tDiffuse: { value: null }, texel: { value: new THREE.Vector2() }, threshold: { value: 0.9 }, keep: { value: 0 } },
     vertexShader,
     fragmentShader: prefilterShader,
     depthTest: false,
@@ -339,6 +358,8 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
     near.forEach((target) => target.setSize(Math.max(1, Math.ceil(w / 4)), Math.max(1, Math.ceil(h / 4))));
     far.forEach((target) => target.setSize(Math.max(1, Math.ceil(w / 8)), Math.max(1, Math.ceil(h / 8))));
     raysTarget?.setSize(Math.max(1, Math.ceil(w / 4)), Math.max(1, Math.ceil(h / 4)));
+    softQuarter?.setSize(Math.max(1, Math.ceil(w / 4)), Math.max(1, Math.ceil(h / 4)));
+    softFar?.forEach((target) => target.setSize(Math.max(1, Math.ceil(w / 8)), Math.max(1, Math.ceil(h / 8))));
     if (raysMaterial) raysMaterial.uniforms.aspect.value = w / Math.max(h, 1);
     ao?.setSize(Math.ceil(w / 2), Math.ceil(h / 2));
     material.uniforms.aspect.value = w / Math.max(h, 1);
@@ -384,6 +405,8 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
       u.sunOn.value = next.sun;
       u.rays.value = next.rays;
       u.flare.value = next.flare;
+      u.dof.value = next.dof;
+      u.focus.value.set(next.focusX, next.focusY, next.focusRadius);
     },
     render: () => {
       if (tier === 0) {
@@ -400,6 +423,17 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
       if (ao) {
         renderOcclusion(ao, spare, read);
         read = spare;
+      }
+      if (softQuarter && softFar) {
+        material.uniforms.tSoft.value = softFar[0].texture;
+        if (fx && fx.dof > 0.003) {
+          prefilter.uniforms.tDiffuse.value = read.texture;
+          prefilter.uniforms.texel.value.set(1 / w, 1 / h);
+          prefilter.uniforms.keep.value = 1;
+          pass(prefilter, softQuarter);
+          prefilter.uniforms.keep.value = 0;
+          blurInto(softFar, softQuarter.texture);
+        }
       }
       if (tier >= 2) {
         prefilter.uniforms.tDiffuse.value = read.texture;
@@ -428,6 +462,8 @@ export function createPipeline(renderer: THREE.WebGLRenderer, scene: THREE.Scene
       [...near, ...far].forEach((target) => target.dispose());
       raysTarget?.dispose();
       raysMaterial?.dispose();
+      softQuarter?.dispose();
+      softFar?.forEach((target) => target.dispose());
       ao?.dispose();
       material.dispose();
       prefilter.dispose();

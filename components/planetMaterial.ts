@@ -138,6 +138,44 @@ export function createPlanetLayers(
     );
     atmosphere.name = "atmosphere";
     layers.push(atmosphere);
+    // The halo beyond the limb: air lit from behind the horizon, brightest against the globe
+    // and fading into space, stronger on the day side.
+    const reach = 1.17;
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(radius * reach, 64, 48),
+      new THREE.ShaderMaterial({
+        uniforms: {
+          sunDirection: { value: light },
+          color: {
+            value: new THREE.Color(index === 0 ? 0xf0b673 : index === 1 ? 0x62c4ec : index === 4 ? 0xb9e2ff : 0xb59cff),
+          },
+          // The cosine between the shell's normal and the view ray where the shell meets the limb.
+          limb: { value: Math.sqrt(1 - 1 / (reach * reach)) },
+          strength: { value: index === 2 ? 0.5 : index === 0 ? 0.42 : 0.58 },
+        },
+        vertexShader: vertex,
+        fragmentShader: `uniform vec3 sunDirection;uniform vec3 color;uniform float limb;uniform float strength;
+       varying vec3 worldNormal;varying vec3 worldPosition;
+       void main(){
+        vec3 n=normalize(worldNormal),ray=normalize(worldPosition-cameraPosition);
+        float glow=pow(clamp(dot(n,ray)/limb,0.0,1.0),2.6);
+        // Where on the limb this is: the part of the normal that lies across the view ray.
+        vec3 around=normalize(n-ray*dot(n,ray));
+        float lit=dot(around,sunDirection);
+        float day=.22+.78*smoothstep(-.45,.55,lit);
+        vec3 tint=mix(color,vec3(1.0,.6,.38),exp(-pow(lit/.25,2.0))*.35);
+        gl_FragColor=vec4(tint*glow*day*strength,1.0);
+       }`,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+        fog: false,
+      }),
+    );
+    halo.name = "halo";
+    layers.push(halo);
   }
   if (index === 0 || index === 1 || index === 4) {
     cloudLayer = new THREE.Mesh(

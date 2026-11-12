@@ -8,6 +8,7 @@ import { equippedValue, getArcade, onArcadeChange } from "./arcade/arcadeStore";
 import { createNebula, createNebulaVeils, createShootingStars } from "./spaceAmbience";
 import { createSpaceDust, createStarLayers, createSun, createSystemStar } from "./deepSpace";
 import { createEngineFx } from "./flight/engineFx";
+import { createIceRing, createOrbitalTraffic } from "./destinationIdentity";
 import { qualityProfiles, type QualityId } from "./graphicsQuality";
 import { createSpaceTraffic, type HyperspacePhase, type TrafficKind } from "./spaceTraffic";
 import { livingOn } from "./galaxy/flags";
@@ -354,6 +355,7 @@ export default function SpaceScene({
     joystickThumb = useRef<HTMLElement>(null),
     droidButton = useRef<HTMLButtonElement>(null);
   const hud = useRef<FlightHudHandle>(null),
+    bars = useRef<HTMLDivElement>(null),
     touchBoost = useRef(false);
   const hovered = useRef<number | null>(null),
     flightCallback = useRef(onFlight),
@@ -406,7 +408,7 @@ export default function SpaceScene({
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 650);
     camera.position.set(0, 0, HOME_CAMERA_Z);
     const pipeline = createPipeline(renderer, scene, camera, spaceGrade, tierFor(quality), { space: true });
-    const fx: SpaceFx = { time: 0, grain: 0, aberration: 0, speed: 0, sunX: 0.5, sunY: 0.5, sun: 0, rays: 0, flare: 0 };
+    const fx: SpaceFx = { time: 0, grain: 0, aberration: 0, speed: 0, sunX: 0.5, sunY: 0.5, sun: 0, rays: 0, flare: 0, dof: 0, focusX: 0.5, focusY: 0.5, focusRadius: 0.2 };
     scene.add(new THREE.AmbientLight(0x9bafa8, 0.19));
     const sun = new THREE.DirectionalLight(0xffe2bf, 2.8);
     sun.position.set(-24, 24, 30);
@@ -487,6 +489,13 @@ export default function SpaceScene({
     scene.add(deathStar);
     planets.push(deathStar);
     addPlanet("moon", radii[4], ORBITAL_BODIES[4].position, 0xcfe6f5);
+    // What sets two worlds apart from orbit: Hoth's ring of ice, and the traffic around Coruscant.
+    const iceRing = createIceRing(radii[4], new THREE.Vector3(-1, 0.55, 1));
+    iceRing.mesh.position.set(...ORBITAL_BODIES[4].position);
+    scene.add(iceRing.mesh);
+    const lanes = createOrbitalTraffic(radii[2], renderer.getPixelRatio(), profile.stars >= 0.7 ? 280 : 140);
+    lanes.points.position.set(...ORBITAL_BODIES[2].position);
+    scene.add(lanes.points);
     const planetLayers: ReturnType<typeof createPlanetLayers>[] = [];
     const loadingManager = new THREE.LoadingManager();
     // Compile every shader before revealing the scene, without blocking the loading screen.
@@ -912,6 +921,9 @@ export default function SpaceScene({
     const collisionNormal = new THREE.Vector3();
     const targetVelocity = new THREE.Vector3();
     let approach: ReturnType<typeof createApproachFlight> | null = null;
+    // The autopilot's cut-away: letterbox bars, instruments off, a shallow lens on the craft.
+    let cut = false,
+      depth = 0;
     let approachDestination = -1;
     const cameraAttitude = new THREE.Euler(0, 0, 0, "YXZ");
     const identity = new THREE.Quaternion();
@@ -1019,6 +1031,7 @@ export default function SpaceScene({
         pipeline.setTier(tierFor(quality));
         starLayers.setPixelRatio(renderer.getPixelRatio());
         dust.setPixelRatio(renderer.getPixelRatio());
+        lanes.setPixelRatio(renderer.getPixelRatio());
         resize();
       }
       // A long gap (a background tab, a dropped frame burst) is not a measure of the GPU.
@@ -1080,6 +1093,13 @@ export default function SpaceScene({
       }
       if (!s.travel) lastSkip = s.skipKey;
       if (!s.travel && approach) {
+        if (!approach.completed && approach.shot === "flyby") {
+          approach.release();
+          cameraAttitude.setFromQuaternion(camera.quaternion, "YXZ");
+          heading.yaw = view.yaw = cameraAttitude.y;
+          heading.pitch = view.pitch = cameraAttitude.x;
+          cameraTracked = false;
+        }
         settling = !approach.completed && !s.reduced;
         approach = null;
       }
@@ -1341,6 +1361,8 @@ export default function SpaceScene({
       nebula.dome.position.copy(camera.position);
       veils?.update(camera, elapsed, s.reduced);
       star.update(elapsed, s.reduced);
+      iceRing.update(elapsed, s.reduced);
+      lanes.update(elapsed, s.reduced);
       shootingStars.tick(
         lively,
         camera,
@@ -1503,7 +1525,10 @@ export default function SpaceScene({
         }
       });
       // The instruments: speed, heading, the radar and the markers for worlds out of view.
-      frameHud.visible = s.flying && !s.paused && !s.photo;
+      const wasCut = cut;
+      cut = s.travel && !!approach && !approach.completed && approach.shot === "flyby";
+      if (cut !== wasCut && bars.current) bars.current.dataset.on = String(cut);
+      frameHud.visible = s.flying && !s.paused && !s.photo && !cut;
       if (frameHud.visible) {
         const shown = s.travel ? cameraVelocity.length() : velocity.length();
         frameHud.speed = shown;
@@ -1618,6 +1643,15 @@ export default function SpaceScene({
       fx.sun = projected.z < 1 ? 1 - THREE.MathUtils.smoothstep(sunOff, 1, 1.35) : 0;
       fx.rays = 1;
       fx.flare = profile.flare ? 1 : 0;
+      // Depth of field at the strong moments: the cut-away, and whenever an interface holds the
+      // flight. The craft stays sharp; the worlds behind it go soft.
+      const lens = cut ? 0.62 : s.paused && s.flying && !s.photo ? 0.6 : 0;
+      depth = cut !== wasCut || s.reduced ? lens : THREE.MathUtils.damp(depth, lens, 5, dt);
+      projected.copy(ship.position).project(camera);
+      fx.dof = depth;
+      fx.focusX = projected.x * 0.5 + 0.5;
+      fx.focusY = projected.y * 0.5 + 0.5;
+      fx.focusRadius = cut ? 0.16 : 0.22;
       pipeline.setFx(fx);
       pipeline.render();
       // The first second and a half (shader compilation, texture uploads) is not counted, and two
@@ -1743,6 +1777,7 @@ export default function SpaceScene({
       >
         <span>ASTROMÉCANO</span>
       </button>
+      <div ref={bars} className="cine-bars" data-on="false" aria-hidden="true" />
       <FlightHud ref={hud} />
       <button
         className="touch-boost"

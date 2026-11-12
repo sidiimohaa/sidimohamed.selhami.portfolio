@@ -786,3 +786,36 @@
     font-size: 9px;
   }
 }
+
+/* The autopilot's cut-away: letterbox bars close in for the length of the shot. */
+.cine-bars::before,
+.cine-bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  height: 10.5vh;
+  background: #000;
+  transform: scaleY(0);
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.cine-bars::before {
+  top: 0;
+  transform-origin: top;
+}
+.cine-bars::after {
+  bottom: 0;
+  transform-origin: bottom;
+}
+.cine-bars[data-on="true"]::before,
+.cine-bars[data-on="true"]::after {
+  transform: none;
+}
+/* A cut is a cut: the instruments leave at once rather than fading through it. */
+.cine-bars[data-on="true"] ~ .flight-hud .hud-compass,
+.cine-bars[data-on="true"] ~ .flight-hud .hud-cluster,
+.cine-bars[data-on="true"] ~ .flight-hud .hud-edge {
+  transition: none;
+}
