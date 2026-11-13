@@ -1,6 +1,6 @@
-/* The flight instruments over open space: heading tape, radar, speed, and edge markers for the
+/* The flight instruments over open space: radar, speed, and edge markers for the
    worlds out of view. Cyan for the ship's systems, amber for the course being flown, and one
-   colour per destination, shared by the tape, the radar and the screen edge. */
+   colour per destination, shared by the radar and the screen edge. */
 
 :root {
   --hud: var(--hud-font, "Oxanium"), "SFMono-Regular", Consolas, monospace;
@@ -33,7 +33,6 @@
 }
 
 /* Each instrument comes online in turn. */
-.hud-compass,
 .hud-cluster {
   opacity: 0;
   filter: blur(6px);
@@ -42,147 +41,14 @@
     transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
     filter 0.5s ease;
 }
-.hud-compass {
-  transform: translate(-50%, -14px);
-}
 .hud-cluster {
   transform: translateY(16px);
-}
-.flight-hud[data-on="true"] .hud-compass {
-  opacity: 1;
-  filter: none;
-  transform: translate(-50%, 0);
-  transition-delay: 0.15s;
 }
 .flight-hud[data-on="true"] .hud-cluster {
   opacity: 1;
   filter: none;
   transform: none;
   transition-delay: 0.3s;
-}
-
-/* Heading tape. */
-.hud-compass {
-  position: absolute;
-  top: 82px;
-  left: 50%;
-  width: min(360px, calc(100% - 48px));
-}
-.hud-compass-window {
-  position: relative;
-  height: 40px;
-  overflow: hidden;
-  border-bottom: 1px solid var(--hud-line);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
-}
-.hud-compass-tape {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: 0;
-  height: 100%;
-  will-change: transform;
-}
-/* A tick every five degrees, a longer one every fifteen. */
-.hud-compass-tape::before {
-  content: "";
-  position: absolute;
-  left: -1440px;
-  bottom: 0;
-  width: 4320px;
-  height: 9px;
-  background:
-    repeating-linear-gradient(90deg, rgba(190, 226, 242, 0.75) 0 1px, transparent 1px 60px),
-    repeating-linear-gradient(90deg, rgba(190, 226, 242, 0.3) 0 1px, transparent 1px 20px) 0 4px / 100% 5px no-repeat;
-}
-.hud-compass-tape span {
-  position: absolute;
-  bottom: 11px;
-  transform: translateX(-50%);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  color: var(--hud-dim);
-}
-.hud-compass-mark {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 20px;
-  margin-left: -10px;
-  font-style: normal;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 14px;
-  text-align: center;
-  color: #05101a;
-  background: var(--world);
-  border-radius: 3px;
-  opacity: 0.82;
-  will-change: transform;
-}
-.hud-compass-mark::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  margin-left: -4px;
-  border: 4px solid transparent;
-  border-top-color: var(--world);
-}
-/* Past the end of the tape the edge markers take over; only the course stays pinned. */
-.hud-compass-mark[data-side="left"],
-.hud-compass-mark[data-side="right"] {
-  opacity: 0;
-}
-.hud-compass-mark[data-side="left"][data-state="course"],
-.hud-compass-mark[data-side="right"][data-state="course"] {
-  opacity: 0.9;
-}
-.hud-compass-mark[data-state="aimed"] {
-  opacity: 1;
-  box-shadow: 0 0 0 1px #05101a, 0 0 0 2px var(--world), 0 0 14px var(--world);
-}
-.hud-compass-mark[data-state="course"] {
-  opacity: 1;
-  background: var(--amber);
-  box-shadow: 0 0 14px rgba(255, 179, 92, 0.8);
-}
-.hud-compass-mark[data-state="course"]::after {
-  border-top-color: var(--amber);
-}
-/* The lubber line: the ship's nose on the tape. */
-.hud-compass::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 20px;
-  width: 1px;
-  height: 21px;
-  background: var(--holo);
-  box-shadow: 0 0 8px var(--holo);
-}
-.hud-compass-read {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 6px;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  color: var(--hud-dim);
-}
-.hud-compass-read b {
-  min-width: 46px;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-align: center;
-  color: #fff;
-  text-shadow: 0 0 12px rgba(143, 228, 255, 0.55);
-}
-.hud-compass-read span:last-child {
-  min-width: 34px;
 }
 
 /* Radar and speed, bottom left. */
@@ -554,30 +420,7 @@
   display: none !important;
 }
 
-/* The approach badge and the copilot step below the heading tape. */
-.experience .course-badge {
-  top: 150px;
-}
-@media (max-width: 1180px) {
-  .experience .copilot-comm {
-    top: 150px;
-  }
-  .experience.is-travelling .copilot-comm {
-    top: 204px;
-  }
-}
-
-@media (max-width: 900px) {
-  /* The orbit card takes the top of a narrow screen: the tape steps aside for it. */
-  .experience:has(.orbit-card) .hud-compass {
-    opacity: 0 !important;
-  }
-}
 @media (max-width: 700px) {
-  .hud-compass {
-    top: 76px;
-    width: min(250px, calc(100% - 40px));
-  }
   .hud-cluster {
     left: max(14px, env(safe-area-inset-left));
     bottom: max(14px, env(safe-area-inset-bottom));
@@ -593,9 +436,6 @@
   .hud-speed p b {
     font-size: 26px;
   }
-  .experience .course-badge {
-    top: 140px;
-  }
   .experience .flight-hint {
     bottom: 128px;
   }
@@ -604,9 +444,6 @@
   }
 }
 @media (max-height: 520px) {
-  .hud-compass {
-    top: 70px;
-  }
   .hud-radar {
     width: 92px;
     height: 92px;
@@ -617,7 +454,6 @@
   .hud-blip[data-state="course"] {
     animation: none;
   }
-  .hud-compass,
   .hud-cluster {
     transition-duration: 0.01s;
     filter: none;
@@ -751,11 +587,11 @@
   }
 }
 @media (max-width: 700px) {
-  /* On a phone the ship fills the lower half: the primer goes under the heading tape. */
+  /* On a phone the ship fills the lower half: the primer goes under the header. */
   .flight-tutorial {
     left: 12px;
     right: 12px;
-    top: 142px;
+    top: 76px;
     bottom: auto;
     gap: 10px;
     padding: 9px 10px 9px 12px;
@@ -818,7 +654,6 @@
   transform: none;
 }
 /* A cut is a cut: the instruments leave at once rather than fading through it. */
-.cine-bars[data-on="true"] ~ .flight-hud .hud-compass,
 .cine-bars[data-on="true"] ~ .flight-hud .hud-cluster,
 .cine-bars[data-on="true"] ~ .flight-hud .hud-edge {
   transition: none;

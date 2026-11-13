@@ -1559,8 +1559,6 @@ export default function SpaceScene({
               : s.arrived
                 ? "orbit"
                 : "idle";
-        frameHud.heading = (((-heading.yaw * 180) / Math.PI) % 360 + 360) % 360;
-        frameHud.pitch = (heading.pitch * 180) / Math.PI;
         frameHud.aimed = aimed;
         frameHud.course = s.travel || s.arrived ? s.destination : null;
         const cosYaw = Math.cos(heading.yaw),

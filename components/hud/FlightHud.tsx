@@ -2,7 +2,7 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { destinations } from "../universe";
 
-// The flight instruments drawn over open space: a heading tape, a heading-up radar of the five
+// The flight instruments drawn over open space: a heading-up radar of the five
 // destinations, speed and thrust, and markers on the screen edge for the worlds out of view.
 // The scene writes to it every frame through `update`; React never re-renders it in flight.
 
@@ -30,8 +30,6 @@ export type HudFrame = {
   speed: number;
   // Share of the top speed, 0..1.
   throttle: number;
-  heading: number;
-  pitch: number;
   aimed: number | null;
   course: number | null;
   bodies: HudBody[];
@@ -44,15 +42,11 @@ export const hudFrame = (): HudFrame => ({
   mode: "idle",
   speed: 0,
   throttle: 0,
-  heading: 0,
-  pitch: 0,
   aimed: null,
   course: null,
   bodies: destinations.map(() => ({ bearing: 0, radarX: 0, radarY: 0, elevation: 0, distance: 0, edge: false, edgeX: 0, edgeY: 0, edgeAngle: 0 })),
 });
 
-// Pixels of tape per degree of heading; the stylesheet draws its ticks to the same scale.
-const PX_PER_DEGREE = 4;
 const modeLabels: Record<HudMode, string> = {
   idle: "À L’ARRÊT",
   cruise: "CROISIÈRE",
@@ -61,22 +55,16 @@ const modeLabels: Record<HudMode, string> = {
   auto: "PILOTE AUTO",
   orbit: "EN ORBITE",
 };
-const tapeLabels = Array.from({ length: 37 }, (_, index) => (index - 12) * 30);
 const shortName = (name: string) => (name.startsWith("L’") ? "ÉTOILE" : name.toUpperCase());
 const distanceFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 
 const FlightHud = forwardRef<FlightHudHandle>(function FlightHud(_, ref) {
   const root = useRef<HTMLDivElement>(null),
-    compass = useRef<HTMLDivElement>(null),
-    tape = useRef<HTMLDivElement>(null),
-    heading = useRef<HTMLElement>(null),
     speed = useRef<HTMLElement>(null),
     thrust = useRef<HTMLElement>(null),
     mode = useRef<HTMLElement>(null),
-    pitch = useRef<HTMLElement>(null),
     radar = useRef<HTMLDivElement>(null);
-  const marks = useRef<(HTMLElement | null)[]>([]),
-    blips = useRef<(HTMLElement | null)[]>([]),
+  const blips = useRef<(HTMLElement | null)[]>([]),
     edges = useRef<(HTMLDivElement | null)[]>([]),
     edgeArrows = useRef<(HTMLElement | null)[]>([]),
     edgeRanges = useRef<(HTMLElement | null)[]>([]);
@@ -98,32 +86,13 @@ const FlightHud = forwardRef<FlightHudHandle>(function FlightHud(_, ref) {
           host.dataset.mode = value;
           if (mode.current) mode.current.textContent = modeLabels[frame.mode];
         });
-        set("heading", String(Math.round(frame.heading) % 360).padStart(3, "0"), (value) => {
-          if (heading.current) heading.current.textContent = value;
-        });
-        if (tape.current) tape.current.style.transform = `translate3d(${(-frame.heading * PX_PER_DEGREE).toFixed(1)}px,0,0)`;
         set("speed", String(Math.round(frame.speed * 10) * 10).padStart(4, "0"), (value) => {
           if (speed.current) speed.current.textContent = value;
         });
         if (thrust.current) thrust.current.style.transform = `scaleX(${frame.throttle.toFixed(3)})`;
-        const climb = Math.round(frame.pitch);
-        set("pitch", `${climb > 0 ? "+" : climb < 0 ? "−" : "±"}${String(Math.abs(climb)).padStart(2, "0")}°`, (value) => {
-          if (pitch.current) pitch.current.textContent = value;
-        });
-        const half = (compass.current?.clientWidth ?? 420) / 2 - 10;
         const reach = (radar.current?.clientWidth ?? 132) / 2 - 9;
         frame.bodies.forEach((body, index) => {
           const state = index === frame.course ? "course" : index === frame.aimed ? "aimed" : "idle";
-          const mark = marks.current[index];
-          if (mark) {
-            const x = Math.max(-half, Math.min(half, body.bearing * PX_PER_DEGREE));
-            mark.style.transform = `translate3d(${x.toFixed(1)}px,0,0)`;
-            set(`mark${index}`, `${state}|${Math.abs(body.bearing * PX_PER_DEGREE) > half ? (body.bearing < 0 ? "left" : "right") : "in"}`, (value) => {
-              const [tone, side] = value.split("|");
-              mark.dataset.state = tone;
-              mark.dataset.side = side;
-            });
-          }
           const blip = blips.current[index];
           if (blip) {
             blip.style.transform = `translate3d(${(body.radarX * reach).toFixed(1)}px,${(body.radarY * reach).toFixed(1)}px,0)`;
@@ -158,36 +127,6 @@ const FlightHud = forwardRef<FlightHudHandle>(function FlightHud(_, ref) {
   }, []);
   return (
     <div ref={root} className="flight-hud" data-on="false" data-mode="idle" aria-hidden="true">
-      <div ref={compass} className="hud-compass">
-        <div className="hud-compass-window">
-          <div ref={tape} className="hud-compass-tape">
-            {tapeLabels.map((degrees) => (
-              <span key={degrees} style={{ left: degrees * PX_PER_DEGREE }}>
-                {String(((degrees % 360) + 360) % 360).padStart(3, "0")}
-              </span>
-            ))}
-          </div>
-          {destinations.map((destination, index) => (
-            <i
-              key={destination.name}
-              ref={(element) => {
-                marks.current[index] = element;
-              }}
-              className="hud-compass-mark"
-              data-world={destination.className}
-              data-state="idle"
-              data-side="in"
-            >
-              {destination.number}
-            </i>
-          ))}
-        </div>
-        <div className="hud-compass-read">
-          <span>CAP</span>
-          <b ref={heading}>000</b>
-          <span ref={pitch}>±00°</span>
-        </div>
-      </div>
       <div className="hud-cluster">
         <div ref={radar} className="hud-radar">
           <i className="hud-radar-sweep" />
