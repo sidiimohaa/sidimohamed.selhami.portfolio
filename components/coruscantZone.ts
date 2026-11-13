@@ -5,6 +5,7 @@ import {
   CORUSCANT_LANDMARKS,
 } from "./coruscantSkyline";
 import { createCoruscantCargo } from "./coruscantCargo";
+import { createCityCrowns } from "./coruscantCrowns";
 import {
   createTerminals,
   glowTexture,
@@ -17,7 +18,7 @@ import {
 } from "./landingKit";
 import { createForgottenConsole } from "./zoneSecrets";
 import type { Landing } from "./universe";
-import { CITY_SKY_GLSL, advanceCity, cityBuildingUniforms, cityFogColor, cityHaze, lightCity } from "./galaxy/cityEnv";
+import { CITY_SKY_GLSL, advanceCity, cityBuildingUniforms, cityFogColor, cityHaze, lightCity, setCityHour, setCityStorm } from "./galaxy/cityEnv";
 import { createLivingCity } from "./galaxy/livingCity";
 import { createTaxiStand, STAND } from "./coruscantTaxi/taxiModel";
 
@@ -28,8 +29,11 @@ const FOG_DENSITY = 0.0021;
 
 // Facades light their own windows from world position, so towers of any height stay crisp.
 const buildingVertex = `
- varying vec3 vWorld;varying vec3 vNormal;varying float vSeed;
+ // Set on the parts of a crown that carry no windows (masts, ducts, parapets); 0 everywhere else.
+ attribute float plain;
+ varying vec3 vWorld;varying vec3 vNormal;varying float vSeed;varying float vPlain;
  void main(){
+  vPlain=plain;
   #ifdef USE_INSTANCING
    mat4 placed=modelMatrix*instanceMatrix;
   #else
@@ -44,31 +48,80 @@ const buildingVertex = `
 const buildingFragment = `
  uniform vec3 hazeLow;uniform vec3 hazeHigh;uniform float fogDensity;
  uniform float cityDay,cityNight,cityStorm,cityFlash;uniform vec4 cityOutage;
- varying vec3 vWorld;varying vec3 vNormal;varying float vSeed;
+ varying vec3 vWorld;varying vec3 vNormal;varying float vSeed;varying float vPlain;
  float hash(vec2 p){return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5453);}
- vec3 windows(vec2 cell){
+ // One wall, in metres along it and up it. Each tower draws its own kind of facade: punched
+ // windows, tall strips of glass between piers, long ribbons, or dark glass with a few lights.
+ // Piers and belt courses stand proud of the wall. rgb is the light of the windows, a the relief.
+ vec4 facade(vec2 p){
+  vec2 cell=p/vec2(1.0,1.4);
   vec2 id=floor(cell),f=fract(cell);
-  float pane=step(.29,f.x)*step(f.x,.71)*step(.34,f.y)*step(f.y,.65);
-  float lit=step(.64-vSeed*.24-cityNight*.14+cityDay*.2,hash(id+vSeed*91.0));
+  float style=fract(vSeed*7.31);
+  float hour=1.0+cityNight*.25-cityDay*.72;
+  float dark=.64-vSeed*.24-cityNight*.14+cityDay*.2;
+  float bay=4.0+floor(fract(vSeed*3.7)*4.0);
+  float pier=step(mod(id.x,bay),.5);
+  float floorOf=mod(id.y,14.0);
+  float belt=step(floorOf,.5);
+  // The floor above each belt is a sky lobby: one unbroken line of warm light.
+  float lobby=step(.5,floorOf)*step(floorOf,1.5);
+  float pane,lit;
+  if(style<.46){
+   pane=step(.29,f.x)*step(f.x,.71)*step(.34,f.y)*step(f.y,.65);
+   lit=step(dark,hash(id+vSeed*91.0));
+  }else if(style<.74){
+   pane=step(.16,f.x)*step(f.x,.84)*step(.05,f.y)*step(f.y,.95);
+   lit=step(dark+.06,hash(vec2(id.x,floor(id.y/3.0))+vSeed*57.0));
+  }else if(style<.92){
+   pane=step(.02,f.x)*step(f.x,.98)*step(.3,f.y)*step(f.y,.72);
+   lit=step(dark-.03,hash(vec2(floor(id.x/4.0),id.y)+vSeed*23.0));
+  }else{
+   pane=step(.2,f.x)*step(f.x,.8)*step(.2,f.y)*step(f.y,.8);
+   lit=step(.9-cityNight*.05,hash(id+vSeed*91.0));
+  }
   vec3 tint=mix(vec3(.58,.72,1.0),vec3(1.0,.66,.34),step(.78,hash(id.yx+vSeed*13.0)));
-  vec3 near=pane*lit*tint*(.5+hash(id*1.7)*.65)*(1.0+cityNight*.25-cityDay*.72);
+  vec3 near=pane*lit*tint*(.5+hash(id*1.7)*.65)*hour*(1.0-pier)*(1.0-belt);
+  near=mix(near,vec3(1.0,.8,.56)*step(.06,f.x)*step(f.x,.94)*step(.28,f.y)*step(f.y,.74)*.62*hour*(1.0-pier),lobby*step(.3,vSeed));
+  // Too far to tell one window from the next, a wall is its average glow.
   float detail=1.0-smoothstep(.35,1.0,max(fwidth(cell.x),fwidth(cell.y)));
-  return mix(vec3(.39,.43,.61)*(.06+vSeed*.08)*(1.0+cityNight*.25-cityDay*.5),near,detail);
+  vec3 far=vec3(.39,.43,.61)*(.06+vSeed*.08)*(1.0+cityNight*.25-cityDay*.5);
+  return vec4(mix(far,near,detail),(pier*.55+belt*.7)*detail);
  }
  void main(){
   vec3 n=normalize(vNormal);
-  vec3 color=vec3(.032,.037,.05)*(.7+vSeed*.6)*(.85+.3*n.y);
+  // Two families of stone and steel, so neighbours do not share one grey.
+  vec3 body=mix(vec3(1.06,.95,.86),vec3(.84,.94,1.1),step(.5,fract(vSeed*5.3)));
+  vec3 color=vec3(.032,.037,.05)*body*(.7+vSeed*.6)*(.85+.3*n.y);
   // By day the walls catch the sun; at any hour a sector can lose its power, tower by tower.
-  color+=cityDay*vec3(.3,.3,.33)*(.45+.55*max(0.0,dot(n,normalize(vec3(-.45,.6,.4)))))*(.7+vSeed*.6);
+  color+=cityDay*vec3(.3,.3,.33)*body*(.45+.55*max(0.0,dot(n,normalize(vec3(-.45,.6,.4)))))*(.7+vSeed*.6);
   float cut=step(.001,cityOutage.w)*step(distance(vWorld.xz,cityOutage.xy),cityOutage.z)*step(vSeed,cityOutage.w*1.05);
-  if(abs(n.y)<.5){
+  if(abs(n.y)<.5&&vPlain<.5){
    // Blend two world projections so windows remain legible on curved shoulders.
    vec2 weight=pow(abs(n.xz),vec2(6.0));
    weight/=max(.0001,weight.x+weight.y);
-   color+=(windows(vWorld.zy/vec2(1.0,1.4))*weight.x
-         +windows(vWorld.xy/vec2(1.0,1.4))*weight.y)*(1.0-cut);
+   vec4 wall=facade(vWorld.zy)*weight.x+facade(vWorld.xy)*weight.y;
+   // In full daylight the walls are bright already: the relief is a nuance, not a white grid.
+   color*=1.0+wall.a*(1.9-cityDay*1.35);
+   color+=wall.rgb*(1.0-cut);
    color+=vec3(.9,.5,.25)*.06*step(.96,fract(vWorld.y/36.0))*(1.0-cut)*(1.0-cityDay);
+  }else if(n.y>.5&&vPlain<.5){
+   // Roofs seen from above: plant in lighter blocks, and here and there a lit skylight.
+   vec2 r=vWorld.xz/2.6;
+   vec2 rid=floor(r),rf=fract(r);
+   float seen=1.0-smoothstep(.3,.9,max(fwidth(r.x),fwidth(r.y)));
+   float block=step(.2,rf.x)*step(rf.x,.8)*step(.2,rf.y)*step(rf.y,.8);
+   color+=vec3(.014,.016,.02)*block*step(.66,hash(rid+vSeed*5.0))*seen*(1.0+cityDay*4.0);
+   color+=vec3(.5,.64,.95)*.42*block*step(.94,hash(rid.yx+vSeed*17.0))*seen*(1.0-cut)*(1.0-cityDay*.85);
   }
+  // At dusk the walls turned to the sunset glow, and the others take the cold of the sky: it is
+  // this, more than anything, that gives each tower its volume.
+  vec3 west=normalize(vec3(-.85,.14,-.5));
+  float dusk=(1.0-cityDay)*(1.0-cityNight*.82)*(1.0-cityStorm*.7);
+  float lit=max(0.0,dot(n,west));
+  color+=hazeLow*lit*lit*.5*dusk*(.55+vSeed*.5);
+  color+=hazeHigh*max(0.0,-dot(n,west))*.12*dusk;
+  // By night a little of the sky's blue rests on what faces up.
+  color+=vec3(.012,.016,.03)*max(0.0,n.y)*cityNight;
   float distance=length(vWorld-cameraPosition);
   float fog=1.0-exp(-fogDensity*fogDensity*distance*distance);
   vec3 direction=normalize(vWorld-cameraPosition);
@@ -229,14 +282,19 @@ export function createCoruscantZone(
         )
       )
         continue;
-      const megatower = reach > 220 && rand() < 0.008;
+      // Districts: rooftops rise and fall over a few hundred metres, so the skyline has hills
+      // and hollows. Derived from the place itself, so the random sequence is left untouched.
+      const district =
+        (Math.sin(x * 0.011 + 1.3) * Math.cos(z * 0.013 - 0.7) + Math.sin((x + z) * 0.006 + 2.1) * 0.6) * 22;
+      const landmarkRoll = Math.sin(gx * 12.9898 + gz * 78.233) * 43758.5453;
+      const megatower = reach > 220 && (rand() < 0.008 || landmarkRoll - Math.floor(landmarkRoll) < 0.006);
       towers.push({
         x,
         z,
         w: 7 + rand() * 10,
         d: 7 + rand() * 10,
         // Most rooftops sit below the platform, so the view opens onto the skyline.
-        top: megatower ? 60 + rand() * 140 : -150 + Math.pow(rand(), 2.2) * 185,
+        top: megatower ? 60 + rand() * 140 : Math.min(40, -150 + Math.pow(rand(), 2.2) * 185 + district),
       });
       if (rand() < 0.18)
         towers.push({
@@ -262,6 +320,9 @@ export function createCoruscantZone(
   });
   city.frustumCulled = false;
   group.add(city);
+  // Crowns on the roofs: terraces, spires, domes, blades and plant, with their obstacle lights.
+  const crowns = createCityCrowns({ towers, material: city.material, fogDensity: FOG_DENSITY, pixelRatio: 1 });
+  group.add(crowns.group);
   group.add(createCoruscantSkyline(buildingMaterial()));
   const plinth = new THREE.Mesh(
     new THREE.CylinderGeometry(12.5, 15, -base, 48, 1, true),
@@ -450,6 +511,10 @@ export function createCoruscantZone(
   if (living.database) circles.push(living.database.circle);
   const fog = new THREE.FogExp2(HAZE_HIGH.clone().lerp(HAZE_LOW, 0.4), FOG_DENSITY);
 
+  // Development only: sets the hour (0 dusk, 0.3 night, 0.75 day) and the storm, to compare
+  // renders of the city at a fixed moment.
+  if (process.env.NODE_ENV !== "production")
+    (window as unknown as { __orbitalCity?: object }).__orbitalCity = { hour: setCityHour, storm: setCityStorm };
   let chase = 0;
   return {
     group,
@@ -462,7 +527,10 @@ export function createCoruscantZone(
     ship: parking.ship,
     shipRest: parking.shipRest,
     colliders: { circles, footprint: parking.footprint, movers: life.movers },
-    setViewport: life.setViewport,
+    setViewport: (height: number) => {
+      life.setViewport(height);
+      crowns.setViewport(height);
+    },
     setQuality: living.setQuality,
     // Beside the ship's nose, turned so it sits left and a terminal glows on the right.
     spawn: { position: new THREE.Vector3(7, 0, 11.5), yaw: 0.25 },
@@ -481,6 +549,7 @@ export function createCoruscantZone(
       advanceCity(dt, { cycle: living.cycle, reduced });
       lightCity(key, skyLight, { sun: 1.6, sky: 1.1 });
       living.tick(dt, elapsed, reduced, walker);
+      crowns.tick(elapsed, reduced);
       fog.color.copy(cityFogColor);
       fog.density = FOG_DENSITY * living.fogScale();
       stand.setState(life.taxi.phase());
