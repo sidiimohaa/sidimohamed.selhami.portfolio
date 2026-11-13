@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import type { PlanetReference } from "./universe";
-import { createCoruscantLayers } from "./coruscantPlanet";
 
 const vertex = `
  varying vec3 localNormal;
@@ -53,7 +52,6 @@ export function createPlanetLayers(
   radius: number,
   index: number,
   initialFacing: THREE.Vector3,
-  detail = 1,
 ) {
   const facing = initialFacing.clone().normalize();
   const right = new THREE.Vector3()
@@ -108,9 +106,7 @@ export function createPlanetLayers(
     surfaceMaterial,
   );
   surface.name = "reference-globe";
-  // Coruscant is built in 3D (coruscantPlanet.ts); the other worlds still wear their reference image.
-  const city = index === 2 ? createCoruscantLayers(radius, light, detail) : undefined;
-  const layers: THREE.Mesh[] = city ? [...city.layers] : [surface];
+  const layers: THREE.Mesh[] = [surface];
   let cloudLayer: THREE.Mesh | undefined;
   if (index !== 3) {
     const atmosphere = new THREE.Mesh(
@@ -120,7 +116,7 @@ export function createPlanetLayers(
           sunDirection: { value: light },
           color: {
             value: new THREE.Color(
-              index === 0 ? 0xd6bf8d : index === 1 ? 0x71b6d6 : index === 4 ? 0xbfdcf0 : index === 2 ? 0xa9b6d2 : 0x9f9ed5,
+              index === 0 ? 0xd6bf8d : index === 1 ? 0x71b6d6 : index === 4 ? 0xbfdcf0 : 0x9f9ed5,
             ),
           },
         },
@@ -151,7 +147,7 @@ export function createPlanetLayers(
         uniforms: {
           sunDirection: { value: light },
           color: {
-            value: new THREE.Color(index === 0 ? 0xf0b673 : index === 1 ? 0x62c4ec : index === 4 ? 0xb9e2ff : index === 2 ? 0xd9a566 : 0xb59cff),
+            value: new THREE.Color(index === 0 ? 0xf0b673 : index === 1 ? 0x62c4ec : index === 4 ? 0xb9e2ff : 0xb59cff),
           },
           // The cosine between the shell's normal and the view ray where the shell meets the limb.
           limb: { value: Math.sqrt(1 - 1 / (reach * reach)) },
@@ -205,20 +201,36 @@ export function createPlanetLayers(
     cloudLayer.name = index === 1 ? "independent-clouds" : index === 4 ? "snow-storms" : "dust-veil";
     layers.push(cloudLayer);
   }
+  if (index === 2) {
+    const lights = new THREE.Mesh(
+      new THREE.SphereGeometry(radius * 1.0015, 96, 64),
+      new THREE.ShaderMaterial({
+        uniforms,
+        vertexShader: vertex,
+        fragmentShader: `${referenceSampling}
+       void main(){vec3 color=sampleSurface();float night=1.0-smoothstep(-.25,.7,dot(normalize(worldNormal),sunDirection));float gold=smoothstep(.035,.19,color.r)*smoothstep(1.15,2.4,color.r/(color.b+.015));gl_FragColor=vec4(color*vec3(1.1,.85,.65),gold*(.12+night*.65));
+       #include <colorspace_fragment>
+       }`,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    );
+    lights.name = "city-night-lights";
+    layers.push(lights);
+  }
   return {
     layers,
     // The references are photographs of a disk, not equirectangular maps. Keep
     // their projection aligned with the viewer so the photographed limb never
     // runs through the middle of the globe when flying around it.
     faceViewer: (direction: THREE.Vector3) => {
-      // A true 3D globe keeps its own orientation.
-      if (city) return;
       facing.copy(direction).normalize();
       right.crossVectors(Math.abs(facing.y) > .999 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0), facing).normalize();
       up.crossVectors(facing, right).normalize();
     },
     tick: (dt: number, reduced: boolean) => {
-      city?.tick(dt, reduced);
       if (!reduced && cloudLayer)
         cloudLayer.rotation.y += dt * (index === 1 ? 0.018 : 0.008);
     },
