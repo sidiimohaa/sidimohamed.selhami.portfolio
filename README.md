@@ -170,7 +170,9 @@ Chaque partie terminée met à jour les statistiques (dernier score, record, par
 
 En orbite de l’Étoile de la Mort, la transmission propose **Accoster la station** (ou E) et **Mode Recruteur**. L’approche est une courte séquence : le X-wing entre dans la baie du hangar, la transmission « IMPERIAL ARCHIVES — Personnel File Access Granted » s’affiche, puis la vue passe à la première personne. L’introduction peut être passée.
 
-- **Hangar** : console d’accueil holographique (identité, profil, trois choix : explorer, consulter rapidement, télécharger le CV PDF).
+- **Hangar** : console d’accueil holographique (identité, profil, trois choix : explorer, consulter rapidement, télécharger le CV PDF). La baie a pris son échelle (`components/deathStar/stationHangar.ts`) : chasseurs TIE suspendus en râteliers sous le toit, pont roulant avec sa charge, marquages peints sur le pont, tuyaux de ravitaillement, cônes de lumière des projecteurs et scintillement du champ magnétique sur le pourtour de la baie, dont la vue sur l’espace reste inchangée.
+- **Sols miroirs** (`components/deathStar/floorMirror.ts`) : sur le profil complet, le pont poli reflète réellement la station (barres lumineuses, hologrammes, vaisseaux, soldats), la scène étant redessinée à demi-résolution depuis le dessous du sol ; le pont reste noir et ne montre que ce qui brille. Le profil léger garde les reflets peints, et `?mirror=off` permet de comparer.
+- **Lumière** : halo froid autour des barres lumineuses, petits feux rouges au pied des murs des couloirs, salles un peu plus éclairées.
 - **Archives** : un terminal par expérience (Bricoman/Tecnomat, Aldi) et une synthèse du parcours.
 - **Centre de formation** : table holographique et frise des diplômes, du Bac STMG au Bachelor 3 INSEEC.
 - **Salle des compétences** : arbre holographique en six branches ; chaque nœud distingue compétence confirmée, en développement et domaine d’intérêt, avec son contexte et ses preuves.

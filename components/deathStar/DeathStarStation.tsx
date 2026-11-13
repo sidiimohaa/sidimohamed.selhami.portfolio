@@ -343,9 +343,7 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     const firstPerson = new THREE.Euler(0, 0, 0, "YXZ");
     const drill = eventLevels("station");
     let drillShown = 0;
-    const stage = createStage(
-      el,
-      (dt, time) => {
+    const frame = (dt: number, time: number) => {
         if (!s) return;
         // A drill: the whole station goes to red for a moment. The record's panels are HTML, untouched.
         if (stage?.pipeline && !live.current.reduced) {
@@ -595,6 +593,13 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
             setPrompt(best);
           }
         }
+      };
+    const stage = createStage(
+      el,
+      (dt, time) => {
+        frame(dt, time);
+        // The polished deck mirrors the station: drawn once the camera is in place for the frame.
+        if (s && stage) s.reflect(stage.camera);
       },
       { fov: 62, exposure: 1.05, look: "deathstar", adaptive: true },
     );

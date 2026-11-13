@@ -1,3 +1,5 @@
+import { createFloorMirror } from "./floorMirror";
+import { dressHangar } from "./stationHangar";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { tieGeometry } from "../tieModel";
@@ -220,6 +222,28 @@ const hullTexture = () =>
       c.fillRect(Math.random() * 1024, Math.random() * 1024, 3, 3);
     }
   });
+// A soft oval of light, brightest at its heart: the glow of a light panel in the air before it.
+const haloTexture = () =>
+  paint(
+    128,
+    256,
+    (c) => {
+      const g = c.createRadialGradient(64, 128, 0, 64, 128, 128);
+      g.addColorStop(0, "rgba(255,255,255,1)");
+      g.addColorStop(0.3, "rgba(255,255,255,.42)");
+      g.addColorStop(0.65, "rgba(255,255,255,.1)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      c.save();
+      c.translate(64, 128);
+      c.scale(0.5, 1);
+      c.translate(-64, -128);
+      c.fillStyle = g;
+      c.fillRect(-128, 0, 384, 256);
+      c.restore();
+    },
+    false,
+  );
+
 // A sign above a door: white lettering on black, with a red marker, Imperial style.
 function signTexture(title: string, sub: string) {
   return paint(
@@ -356,7 +380,9 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   const hullMap = keep(hullTexture());
   hullMap.repeat.set(1, 1);
   const hull = new THREE.MeshStandardMaterial({ color: 0x8a9098, map: hullMap, roughness: 0.75, metalness: 0.3 });
-  const owned: THREE.Material[] = [wall, dark, trim, floor, ceiling, lightPanel, strip, red, lane, floorGlow, holoBlue, doorMat, rackMat, hull];
+  // The air around a light panel: a soft bloom of cold white, so the bars light the room they are in.
+  const panelHalo = new THREE.MeshBasicMaterial({ map: keep(haloTexture()), color: 0xcfe0ff, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const owned: THREE.Material[] = [wall, dark, trim, floor, ceiling, lightPanel, strip, red, lane, floorGlow, holoBlue, doorMat, rackMat, hull, panelHalo];
   const kit = createKit(),
     glowKit = createKit();
 
@@ -463,12 +489,20 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
         kit.box(trim, alongX ? len : 0.36, 0.9, alongX ? 0.36 : len, bx, 0.45, bz);
         const [tx, tz] = put(mid, 0.12);
         kit.box(dark, alongX ? len : 0.24, 0.5, alongX ? 0.24 : len, tx, Math.min(h - 0.6, 4.6), tz);
+        // Corridors carry a line of small red guide lights at the foot of their walls.
+        if (Math.min(w, d) <= 6 && h <= 6 && len > 6)
+          for (let along = s0 + 2.1; along < s1 - 1; along += 4.2) {
+            const [rx, rz] = put(along, 0.37);
+            kit.box(red, alongX ? 0.2 : 0.03, 0.05, alongX ? 0.03 : 0.2, rx, 0.62, rz);
+          }
         if (r.panels !== false && (!r.panelSides || r.panelSides.includes(side)) && len > 3) {
           const count = Math.floor((len - 1.5) / 4.2);
           for (let i = 0; i < count; i++) {
             const along = s0 + (len - (count - 1) * 4.2) / 2 + i * 4.2;
             const [px, pz] = put(along, 0.02);
             kit.plane(lightPanel, 1.0, 3.6, px, 2.85, pz, 0, ry);
+            const [hx, hz] = put(along, 0.07);
+            kit.plane(panelHalo, 3.4, 6.2, hx, 2.85, hz, 0, ry);
             const [gx, gz] = put(along, 1.2);
             glowKit.geometry(floorGlow, new THREE.PlaneGeometry(1.0, 2.4).rotateX(-Math.PI / 2), gx, 0.012, gz, 0, ry + Math.PI);
           }
@@ -533,10 +567,6 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   kit.plane(strip, 34.4, 0.45, 0, 13.1, -0.32, 0, Math.PI);
   kit.plane(strip, 0.45, 13, -17.1, 6.5, -0.32, 0, Math.PI);
   kit.plane(strip, 0.45, 13, 17.1, 6.5, -0.32, 0, Math.PI);
-  const field = new THREE.Mesh(new THREE.PlaneGeometry(34, 13), new THREE.MeshBasicMaterial({ color: 0x6fb6ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  owned.push(field.material as THREE.Material);
-  field.position.set(0, 6.5, -0.1);
-  root.add(field);
   // Gantries under the roof, lines of ceiling lights, lanes and landing lights on the deck.
   for (let z = -6; z > -50; z -= 8) kit.box(trim, 44, 0.9, 0.9, 0, 16.8, z);
   for (const x of [-15, -7.5, 7.5, 15]) for (let z = -3; z > -49; z -= 2.2) kit.plane(strip, 0.5, 0.9, x, 19.97, z, Math.PI / 2);
@@ -653,6 +683,9 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     kit.box(red, 0.12, 0.12, 0.05, x, 0.6, z + 1.3);
     block(x, z, 2.8);
   }
+  // The bay at its full scale: racks of TIEs under the roof, the crane, deck paint, fuel lines,
+  // cones of light from the floods and the magnetic field across the opening.
+  const hangar = dressHangar({ root, decor, kit, materials: { dark, trim, strip, red }, tie, tieMaterials: { hull: tieHull, panels: tiePanels, glass: tieGlass }, owned, keep, block });
   // Two ground control consoles near the bay.
   for (const x of [-9, 9]) {
     kit.box(dark, 1.6, 1.1, 0.9, x, 0.55, -4.5);
@@ -1220,7 +1253,7 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   });
   const sun = new THREE.DirectionalLight(0xdfe8ff, 1.1);
   sun.position.set(80, 120, 260);
-  root.add(sun, new THREE.HemisphereLight(0x8a96a6, 0x0d0f12, 0.55));
+  root.add(sun, new THREE.HemisphereLight(0x8a96a6, 0x0d0f12, 0.72));
 
   const extraFree: ((x: number, z: number) => boolean)[] = [],
     solids: ((x: number, z: number) => boolean)[] = [];
@@ -1245,6 +1278,20 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
   const compactorExit = interactables.find((item) => item.id === "compactor-exit")!;
   kit.bake(root);
   glowKit.bake(glowLayer);
+  // The polished deck as a true mirror, on the full profile. The painted glows it replaces, and
+  // what is painted on the deck, stay out of the reflection.
+  const mirror = createFloorMirror(renderer, scene, floor);
+  mirror.hide(glowLayer, ...hangar.onDeck);
+  let mirrorOn = false,
+    insideView = true;
+  const setMirror = () => {
+    mirror.setEnabled(mirrorOn && insideView);
+    glowLayer.visible = !(mirrorOn && insideView);
+  };
+  // ?mirror=off keeps the painted glows instead, to compare the two and their cost.
+  const mirrorAllowed = typeof window === "undefined" || new URLSearchParams(window.location.search).get("mirror") !== "off";
+  mirrorOn = !options.light && mirrorAllowed;
+  setMirror();
 
   // A small pool of lights, moved to whichever room the visitor is in.
   const pool = Array.from({ length: options.light ? 3 : 6 }, () => {
@@ -1259,7 +1306,8 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
     const slots = lightSlots[id] ?? lightSlots.hub!;
     pool.forEach((item, i) => {
       const slot = slots[i];
-      item.goal = slot ? slot.power : 0;
+      // A fifth more light than the fittings were first given: the walls read, the blacks stay black.
+      item.goal = slot ? slot.power * 1.22 : 0;
       if (!slot) return;
       item.light.position.set(...slot.at);
       item.light.color.setHex(slot.color);
@@ -1302,7 +1350,11 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
       navigate = createSurfaceNavigator(160, isFree);
     },
     /** What stands in the world: the interior, the far view of the arrival, or the open-space flight. */
+    /** Draws the deck's reflection for this frame; call once the camera is placed. */
+    reflect: (camera: THREE.PerspectiveCamera) => mirror.update(camera),
     setView: (view: "inside" | "far", keep: THREE.Object3D[] = []) => {
+      insideView = view === "inside";
+      setMirror();
       if (view === "far") {
         // What was hidden inside (idle beams and the like) must stay hidden on the way back.
         if (!shownInside.size) root.children.forEach((child) => shownInside.set(child, child.visible));
@@ -1337,13 +1389,16 @@ export function createStation(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
       decorHidden = light;
       decor.visible = !light;
       presences.setLight(light);
-      glowLayer.visible = true;
+      hangar.setLight(light);
+      mirrorOn = !light && mirrorAllowed;
+      setMirror();
       pool.forEach((item, i) => (item.light.visible = !light || i < 3));
     },
     tick: (dt: number, time: number, player: THREE.Vector3, room: RoomId | null, reduced: boolean, liftDoors: { a: number; b: number }) => {
       if (room) lightRoom(room);
       presences.tick(time, reduced, player, room);
       wings.tick(dt, time, player, room, reduced);
+      hangar.tick(time, reduced);
       compactorExit.reach = wings.compactorState() === "stopped" ? 3.4 : 0;
       // Vader's easter egg: he turns from the viewport, raises his hand, and the visitor chokes.
       if (choke) {
