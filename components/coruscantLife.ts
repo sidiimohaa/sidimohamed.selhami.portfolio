@@ -3,6 +3,7 @@ import { bakePart } from "./tatooineCharacters";
 import { createHardCase } from "./cargoProps";
 import { createProbeDroid } from "./probeDroid";
 import { createDroidKit } from "./droidModels";
+import { createDroidModel } from "./droid/droidModel";
 import { createAirTaxi } from "./coruscantTaxi/taxiModel";
 
 export type PadEvent = "droid" | "speeder-arrive" | "speeder-leave";
@@ -194,8 +195,12 @@ export function createPadLife(options: {
 
   const droids = createDroidKit();
 
-  // An astromech on its rounds around the ship; it stops and chirps when someone blocks it.
-  const { droid: astromech, dome, eye } = droids.astromech();
+  // R-X7, the pilot's own astromech, on its rounds around the ship; it stops and chirps when
+  // someone blocks it. Its holographic pad belongs to the ship's interface, not to the deck.
+  const rx7 = createDroidModel();
+  rx7.pad.visible = false;
+  rx7.ring.visible = false;
+  const { root: astromech, head: dome, eyeMaterial: eye } = rx7;
   group.add(astromech);
   const rounds = patrol(
     Array.from({ length: 48 }, (_, i) => {
