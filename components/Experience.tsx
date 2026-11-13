@@ -174,6 +174,18 @@ export default function Experience() {
   // Holding the boost for four seconds of thrust breaks into hyperspace (mission 02).
   const boostSince = useRef<number | null>(null);
   const flightEdges = useRef({ boost: false, cut: false });
+  const singularityStarted = useRef<number | null>(null);
+  const onSingularity = useCallback((active: boolean) => {
+    const now = performance.now();
+    if (active) singularityStarted.current = now;
+    else if (singularityStarted.current !== null) {
+      // Four seconds of actual thrust earn hyperspace; cinematic time never counts.
+      if (boostSince.current !== null) boostSince.current += now - singularityStarted.current;
+      singularityStarted.current = null;
+    }
+    singularityRef.current = active;
+    setSingularity(active);
+  }, []);
   const onFlight = useCallback((flight: FlightTelemetry) => {
     guidance.current = flight.target;
     distances.current = flight.distances;
@@ -743,7 +755,7 @@ export default function Experience() {
         }}
         onPerformance={onPerformance}
         onCapture={onCapture}
-        onSingularity={setSingularity}
+        onSingularity={onSingularity}
         onSelect={launch}
         onFlight={onFlight}
         onApproachComplete={completeApproach}
