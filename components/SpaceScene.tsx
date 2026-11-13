@@ -547,6 +547,8 @@ export default function SpaceScene({
             radii[index],
             index,
             camera.position.clone().sub(planets[index].position),
+            // Coruscant's procedural city drops its finest block layer on the lighter profiles.
+            profile.stars >= 0.7 ? 1 : 0.5,
           );
           planets[index].children.forEach((child) => {
             child.visible = false;
