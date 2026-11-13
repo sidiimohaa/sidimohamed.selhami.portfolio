@@ -269,4 +269,3 @@ export function createCertVault(glow: THREE.Texture) {
     dispose: () => owned.forEach((item) => item.dispose()),
   };
 }
-export type CertVault = ReturnType<typeof createCertVault>;

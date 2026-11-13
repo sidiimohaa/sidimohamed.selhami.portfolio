@@ -11,7 +11,6 @@ import { softBeam } from "../render/softBeam";
 // the rear right, where a side panel drops open to let them in. Faces +Z with its belly at
 // y = 0; the same model waits at pad 3-7 and carries the visitor across the city.
 
-export type AirTaxi = ReturnType<typeof createAirTaxi>;
 
 type XYZ = [number, number, number];
 

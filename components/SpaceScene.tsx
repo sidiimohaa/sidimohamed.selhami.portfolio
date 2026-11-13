@@ -934,7 +934,6 @@ export default function SpaceScene({
     const projected = new THREE.Vector3();
     const safePosition = new THREE.Vector3();
     const collisionNormal = new THREE.Vector3();
-    const targetVelocity = new THREE.Vector3();
     let approach: ReturnType<typeof createApproachFlight> | null = null;
     // The autopilot's cut-away: letterbox bars, instruments off, a shallow lens on the craft.
     let cut = false,

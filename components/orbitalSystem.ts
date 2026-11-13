@@ -28,7 +28,6 @@ export const ORBITAL_BODIES = [
   { radius: 3.15, orbit: null, position: [endor.position[0] + 22, endor.position[1] + 20, endor.position[2] + 10] as SpacePoint },
   world(9.6, 108, 300),
 ];
-export const SYSTEM_ORBITS = [32, 56, 78, 108];
 export const DEBRIS_ORBIT = 66;
 
 // Fit both axes with breathing room for labels, without changing the ship's foreground scale.

@@ -134,7 +134,7 @@ function deckTexture() {
 
 export function dressHangar(ctx: HangarContext) {
   const { root, decor, kit, materials, owned } = ctx;
-  const { dark, trim, strip, red } = materials;
+  const { dark, trim, red } = materials;
 
   // --- Deck markings: one painted sheet just above the plating.
   const paint = new THREE.MeshStandardMaterial({ map: ctx.keep(deckTexture()), transparent: true, roughness: 0.55, metalness: 0.05, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });

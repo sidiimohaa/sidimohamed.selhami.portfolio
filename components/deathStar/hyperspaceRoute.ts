@@ -331,4 +331,3 @@ export function createHyperspaceRoute(at: THREE.Vector3, facing: number) {
     },
   };
 }
-export type HyperspaceRoute = ReturnType<typeof createHyperspaceRoute>;

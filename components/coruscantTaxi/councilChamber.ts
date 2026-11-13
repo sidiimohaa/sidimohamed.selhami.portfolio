@@ -407,4 +407,3 @@ export function createCouncilChamber(glow: THREE.Texture) {
     },
   };
 }
-export type CouncilChamber = ReturnType<typeof createCouncilChamber>;

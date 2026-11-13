@@ -558,4 +558,3 @@ export function createStationWings(ctx: WingsContext) {
     },
   };
 }
-export type StationWings = ReturnType<typeof createStationWings>;

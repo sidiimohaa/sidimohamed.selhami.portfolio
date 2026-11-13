@@ -51,8 +51,6 @@ let phase = Math.random() * 0.1;
 const target = { storm: 0, outage: 0 };
 let flash = 0;
 
-/** The hour as a share of the cycle (only used to tell the visitor what it is). */
-export const cityHour = () => phase;
 export const setCityHour = (value: number) => (phase = ((value % 1) + 1) % 1);
 export const setCityStorm = (level: number) => (target.storm = level);
 export const setCityOutage = (level: number, x?: number, z?: number, radius?: number) => {
@@ -89,9 +87,4 @@ export function lightCity(sun: THREE.DirectionalLight, sky: THREE.HemisphereLigh
   sun.intensity = base.sun * (1 - night.value * 0.8) * (1 + day.value * 0.7) * (1 - storm.value * 0.65) + bolt.value * 1.6;
   sky.intensity = base.sky * (1 - night.value * 0.45) * (1 + day.value * 0.6) * (1 - storm.value * 0.3) + bolt.value * 0.8;
   sun.color.copy(warm).lerp(blue, night.value).lerp(white, day.value);
-}
-
-export function resetCitySky() {
-  target.storm = 0;
-  target.outage = 0;
 }

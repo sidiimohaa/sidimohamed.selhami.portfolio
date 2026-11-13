@@ -10,6 +10,7 @@ import { landingArrival } from "./landingFlight";
 import { createTatooineZone } from "./tatooineZone";
 import AtmosphereEntry, { ENTRY_SECONDS } from "./AtmosphereEntry";
 import { breathe, warmUp } from "./render/warmUp";
+import { RUN_SPEED, WALK_SPEED } from "./surfaceNavigation";
 import BountyProjectPanel from "./BountyProjectPanel";
 import PassionsViewer from "./PassionsViewer";
 import { createEndorZone } from "./endorZone";
@@ -53,8 +54,8 @@ type Phase = "arrival" | "explore" | "takeoff" | "board";
 const EYE = 1.7,
   ARRIVAL = 6.2,
   TAKEOFF = 3,
-  WALK = 3.8,
-  RUN = 7,
+  WALK = WALK_SPEED,
+  RUN = RUN_SPEED,
   RING = 9.6;
 const ease = (t: number) => {
   const k = THREE.MathUtils.clamp(t, 0, 1);

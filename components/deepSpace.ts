@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { Lensflare, LensflareElement } from "three/examples/jsm/objects/Lensflare.js";
 
 // The depth of open space: three star shells at different distances that slide at different rates
 // as the ship travels, dust motes drifting past the hull, and the system's sun with its flare.
@@ -251,73 +250,6 @@ export function createSpaceDust(capacity: number, pixelRatio: number) {
       points.visible = visible > 0;
     },
     setPixelRatio: (ratio: number) => (uniforms.pixelRatio.value = ratio),
-  };
-}
-
-function flareTexture(draw: (ctx: CanvasRenderingContext2D, size: number) => void, size = 128) {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  draw(canvas.getContext("2d")!, size);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-// A warm stellar core and restrained flare. A fixed position gives the system real parallax;
-// callers without one retain the distant directional sun.
-export function createSun(direction: THREE.Vector3, fixedPosition?: THREE.Vector3) {
-  const group = new THREE.Group();
-  const offset = direction.clone().normalize().multiplyScalar(280);
-  const halo = flareTexture((ctx, size) => {
-    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, "rgba(255,250,236,1)");
-    g.addColorStop(0.08, "rgba(255,236,200,.95)");
-    g.addColorStop(0.22, "rgba(255,196,130,.32)");
-    g.addColorStop(0.55, "rgba(255,150,90,.07)");
-    g.addColorStop(1, "rgba(255,140,80,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-  }, 256);
-  const ghost = flareTexture((ctx, size) => {
-    const g = ctx.createRadialGradient(size / 2, size / 2, size * 0.32, size / 2, size / 2, size / 2);
-    g.addColorStop(0, "rgba(255,255,255,0)");
-    g.addColorStop(0.7, "rgba(255,255,255,.22)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-  });
-  const disk = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: halo,
-      color: 0xfff1dc,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-      fog: false,
-    }),
-  );
-  disk.scale.setScalar(fixedPosition ? 8 : 34);
-  group.add(disk);
-  const flare = new Lensflare();
-  flare.addElement(new LensflareElement(halo, fixedPosition ? 110 : 420, 0, new THREE.Color(0xffe6c4)));
-  flare.addElement(new LensflareElement(ghost, 60, 0.42, new THREE.Color(0x7fb8ff)));
-  flare.addElement(new LensflareElement(ghost, 90, 0.66, new THREE.Color(0xb48cff)));
-  flare.addElement(new LensflareElement(ghost, 44, 0.86, new THREE.Color(0x8fe4ff)));
-  flare.addElement(new LensflareElement(ghost, 130, 1.08, new THREE.Color(0xffc48a)));
-  group.add(flare);
-  return {
-    group,
-    update: (camera: THREE.Camera, flareOn: boolean) => {
-      if (fixedPosition) group.position.copy(fixedPosition);
-      else group.position.copy(camera.position).add(offset);
-      flare.visible = flareOn;
-    },
-    dispose: () => {
-      halo.dispose();
-      ghost.dispose();
-      flare.dispose();
-    },
   };
 }
 

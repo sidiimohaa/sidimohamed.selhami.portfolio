@@ -66,4 +66,3 @@ export function createWalkArea(origin: THREE.Vector3, yaw: number, shapes: Shape
     },
   };
 }
-export type WalkArea = ReturnType<typeof createWalkArea>;

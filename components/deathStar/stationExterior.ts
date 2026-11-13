@@ -73,4 +73,3 @@ export function createStationExterior() {
     charge: (value: number) => (globeMaterial.uniforms.charge.value = value),
   };
 }
-export type StationExterior = ReturnType<typeof createStationExterior>;

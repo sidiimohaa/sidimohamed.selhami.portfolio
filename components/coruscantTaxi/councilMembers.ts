@@ -546,4 +546,3 @@ function buildMember(member: (typeof COUNCIL_MEMBERS)[number]) {
     return { ...member, group, trunk, head, hologram, phase: member.seat * 1.7, yaw: 0, pitch: 0 };
   }
 }
-export type CouncilFigure = ReturnType<typeof createCouncilMembers>[number];

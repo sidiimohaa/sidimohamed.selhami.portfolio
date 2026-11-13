@@ -363,4 +363,3 @@ export function createSenateHall(glow: THREE.Texture, quality: number) {
     },
   };
 }
-export type SenateHall = ReturnType<typeof createSenateHall>;

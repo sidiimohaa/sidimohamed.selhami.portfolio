@@ -18,6 +18,7 @@ import { IMPERIAL_PRESENCES, type ImperialPresenceId } from "./imperialRoster";
 import type { PerformanceKind } from "./stationPresences";
 import { COMPACTOR, DETENTION_EXIT, TRACTOR_CENTRE } from "./stationWings";
 import { createEscapeRun, type EscapeRun, type EscapeStatus } from "./stationEscape";
+import { RUN_SPEED as RUN, WALK_SPEED as WALK } from "../surfaceNavigation";
 
 // The Death Star, inside: a professional record to explore in the first person. The approach and
 // landing in the hangar play first (skippable), then the visitor walks the station; the Recruiter
@@ -427,20 +428,18 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
         const exploring = live.current.phase === "explore";
         const busy = !!(live.current.panel || live.current.recruiter || live.current.menu || acting.current || warp.current);
         const held = keys.current;
+        // The same controls as on every world: forward and back move, left and right turn.
         let forward = 0,
-          strafe = 0,
           turn = 0;
         if (exploring && !busy && !ride.current) {
           if (held.has("z") || held.has("w") || held.has("ArrowUp")) forward += 1;
           if (held.has("s") || held.has("ArrowDown")) forward -= 1;
-          if (held.has("q") || held.has("a")) strafe -= 1;
-          if (held.has("d")) strafe += 1;
-          if (held.has("ArrowLeft")) turn += 1;
-          if (held.has("ArrowRight")) turn -= 1;
-          forward += -stick.current.y;
-          strafe += stick.current.x;
+          if (held.has("q") || held.has("a") || held.has("ArrowLeft")) turn += 1;
+          if (held.has("d") || held.has("ArrowRight")) turn -= 1;
+          forward = THREE.MathUtils.clamp(forward - stick.current.y, -1, 1);
+          turn = THREE.MathUtils.clamp(turn - stick.current.x, -1, 1);
         }
-        if (forward || strafe || turn) {
+        if (forward || turn) {
           route.current = null;
           facing.current = null;
         }
@@ -453,7 +452,7 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
           if (Math.abs(diff) < 0.01) facing.current = null;
         }
         const run = held.has("Shift");
-        const speed = run ? 6.4 : 3.9;
+        const speed = run ? RUN : WALK;
         let mx = 0,
           mz = 0;
         if (route.current && !busy) {
@@ -469,19 +468,16 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
               then?.();
             }
           } else {
-            mx = (dx / d) * Math.min(d, 6.2 * dt);
-            mz = (dz / d) * Math.min(d, 6.2 * dt);
+            mx = (dx / d) * Math.min(d, RUN * dt);
+            mz = (dz / d) * Math.min(d, RUN * dt);
             const want = Math.atan2(-dx, -dz);
             const diff = Math.atan2(Math.sin(want - p.yaw), Math.cos(want - p.yaw));
             p.yaw += diff * Math.min(1, dt * (reduced ? 12 : 4));
             p.pitch = THREE.MathUtils.damp(p.pitch, -0.04, 3, dt);
           }
-        } else if (forward || strafe) {
-          const len = Math.min(1, Math.hypot(forward, strafe));
-          const ang = Math.atan2(strafe, forward);
-          const k = speed * dt * len;
-          mx = (-Math.sin(p.yaw) * Math.cos(ang) + Math.cos(p.yaw) * Math.sin(ang)) * k;
-          mz = (-Math.cos(p.yaw) * Math.cos(ang) - Math.sin(p.yaw) * Math.sin(ang)) * k;
+        } else if (forward) {
+          mx = -Math.sin(p.yaw) * forward * speed * dt;
+          mz = -Math.cos(p.yaw) * forward * speed * dt;
         }
         if (mx || mz) {
           if (s.isFree(p.x + mx, p.z + mz)) {
@@ -791,7 +787,7 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     } catch {
       // A pointer the browser no longer tracks: the gesture still works without capture.
     }
-    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, lx: event.clientX, ly: event.clientY, t: performance.now(), stick: isTouch && event.clientX - bounds.left < bounds.width * 0.45, moved: 0 };
+    gesture.current = { id: event.pointerId, x: event.clientX, y: event.clientY, lx: event.clientX, ly: event.clientY, t: performance.now(), stick: isTouch && event.clientX - bounds.left < bounds.width / 2, moved: 0 };
     if (gesture.current.stick) setStickAt({ x: event.clientX - bounds.left, y: event.clientY - bounds.top, dx: 0, dy: 0 });
   };
   // With a mouse, hovering something clickable names it.
@@ -827,16 +823,18 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
     g.moved = Math.max(g.moved, Math.hypot(dx, dy));
     facing.current = null;
     if (g.stick) {
-      const len = Math.min(1, Math.hypot(dx, dy) / 55);
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const len = Math.min(1, Math.hypot(dx, dy) / (Math.min(bounds.width, bounds.height) * 0.2));
       const a = Math.atan2(dy, dx);
       stick.current = { x: Math.cos(a) * len, y: Math.sin(a) * len };
       setStickAt((value) => (value ? { ...value, dx: Math.cos(a) * len * 40, dy: Math.sin(a) * len * 40 } : value));
       return;
     }
+    // As on the worlds, the view is grabbed: one screen height of drag turns about one field of view.
     const p = player.current;
-    const k = event.pointerType === "mouse" ? 0.0042 : 0.0065;
-    p.yaw -= (event.clientX - g.lx) * k;
-    p.pitch = THREE.MathUtils.clamp(p.pitch - (event.clientY - g.ly) * k * 0.8, -0.75, 0.6);
+    const k = THREE.MathUtils.degToRad(stageRef.current?.camera.fov ?? 60) / Math.max(event.currentTarget.clientHeight, 1);
+    p.yaw += (event.clientX - g.lx) * k;
+    p.pitch = THREE.MathUtils.clamp(p.pitch + (event.clientY - g.ly) * k, -0.6, 0.9);
     g.lx = event.clientX;
     g.ly = event.clientY;
   };
@@ -978,8 +976,8 @@ export default function DeathStarStation({ start, section, reduced, sound, onClo
               </motion.button>
             )}
           </AnimatePresence>
-          {!touch && <p className="ds-help mono">ZQSD / WASD se déplacer · glisser pour regarder · clic pour aller · E interagir · M plan</p>}
-          {touch && <p className="ds-help mono">Pouce gauche : avancer · glisser à droite : regarder · toucher : aller</p>}
+          {!touch && <p className="ds-help mono">Flèches ou ZQSD pour marcher · glisser pour regarder · Maj pour courir · clic pour aller · E interagir · M plan</p>}
+          {touch && <p className="ds-help mono">Glissez à gauche pour marcher · à droite pour regarder · toucher : aller</p>}
           {stickAt && (
             <div className="ds-stick" style={{ left: stickAt.x, top: stickAt.y }} aria-hidden="true">
               <i style={{ transform: `translate(${stickAt.dx}px, ${stickAt.dy}px)` }} />

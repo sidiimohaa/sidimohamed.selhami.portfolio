@@ -1,4 +1,9 @@
 import * as THREE from "three";
+
+// Walking and running speeds on foot, in m/s: the same on every world and aboard the station.
+export const WALK_SPEED = 3.8,
+  RUN_SPEED = 7;
+
 /** A small navigation grid shared by automatic walking and the physical collision rules. */
 export function createSurfaceNavigator(radius: number, isFree: (x: number, z: number) => boolean) {
     const step = 1.25, half = Math.ceil(radius / step), size = half * 2 + 1;
